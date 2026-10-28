@@ -20,9 +20,9 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -41,9 +41,9 @@ jobs:
     name: Typecheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -59,12 +59,12 @@ jobs:
         run: npm run typecheck
 
   test:
-    name: Testes unitarios
+    name: Testes e cobertura
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -74,8 +74,11 @@ jobs:
       - name: Gerar client do Prisma
         run: npx prisma generate --schema apps/api/prisma/schema.prisma
 
-      - name: Testes da API e do frontend
-        run: npm test
+      # `test:cov` em vez de `test`: alem de rodar os mesmos testes, aplica os
+      # limites de cobertura declarados no vitest.config (100% em dominio e
+      # aplicacao, 95% global). Sem isto o numero do badge nao seria vigiado.
+      - name: Testes da API e do frontend, com cobertura
+        run: npm run test:cov
 
   test-integration:
     name: Testes de integracao
@@ -103,9 +106,9 @@ jobs:
       DATABASE_URL_TEST: postgresql://devradar:devradar@localhost:5432/devradar_test?schema=public
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -128,9 +131,9 @@ jobs:
     name: Build dos workspaces
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -152,7 +155,7 @@ jobs:
     # As imagens repetem install e build; so vale constru-las se o codigo passou.
     needs: [lint, typecheck, test, build]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: docker/setup-buildx-action@v3
 
