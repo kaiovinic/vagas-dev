@@ -1,0 +1,39 @@
+# Proxy reverso de borda. O Caddy cuida do TLS sozinho: emite e renova o
+# certificado do Let's Encrypt no primeiro acesso e redireciona HTTP -> HTTPS
+# sem configuracao extra.
+#
+# Com DEVRADAR_DOMAIN=localhost ele nao chama o Let's Encrypt: assina com uma CA
+# local, o que serve para validar a pilha na maquina antes do deploy.
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$DEVRADAR_DOMAIN} {
+	encode zstd gzip
+
+	# Politica de resposta concentrada na borda, e nao no nginx: aqui vale para
+	# tudo de uma vez, inclusive o fallback do SPA. No nginx, um `add_header`
+	# dentro de um `location` descarta os herdados do `server`, e os headers
+	# sumiam justamente na resposta do index.html.
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options SAMEORIGIN
+		Referrer-Policy strict-origin-when-cross-origin
+		# Nao vale anunciar o servidor de origem.
+		-Server
+		# HSTS fica de fora de proposito: com DEVRADAR_DOMAIN=localhost ele
+		# prenderia o navegador em HTTPS para qualquer projeto em localhost.
+		# Em producao, com dominio proprio, descomente:
+		# Strict-Transport-Security "max-age=31536000"
+	}
+
+	# Todo o trafego vai para o Nginx, que serve o SPA e repassa /api para a
+	# API. Uma rota so na borda evita divergencia entre os dois proxies.
+	reverse_proxy web:80
+
+	log {
+		output stdout
+		format console
+	}
+}

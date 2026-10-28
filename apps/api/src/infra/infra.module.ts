@@ -1,0 +1,71 @@
+import { Module } from '@nestjs/common';
+
+import { HTTP_CLIENT } from '@/domain/providers/http-client';
+import {
+  JOB_SCRAPERS,
+  type IJobScraperProvider,
+} from '@/domain/providers/job-scraper-provider';
+import { TELEGRAM_NOTIFIER } from '@/domain/providers/telegram-notifier';
+import { CAPTURE_LOG_REPOSITORY } from '@/domain/repositories/capture-log-repository';
+import { DASHBOARD_METRICS_REPOSITORY } from '@/domain/repositories/dashboard-metrics-repository';
+import { MARKET_INSIGHTS_REPOSITORY } from '@/domain/repositories/market-insights-repository';
+import { JOB_QUERY_REPOSITORY } from '@/domain/repositories/job-query-repository';
+import { JOB_WRITE_REPOSITORY } from '@/domain/repositories/job-write-repository';
+import { AxiosHttpClient } from '@/infra/http/axios-http-client';
+import { TelegramHttpNotifier } from '@/infra/notifications/telegram-http-notifier';
+import { PrismaCaptureLogRepository } from '@/infra/prisma/prisma-capture-log-repository';
+import { PrismaJobQueryRepository } from '@/infra/prisma/prisma-job-query-repository';
+import { PrismaMarketInsightsRepository } from '@/infra/prisma/prisma-market-insights-repository';
+import { PrismaJobRepository } from '@/infra/prisma/prisma-job-repository';
+import { PrismaService } from '@/infra/prisma/prisma.service';
+import { GithubIssuesScraperProvider } from '@/infra/scrapers/github-issues-scraper-provider';
+import { GupyScraperProvider } from '@/infra/scrapers/gupy-scraper-provider';
+import { LinkedinGuestScraperProvider } from '@/infra/scrapers/linkedin-guest-scraper-provider';
+import { ProgramathorScraperProvider } from '@/infra/scrapers/programathor-scraper-provider';
+import { RemotarScraperProvider } from '@/infra/scrapers/remotar-scraper-provider';
+
+/**
+ * Fiacao da infraestrutura. Novos coletores entram apenas nesta lista, sob o
+ * multi-provider `JOB_SCRAPERS`, sem tocar no orquestrador (OCP).
+ */
+const SCRAPERS = [
+  GupyScraperProvider,
+  GithubIssuesScraperProvider,
+  LinkedinGuestScraperProvider,
+  RemotarScraperProvider,
+  ProgramathorScraperProvider,
+];
+
+@Module({
+  providers: [
+    PrismaService,
+    PrismaJobRepository,
+    PrismaJobQueryRepository,
+    PrismaCaptureLogRepository,
+    PrismaMarketInsightsRepository,
+    { provide: HTTP_CLIENT, useClass: AxiosHttpClient },
+    { provide: TELEGRAM_NOTIFIER, useClass: TelegramHttpNotifier },
+    ...SCRAPERS,
+    {
+      provide: JOB_SCRAPERS,
+      useFactory: (...scrapers: IJobScraperProvider[]): IJobScraperProvider[] => scrapers,
+      inject: SCRAPERS,
+    },
+    { provide: JOB_WRITE_REPOSITORY, useExisting: PrismaJobRepository },
+    { provide: DASHBOARD_METRICS_REPOSITORY, useExisting: PrismaJobRepository },
+    { provide: JOB_QUERY_REPOSITORY, useExisting: PrismaJobQueryRepository },
+    { provide: CAPTURE_LOG_REPOSITORY, useExisting: PrismaCaptureLogRepository },
+    { provide: MARKET_INSIGHTS_REPOSITORY, useExisting: PrismaMarketInsightsRepository },
+  ],
+  exports: [
+    JOB_SCRAPERS,
+    JOB_WRITE_REPOSITORY,
+    DASHBOARD_METRICS_REPOSITORY,
+    JOB_QUERY_REPOSITORY,
+    CAPTURE_LOG_REPOSITORY,
+    MARKET_INSIGHTS_REPOSITORY,
+    TELEGRAM_NOTIFIER,
+    PrismaService,
+  ],
+})
+export class InfraModule {}

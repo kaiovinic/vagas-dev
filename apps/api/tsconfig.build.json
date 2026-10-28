@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "// scripts": "CLI de uso manual (telegram:test); typecheca junto, mas nao entra no dist",
+  "exclude": ["node_modules", "dist", "test", "scripts", "**/*.spec.ts"]
+}

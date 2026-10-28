@@ -1,0 +1,49 @@
+# --- Dependencias e artefatos de build -----------------------------------
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# --- Segredos ------------------------------------------------------------
+# Pega .env, .env.prod, .env.local, .env.production.local e afins. Os exemplos
+# versionados sao a excecao: documentam quais variaveis existem, sem valor.
+.env
+.env.*
+!.env.example
+!.env.prod.example
+
+# --- Certificados e chaves -----------------------------------------------
+# Em producao o Caddy guarda os certificados em volume nomeado do Docker, fora
+# do repositorio. Estes padroes cobrem o caso de alguem trocar por bind mount
+# local, ou gerar um certificado de teste na mao.
+infra/caddy/data/
+infra/caddy/config/
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+
+# --- Dumps e backups de banco --------------------------------------------
+# ATENCAO: nao ignore `*.sql`. As migrations do Prisma sao arquivos .sql e
+# PRECISAM estar versionadas — sem elas o `migrate deploy` do container de
+# producao nao tem o que aplicar.
+*.dump
+*.sql.gz
+*.sql.zip
+*.bak
+dumps/
+backups/
+
+# --- Logs e temporarios --------------------------------------------------
+*.log
+npm-debug.log*
+.npm/
+.cache/
+tmp/
+
+# --- Sistema operacional e editor ----------------------------------------
+.DS_Store
+Thumbs.db
+*.swp

@@ -1,0 +1,160 @@
+{
+  "meta": {
+    "total": 3653,
+    "per_page": 50,
+    "current_page": 1,
+    "last_page": 74,
+    "first_page": 1,
+    "first_page_url": "/?page=1",
+    "last_page_url": "/?page=74",
+    "next_page_url": "/?page=2",
+    "previous_page_url": null
+  },
+  "data": [
+    {
+      "id": 168232,
+      "companyId": 8313,
+      "companyDisplayName": null,
+      "title": "Consultor SAP MM Sênior",
+      "subtitle": "Projeto de adequação de processos de compras e suprimentos com foco em SAP MM e Reforma Tributária.",
+      "city": null,
+      "state": null,
+      "type": "remote",
+      "expired": false,
+      "active": true,
+      "externalLink": "https://ecommit.inhire.app/vagas/5d66fe02-f9a6-44b0-bb24-e45a377d4ecf/consultor-sap-mm-sr",
+      "isExternalLink": true,
+      "createdAt": "2026-10-26T12:14:00.171-03:00",
+      "updatedAt": "2026-10-26T12:14:00.304-03:00",
+      "description": "<p>A EcommIT busca um(a) Consultor SAP MM Sênior para atuar em um projeto de adequação dos processos de compras e suprimentos aos impactos da Reforma Tributária, com foco em SAP MM. Esta é uma excelente oportunidade para profissionais que desejam atu",
+      "company": {
+        "id": 8313,
+        "name": "EcomIT",
+        "link": "https://ecommit.com.br"
+      },
+      "jobTags": [
+        {
+          "id": 562646,
+          "jobId": 168232,
+          "tagId": 2,
+          "createdAt": "2026-10-26T12:14:00.332-03:00",
+          "updatedAt": "2026-10-26T12:14:00.332-03:00",
+          "tag": {
+            "id": 2,
+            "name": "🤝🏽 PJ",
+            "createdAt": "2022-06-14T20:58:34.930-03:00",
+            "updatedAt": "2022-06-14T20:58:34.930-03:00",
+            "type": "job"
+          }
+        },
+        {
+          "id": 562647,
+          "jobId": 168232,
+          "tagId": 23,
+          "createdAt": "2026-10-26T12:14:00.335-03:00",
+          "updatedAt": "2026-10-26T12:14:00.335-03:00",
+          "tag": {
+            "id": 23,
+            "name": "🧓🏽 Sênior",
+            "createdAt": "2022-12-13T12:05:35.999-03:00",
+            "updatedAt": "2022-12-13T12:05:35.999-03:00",
+            "type": "job"
+          }
+        },
+        {
+          "id": 562648,
+          "jobId": 168232,
+          "tagId": 4,
+          "createdAt": "2026-10-26T12:14:00.338-03:00",
+          "updatedAt": "2026-10-26T12:14:00.338-03:00",
+          "tag": {
+            "id": 4,
+            "name": "🌍 100% Remoto",
+            "createdAt": "2022-06-14T20:58:34.932-03:00",
+            "updatedAt": "2022-06-14T20:58:34.932-03:00",
+            "type": "job"
+          }
+        }
+      ],
+      "author": null
+    },
+    {
+      "id": 168231,
+      "companyId": 8456,
+      "companyDisplayName": null,
+      "title": "Vendedor(a) Externo Zona Oeste - Banco de Talentos",
+      "subtitle": "Atuação em vendas externas com prospecção e negociação direta com clientes.",
+      "city": null,
+      "state": null,
+      "type": "remote",
+      "expired": false,
+      "active": true,
+      "externalLink": "https://yandeh.inhire.app/vagas/44463b75-e10f-453d-a5e7-cb2d84c01791/vendedora-externo-zona-oeste-banco-de-talentos",
+      "isExternalLink": true,
+      "createdAt": "2026-10-26T12:13:47.211-03:00",
+      "updatedAt": "2026-10-26T12:13:49.227-03:00",
+      "description": "<p>O(A) Vendedor(a) Externo é responsável por promover os produtos ou serviços de uma empresa diretamente para clientes em potencial fora das instalações da empresa. Este profissional desempenha um papel crucial na geração de receita e no crescimento",
+      "company": {
+        "id": 8456,
+        "name": "Yandeh",
+        "link": "https://yandeh.com.br"
+      },
+      "jobTags": [
+        {
+          "id": 562645,
+          "jobId": 168231,
+          "tagId": 4,
+          "createdAt": "2026-10-26T12:13:47.272-03:00",
+          "updatedAt": "2026-10-26T12:13:47.272-03:00",
+          "tag": {
+            "id": 4,
+            "name": "🌍 100% Remoto",
+            "createdAt": "2022-06-14T20:58:34.932-03:00",
+            "updatedAt": "2022-06-14T20:58:34.932-03:00",
+            "type": "job"
+          }
+        }
+      ],
+      "author": null
+    },
+    {
+      "id": 168230,
+      "companyId": 8456,
+      "companyDisplayName": null,
+      "title": "Vendedor(a) Externo Zona Leste - Banco de Talentos",
+      "subtitle": "Vendas externas e prospecção de clientes",
+      "city": null,
+      "state": null,
+      "type": "remote",
+      "expired": false,
+      "active": true,
+      "externalLink": "https://yandeh.inhire.app/vagas/42db31ef-3d42-465d-9b52-8ff4fadf86f1/vendedora-externo-zona-leste-banco-de-talentos",
+      "isExternalLink": true,
+      "createdAt": "2026-10-26T12:13:34.595-03:00",
+      "updatedAt": "2026-10-26T12:13:36.852-03:00",
+      "description": "<p>O(A) Vendedor(a) Externo é responsável por promover os produtos ou serviços de uma empresa diretamente para clientes em potencial fora das instalações da empresa. Este profissional desempenha um papel crucial na geração de receita e no crescimento",
+      "company": {
+        "id": 8456,
+        "name": "Yandeh",
+        "link": "https://yandeh.com.br"
+      },
+      "jobTags": [
+        {
+          "id": 562644,
+          "jobId": 168230,
+          "tagId": 4,
+          "createdAt": "2026-10-26T12:13:34.661-03:00",
+          "updatedAt": "2026-10-26T12:13:34.661-03:00",
+          "tag": {
+            "id": 4,
+            "name": "🌍 100% Remoto",
+            "createdAt": "2022-06-14T20:58:34.932-03:00",
+            "updatedAt": "2022-06-14T20:58:34.932-03:00",
+            "type": "job"
+          }
+        }
+      ],
+      "author": null
+    }
+  ]
+}

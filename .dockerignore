@@ -1,0 +1,27 @@
+# O contexto de build e a raiz do monorepo. Sem esta lista, o `docker build`
+# sobe centenas de MB de node_modules e dist para o daemon antes de comecar.
+node_modules
+**/node_modules
+dist
+**/dist
+coverage
+**/coverage
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# Segredos nunca entram na imagem: as variaveis vem do ambiente do container.
+.env
+.env.*
+!.env.example
+!.env.prod.example
+
+.git
+.github
+.claude
+*.log
+Dockerfile
+**/Dockerfile
+.dockerignore
+docker-compose*.yml
+README.md
+CLAUDE.md

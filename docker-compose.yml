@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: devradar-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: devradar
+      POSTGRES_PASSWORD: devradar
+      POSTGRES_DB: devradar
+      TZ: America/Bahia
+      PGTZ: America/Bahia
+    ports:
+      # Porta do host configuravel: em maquinas com um PostgreSQL ja instalado o
+      # servico local ocupa a 5432 e vence o mapeamento do container.
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - devradar-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U devradar -d devradar']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  devradar-postgres-data:

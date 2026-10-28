@@ -1,0 +1,181 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Um push novo na mesma branch cancela a execucao anterior, em vez de manter
+# duas filas competindo pelos runners.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      # O lint usa regras com informacao de tipo (no-floating-promises e
+      # companhia), e elas precisam que o client do Prisma exista.
+      - name: Gerar client do Prisma
+        run: npx prisma generate --schema apps/api/prisma/schema.prisma
+
+      - name: ESLint (api e web)
+        run: npm run lint
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      # O client do Prisma e gerado, nao versionado: sem ele o tsc nao encontra
+      # os tipos de `@prisma/client` e o typecheck falha por motivo errado.
+      - name: Gerar client do Prisma
+        run: npx prisma generate --schema apps/api/prisma/schema.prisma
+
+      - name: Typecheck (api e web)
+        run: npm run typecheck
+
+  test:
+    name: Testes unitarios
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Gerar client do Prisma
+        run: npx prisma generate --schema apps/api/prisma/schema.prisma
+
+      - name: Testes da API e do frontend
+        run: npm test
+
+  test-integration:
+    name: Testes de integracao
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: devradar
+          POSTGRES_PASSWORD: devradar
+          POSTGRES_DB: devradar_test
+        ports:
+          - 5432:5432
+        # Sem o healthcheck o job comeca antes do banco aceitar conexao.
+        options: >-
+          --health-cmd "pg_isready -U devradar -d devradar_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # O helper de teste le esta variavel, e nunca a DATABASE_URL: um TRUNCATE
+      # aqui jamais pode cair no banco de desenvolvimento.
+      DATABASE_URL_TEST: postgresql://devradar:devradar@localhost:5432/devradar_test?schema=public
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Gerar client do Prisma
+        run: npx prisma generate --schema apps/api/prisma/schema.prisma
+
+      # Mesmo comando do entrypoint de producao: valida as migrations tambem.
+      - name: Aplicar migrations no banco de teste
+        run: npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL_TEST }}
+
+      - name: Testes de integracao
+        run: npm run test:int
+
+  build:
+    name: Build dos workspaces
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Gerar client do Prisma
+        run: npx prisma generate --schema apps/api/prisma/schema.prisma
+
+      - name: Build (api e web)
+        run: npm run build
+
+      - name: Conferir o entrypoint compilado
+        run: test -f apps/api/dist/main.js && test -f apps/web/dist/index.html
+
+  docker:
+    name: Build das imagens
+    runs-on: ubuntu-latest
+    # As imagens repetem install e build; so vale constru-las se o codigo passou.
+    needs: [lint, typecheck, test, build]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # `load: false` e `push: false`: aqui o objetivo e so provar que o
+      # Dockerfile constroi. A publicacao no registry entra quando houver
+      # servidor de destino definido.
+      - name: Imagem da API
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: false
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Imagem do frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: false
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Validar a configuracao do compose de producao
+        run: docker compose -f docker-compose.prod.yml --env-file .env.prod.example config --quiet

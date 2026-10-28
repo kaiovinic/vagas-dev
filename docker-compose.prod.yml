@@ -1,0 +1,107 @@
+# Producao. Sobe com:
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# Nenhum servico publica porta no host exceto o proxy: o PostgreSQL e a API
+# existem apenas dentro das redes do compose.
+
+# Sem `container_name`: o compose nomeia como <projeto>-<servico>-1, o que evita
+# colisao com o `docker-compose.yml` de desenvolvimento, que usa nomes fixos.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      # Sem `:?` o compose assumiria string vazia e o banco subiria sem senha.
+      POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER no .env.prod}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env.prod}
+      POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB no .env.prod}
+      TZ: America/Bahia
+      PGTZ: America/Bahia
+    volumes:
+      - devradar-postgres-data:/var/lib/postgresql/data
+    networks:
+      - data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  api:
+    build:
+      # Contexto na raiz: o package-lock.json e unico para os dois workspaces.
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: devradar-api:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3333
+      TZ: America/Bahia
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      # Sem estas duas a API sobe, avisa em WARN no boot e nao alerta ninguem.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      # Mesma origem via Nginx; so precisa de valor se a API for exposta direto.
+      WEB_ORIGIN: ${WEB_ORIGIN:-*}
+    depends_on:
+      postgres:
+        # O entrypoint roda `prisma migrate deploy` antes do servidor: comecar
+        # antes do banco aceitar conexao faria o container morrer em loop.
+        condition: service_healthy
+    networks:
+      # `data` alcanca o PostgreSQL; `backend` da saida para a internet, que os
+      # coletores precisam para raspar as fontes de vagas.
+      - data
+      - backend
+    # O healthcheck vem do Dockerfile (GET /api/health, que consulta o banco).
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: devradar-web:latest
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - backend
+      - edge
+
+  proxy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    environment:
+      # Dominio real em producao; `localhost` para validar na maquina local.
+      DEVRADAR_DOMAIN: ${DEVRADAR_DOMAIN:?defina DEVRADAR_DOMAIN no .env.prod}
+      # E-mail do Let's Encrypt. O default nao e cosmetico: o Caddyfile usa a
+      # diretiva `email`, que nao aceita valor vazio e derruba o proxy em loop
+      # de parse se ACME_EMAIL ficar em branco.
+      ACME_EMAIL: ${ACME_EMAIL:-admin@${DEVRADAR_DOMAIN}}
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificados e chaves de conta: sem persistir, cada restart pede
+      # certificado novo e bate no rate limit do Let's Encrypt.
+      - devradar-caddy-data:/data
+      - devradar-caddy-config:/config
+    depends_on:
+      - web
+    networks:
+      - edge
+
+volumes:
+  devradar-postgres-data:
+  devradar-caddy-data:
+  devradar-caddy-config:
+
+networks:
+  # Sem saida para a internet: o banco so conversa com a API.
+  data:
+    internal: true
+  backend:
+  edge:

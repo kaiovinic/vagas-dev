@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="100%" height="100%" fill="none">
+  <defs>
+    <!-- Gradiente de Fundo -->
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+
+    <!-- Gradiente da Marca (Ciano para Roxo) -->
+    <linearGradient id="brandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00F5FF" />
+      <stop offset="50%" stop-color="#00A8FF" />
+      <stop offset="100%" stop-color="#7B2CBF" />
+    </linearGradient>
+  </defs>
+
+  <!-- Fundo com cantos arredondados para contraste em qualquer tema -->
+  <rect width="64" height="64" rx="14" fill="url(#bgGradient)" stroke="#1E293B" stroke-width="1.5" />
+
+  <!-- Ondas do Radar -->
+  <path d="M 12 24 A 16 16 0 0 0 12 40" stroke="url(#brandGradient)" stroke-width="2.5" stroke-linecap="round" opacity="0.6" />
+  <path d="M 52 24 A 16 16 0 0 1 52 40" stroke="url(#brandGradient)" stroke-width="2.5" stroke-linecap="round" opacity="0.6" />
+
+  <!-- Estrutura do Pin / Radar -->
+  <path d="M 32 49 L 24 38 M 32 49 L 40 38" stroke="url(#brandGradient)" stroke-width="3" stroke-linecap="round" />
+  <circle cx="32" cy="49" r="2" fill="#00F5FF" />
+
+  <!-- Anel Central da Lupa -->
+  <circle cx="32" cy="28" r="14" stroke="url(#brandGradient)" stroke-width="3.5" fill="#0B0F19" />
+  
+  <!-- Haste da Lupa -->
+  <path d="M 22 38 L 16 44" stroke="#00A8FF" stroke-width="3.5" stroke-linecap="round" />
+
+  <!-- Símbolo de Código { / } -->
+  <text x="32" y="33.5" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#39;Segoe UI&#39;, Roboto, sans-serif" font-weight="900" font-size="12" fill="#00F5FF" text-anchor="middle">
+    {<tspan fill="#FFFFFF">/</tspan>}
+  </text>
+</svg>

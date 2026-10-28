@@ -1,0 +1,28 @@
+# Normalizacao de fim de linha.
+#
+# O Git desta maquina esta com core.autocrlf=true, que converte os arquivos
+# para CRLF no diretorio de trabalho. Para codigo isso e inofensivo, mas um
+# script de shell com CRLF simplesmente NAO RODA em container Linux: o kernel
+# le o shebang como "/bin/sh\r" e responde "no such file or directory".
+#
+# As entradas abaixo forcam LF nesses arquivos, no repositorio e no disco.
+
+* text=auto eol=lf
+
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.Dockerfile text eol=lf
+Caddyfile text eol=lf
+*.conf text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Binarios nunca passam por conversao.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary

@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Origem da data de publicacao: informada pela fonte ou estimada no momento da captura
+/// (algumas fontes, como a ProgramaThor, nao publicam data).
+enum PublishedAtSource {
+  SOURCE
+  CAPTURE
+}
+
+enum JobWorkModel {
+  REMOTE
+  HYBRID
+  ONSITE
+  UNKNOWN
+}
+
+enum JobScope {
+  NATIONAL
+  INTERNATIONAL
+  UNKNOWN
+}
+
+enum CaptureStatus {
+  RUNNING
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+model Job {
+  id                String            @id @default(uuid())
+  /// SHA-256 de empresa + titulo normalizados: deduplica a mesma vaga entre fontes diferentes.
+  fingerprint       String            @unique
+  source            String
+  title             String
+  company           String
+  recruiterName     String?
+  city              String?
+  isRemote          Boolean           @default(false)
+  /// Mercado da vaga: nacional, internacional ou nao identificado.
+  scope             JobScope          @default(UNKNOWN)
+  workModel         JobWorkModel      @default(UNKNOWN)
+  url               String
+  description       String            @default("")
+  tags              String[]          @default([])
+  publishedAt       DateTime
+  publishedAtSource PublishedAtSource @default(SOURCE)
+  firstSeenAt       DateTime          @default(now())
+  lastSeenAt        DateTime          @default(now())
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([publishedAt])
+  @@index([source, publishedAt])
+  @@index([isRemote, publishedAt])
+  @@index([scope, publishedAt])
+  @@index([company])
+  @@map("jobs")
+}
+
+model CaptureLog {
+  id              String        @id @default(uuid())
+  startedAt       DateTime      @default(now())
+  finishedAt      DateTime?
+  status          CaptureStatus @default(RUNNING)
+  /// Agendamento da proxima captura, exibido no cabecalho de status do dashboard.
+  nextRunAt       DateTime?
+  totalFound      Int           @default(0)
+  totalApproved   Int           @default(0)
+  totalRejected   Int           @default(0)
+  totalDuplicated Int           @default(0)
+  totalPersisted  Int           @default(0)
+  /// Falhas por fonte, sem quebrar a captura das demais (Promise.allSettled).
+  failedSources   String[]      @default([])
+  errorMessage    String?
+
+  @@index([startedAt])
+  @@index([status, startedAt])
+  @@map("capture_logs")
+}

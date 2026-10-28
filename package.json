@@ -1,0 +1,25 @@
+{
+  "name": "devradar",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run start:dev --workspace @devradar/api",
+    "dev:web": "npm run dev --workspace @devradar/web",
+    "db:up": "docker compose up -d",
+    "test": "npm run test --workspace @devradar/api && npm run test --workspace @devradar/web",
+    "test:cov": "npm run test:cov --workspace @devradar/api && npm run test:cov --workspace @devradar/web",
+    "typecheck": "npm run typecheck --workspace @devradar/api && npm run typecheck --workspace @devradar/web",
+    "lint": "npm run lint --workspace @devradar/api && npm run lint --workspace @devradar/web",
+    "build": "npm run build --workspace @devradar/api && npm run build --workspace @devradar/web",
+    "test:int": "npm run test:int --workspace @devradar/api",
+    "db:migrate": "npm run db:migrate --workspace @devradar/api"
+  },
+  "devDependencies": {
+    "eslint": "9.37.0",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "typescript-eslint": "8.46.0"
+  }
+}
