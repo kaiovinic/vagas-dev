@@ -176,6 +176,7 @@ function sourceLabel(source: string): string {
     github: 'GitHub',
     remotar: 'Remotar',
     programathor: 'ProgramaThor',
+    jobbol: 'Jobbol',
   };
 
   return labels[source] ?? source;

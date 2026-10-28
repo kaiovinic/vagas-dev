@@ -20,6 +20,7 @@ import { PrismaJobRepository } from '@/infra/prisma/prisma-job-repository';
 import { PrismaService } from '@/infra/prisma/prisma.service';
 import { GithubIssuesScraperProvider } from '@/infra/scrapers/github-issues-scraper-provider';
 import { GupyScraperProvider } from '@/infra/scrapers/gupy-scraper-provider';
+import { JobbolScraperProvider } from '@/infra/scrapers/jobbol-scraper-provider';
 import { LinkedinGuestScraperProvider } from '@/infra/scrapers/linkedin-guest-scraper-provider';
 import { ProgramathorScraperProvider } from '@/infra/scrapers/programathor-scraper-provider';
 import { RemotarScraperProvider } from '@/infra/scrapers/remotar-scraper-provider';
@@ -34,6 +35,7 @@ const SCRAPERS = [
   LinkedinGuestScraperProvider,
   RemotarScraperProvider,
   ProgramathorScraperProvider,
+  JobbolScraperProvider,
 ];
 
 @Module({

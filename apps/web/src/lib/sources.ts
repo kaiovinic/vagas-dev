@@ -10,6 +10,7 @@ const SOURCES: Readonly<Record<string, SourcePresentation>> = {
   github: { label: 'GitHub', color: 'var(--color-source-github)' },
   remotar: { label: 'Remotar', color: 'var(--color-source-remotar)' },
   programathor: { label: 'ProgramaThor', color: 'var(--color-source-programathor)' },
+  jobbol: { label: 'Jobbol', color: 'var(--color-source-jobbol)' },
 };
 
 const FALLBACK: SourcePresentation = {
