@@ -247,6 +247,7 @@ function sourceLabel(source: string): string {
     programathor: 'ProgramaThor',
     jobbol: 'Jobbol',
     solides: 'Solides',
+    coodesh: 'Coodesh',
   };
 
   return labels[source] ?? source;

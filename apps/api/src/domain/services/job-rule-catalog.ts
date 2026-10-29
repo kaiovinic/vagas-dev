@@ -13,6 +13,36 @@ export const STACK_KEYWORDS: readonly KeywordGroup[] = [
   { label: '.NET', aliases: ['.net', 'dotnet', 'net-core'] },
   { label: 'Frontend', aliases: ['front-end'] },
   { label: 'Fullstack', aliases: ['full-stack'] },
+  /**
+   * Cargo de desenvolvimento web sem framework no titulo. Entrou depois da
+   * analise dos descartes: "Desenvolvedor Web" em Salvador era reprovado por
+   * stack, embora seja exatamente o perfil que o radar procura. Note que o
+   * termo e o cargo inteiro, nao a palavra "web" solta.
+   */
+  {
+    label: 'Desenvolvimento Web',
+    aliases: [
+      'desenvolvedor web',
+      'desenvolvedora web',
+      'desenvolvimento web',
+      'web developer',
+      'programador web',
+      'desenvolvedor(a) web',
+    ],
+  },
+];
+
+/**
+ * Trechos que contem o nome de uma cidade aceita, mas se referem a outro lugar.
+ * Sao removidos do texto antes do casamento de localidade.
+ *
+ * "San Salvador" e a capital de El Salvador: uma vaga de la casava com o termo
+ * "salvador" e passava pela regra de localidade como se fosse a Bahia.
+ */
+export const LOCATION_FALSE_POSITIVES: readonly string[] = [
+  'san salvador',
+  'salvador de bahia',
+  'el salvador',
 ];
 
 /** Localidades aceitas: 100% remoto ou Salvador e Regiao Metropolitana (RMS). */

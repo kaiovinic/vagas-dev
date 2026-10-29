@@ -289,6 +289,57 @@ describe('JobRuleEngine (domain service)', () => {
     });
   });
 
+  describe('falsos positivos de localidade', () => {
+    it('nao aceita San Salvador, capital de El Salvador, como Salvador/BA', () => {
+      const job = makeJob({
+        title: 'Desenvolvedor React',
+        location: 'San Salvador',
+        workModel: 'ONSITE',
+        description: 'Vaga presencial',
+      });
+
+      const result = engine.evaluate(job, FIXED_NOW);
+
+      expect(result.matchedLocations).not.toContain('Salvador/BA');
+      expect(result.rejectionReasons).toContain(JobRejectionReason.LocationNotAllowed);
+    });
+
+    it('continua aceitando Salvador de verdade', () => {
+      const job = makeJob({
+        title: 'Desenvolvedor React',
+        location: 'Salvador - BA',
+        workModel: 'ONSITE',
+      });
+
+      expect(engine.evaluate(job, FIXED_NOW).matchedLocations).toContain('Salvador/BA');
+    });
+  });
+
+  describe('cargo de desenvolvimento web sem framework no titulo', () => {
+    it.each([
+      'Desenvolvedor Web',
+      'Desenvolvedora Web Pleno',
+      'Programador Web',
+      'Web Developer',
+    ])('aceita "%s"', (title) => {
+      const job = makeJob({ title, description: 'Vaga presencial', location: 'Salvador/BA' });
+
+      expect(engine.evaluate(job, FIXED_NOW).matchedStack).toContain('Desenvolvimento Web');
+    });
+
+    it('nao aceita a palavra "web" solta, que aparece em qualquer vaga', () => {
+      const job = makeJob({
+        title: 'Analista de Marketing',
+        description: 'Cuidar do site web da empresa',
+        location: 'Salvador/BA',
+      });
+
+      const result = engine.evaluate(job, FIXED_NOW);
+
+      expect(result.rejectionReasons).toContain(JobRejectionReason.StackNotMatched);
+    });
+  });
+
   describe('regra 5: somente mercado nacional', () => {
     it('reprova vaga marcada como internacional', () => {
       const job = makeJob({

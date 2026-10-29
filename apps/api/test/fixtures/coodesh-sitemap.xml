@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Fixture real do sitemap de vagas da Coodesh.
+  Origem : https://coodesh.com/sitemaps/jobs.xml
+  Captura: 29/10/2026
+  Recorte: 4 das 94 entradas (as 3 mais recentes e a mais antiga, para
+  exercitar o corte por lastmod). Nada foi reescrito.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://coodesh.com/jobs/forward-deployed-engineer-generative-ai-google-cloud-spanish-english-001719636</loc>
+    <lastmod>2026-10-29</lastmod>
+  </url>
+  <url>
+    <loc>https://coodesh.com/jobs/manager-smb-google-cloud-platform-english-portuguese-121823664</loc>
+    <lastmod>2026-10-28</lastmod>
+  </url>
+  <url>
+    <loc>https://coodesh.com/jobs/global-partner-incentives-manager-google-cloud-001818816</loc>
+    <lastmod>2026-10-28</lastmod>
+  </url>
+  <url>
+    <loc>https://coodesh.com/jobs/desenvolvedor-automacao-191838279</loc>
+    <lastmod>2026-06-20</lastmod>
+  </url>
+</urlset>

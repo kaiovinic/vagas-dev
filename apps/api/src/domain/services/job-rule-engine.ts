@@ -1,5 +1,6 @@
 import type { Job } from '@/domain/entities/job';
 import {
+  LOCATION_FALSE_POSITIVES,
   LOCATION_KEYWORDS,
   REMOTE_LOCATION_LABEL,
   SPAM_KEYWORDS,
@@ -168,12 +169,20 @@ export class JobRuleEngine {
       labels.add(REMOTE_LOCATION_LABEL);
     }
 
-    for (const label of matchKeywordLabels(normalizedText, this.locationGroups)) {
+    for (const label of matchKeywordLabels(withoutFalsePositives(normalizedText), this.locationGroups)) {
       labels.add(label);
     }
 
     return [...labels];
   }
+}
+
+/** Apaga os trechos que contem o nome de uma cidade aceita mas apontam para outro lugar. */
+function withoutFalsePositives(text: string): string {
+  return LOCATION_FALSE_POSITIVES.reduce(
+    (cleaned, phrase) => cleaned.split(phrase).join(' '),
+    text,
+  );
 }
 
 function buildPublicRules(): PublicJobRules {

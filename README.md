@@ -25,7 +25,7 @@ Este projeto resolve as duas coisas: busca sozinho, e **joga fora o que não é 
 
 ### Coletor
 
-Varre seis fontes a cada 2 horas: **Gupy**, **LinkedIn**, **Remotar**, **ProgramaThor**, **Sólides** e repositórios de vagas no **GitHub**.
+Varre sete fontes a cada 2 horas: **Gupy**, **LinkedIn**, **Remotar**, **ProgramaThor**, **Sólides**, **Coodesh** e repositórios de vagas no **GitHub**.
 
 > Existe também um coletor do **Jobbol**, implementado e testado, mas inativo na prática: o site fica atrás do Bot Management da Cloudflare, que responde `403` a qualquer cliente HTTP que não seja um navegador. O coletor continua registrado e passa a funcionar sem alteração caso o acesso seja liberado. Também dá para disparar na hora, pelo botão `Capturar agora` do dashboard.
 
@@ -187,12 +187,13 @@ Sobe PostgreSQL com volume persistente, a API (que aplica as migrations no entry
 | `npm run jobs:purge-international --workspace @devradar/api` | Lista (e com `-- --apply` remove) vagas internacionais antigas |
 | `npm run jobs:list-unknown --workspace @devradar/api` | Lista as vagas cujo mercado o classificador nao determinou |
 | `npm run jobs:reclassify --workspace @devradar/api` | Recalcula o mercado das vagas ja gravadas (`-- --apply` grava) |
+| `npm run jobs:analyze --workspace @devradar/api` | Mostra por que cada vaga coletada foi reprovada |
 
 ---
 
 ## Qualidade
 
-**966 testes**, rodando em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração contra um PostgreSQL real, build dos workspaces e build das duas imagens Docker.
+**992 testes**, rodando em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração contra um PostgreSQL real, build dos workspaces e build das duas imagens Docker.
 
 | Camada | Cobertura |
 |---|---|

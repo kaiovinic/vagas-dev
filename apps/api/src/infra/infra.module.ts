@@ -20,6 +20,7 @@ import { PrismaMarketInsightsRepository } from '@/infra/prisma/prisma-market-ins
 import { PrismaJobRepository } from '@/infra/prisma/prisma-job-repository';
 import { PrismaWeeklyDigestRepository } from '@/infra/prisma/prisma-weekly-digest-repository';
 import { PrismaService } from '@/infra/prisma/prisma.service';
+import { CoodeshScraperProvider } from '@/infra/scrapers/coodesh-scraper-provider';
 import { GithubIssuesScraperProvider } from '@/infra/scrapers/github-issues-scraper-provider';
 import { GupyScraperProvider } from '@/infra/scrapers/gupy-scraper-provider';
 import { LinkedinGuestScraperProvider } from '@/infra/scrapers/linkedin-guest-scraper-provider';
@@ -38,6 +39,7 @@ const SCRAPERS = [
   RemotarScraperProvider,
   ProgramathorScraperProvider,
   SolidesScraperProvider,
+  CoodeshScraperProvider,
   // JobbolScraperProvider: fora do registro de proposito. O site esta atras do
   // Bot Management da Cloudflare, que responde 403 (`cf-mitigated: challenge`)
   // a qualquer cliente HTTP que nao seja navegador — o bloqueio e por
