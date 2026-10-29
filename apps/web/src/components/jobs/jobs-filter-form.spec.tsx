@@ -74,23 +74,6 @@ describe('JobsFilterForm', () => {
     );
   });
 
-  it('oferece o filtro de mercado, com Todas marcado por padrao', () => {
-    setup();
-
-    expect(screen.getByRole('group', { name: 'Mercado' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Todos' })).toBeChecked();
-    expect(screen.getByRole('radio', { name: 'Nacionais' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Internacionais' })).toBeInTheDocument();
-  });
-
-  it('aplica o mercado assim que ele muda', async () => {
-    const { onSubmit } = setup();
-
-    await userEvent.click(screen.getByRole('radio', { name: 'Internacionais' }));
-
-    await waitFor(() => expect(lastValues(onSubmit).scope).toBe('INTERNATIONAL'));
-  });
-
   it('oferece as tres modalidades, com Todas marcada por padrao', () => {
     setup();
 
@@ -218,19 +201,11 @@ describe('toJobsListFilters', () => {
       seniorities: undefined,
       source: undefined,
       isRemote: undefined,
-      scope: undefined,
     });
   });
 
-  it.each([
-    ['NATIONAL', 'NATIONAL'],
-    ['INTERNATIONAL', 'INTERNATIONAL'],
-  ] as const)('repassa o mercado %s', (scope, esperado) => {
-    expect(toJobsListFilters({ ...EMPTY_JOBS_FILTER, scope }).scope).toBe(esperado);
-  });
-
-  it('trata "Todas" como ausencia de filtro de mercado', () => {
-    expect(toJobsListFilters(EMPTY_JOBS_FILTER).scope).toBeUndefined();
+  it('nao envia mais filtro de mercado: so existe vaga nacional no radar', () => {
+    expect(toJobsListFilters(EMPTY_JOBS_FILTER)).not.toHaveProperty('scope');
   });
 
   it('repassa os niveis de senioridade marcados', () => {

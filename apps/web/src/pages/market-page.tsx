@@ -57,15 +57,14 @@ export function MarketPage(): ReactNode {
       </Panel>
 
       <Panel
-        title="Nacional x Internacional"
-        description="Classificado na captura por contrato, moeda e localidade"
+        title="Mercado"
+        description="Vagas internacionais sao rejeitadas na captura; aqui ficam as nacionais e as que nao declaram o mercado"
       >
-        <SliceBars
-          slices={scopes}
-          linkParam="scope"
-          group="scope"
-          emptyMessage="Nenhuma vaga classificada"
-        />
+        {/*
+          Sem `linkParam`: as fatias nao linkam para a aba Vagas porque o filtro
+          de mercado saiu de la — so sobrou mercado nacional no radar.
+        */}
+        <SliceBars slices={scopes} group="scope" emptyMessage="Nenhuma vaga classificada" />
       </Panel>
 
       <div className="grid gap-4 xl:grid-cols-2">
@@ -96,7 +95,7 @@ export function MarketPage(): ReactNode {
 interface SliceBarsProps {
   readonly slices: readonly MarketSlice[];
   /** Quando presente, cada linha vira link para a aba Vagas com esse filtro. */
-  readonly linkParam?: 'tech' | 'seniority' | 'scope';
+  readonly linkParam?: 'tech' | 'seniority';
   /** Prefixo do testid: dois blocos podem ter uma fatia com o mesmo id (UNKNOWN). */
   readonly group: string;
   readonly emptyMessage: string;

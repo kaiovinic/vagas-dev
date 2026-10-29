@@ -25,12 +25,6 @@ export const SENIORITY_OPTIONS = [
 
 const SENIORITY_VALUES = ['INTERN', 'JUNIOR', 'MID', 'SENIOR'] as const;
 
-export const MARKET_SCOPE_OPTIONS = [
-  { value: 'all', label: 'Todos' },
-  { value: 'NATIONAL', label: 'Nacionais' },
-  { value: 'INTERNATIONAL', label: 'Internacionais' },
-] as const;
-
 export const WORK_MODE_OPTIONS = [
   { value: 'all', label: 'Todas' },
   { value: 'remote', label: 'Apenas Remoto' },
@@ -47,7 +41,6 @@ const jobsFilterSchema = z.object({
   technologies: z.array(z.enum(TECHNOLOGY_OPTIONS)),
   seniorities: z.array(z.enum(SENIORITY_VALUES)),
   workMode: z.enum(['all', 'remote', 'local']),
-  scope: z.enum(['all', 'NATIONAL', 'INTERNATIONAL']),
   source: z.string(),
 });
 
@@ -58,7 +51,6 @@ export const EMPTY_JOBS_FILTER: JobsFilterValues = {
   technologies: [],
   seniorities: [],
   workMode: 'all',
-  scope: 'all',
   source: '',
 };
 
@@ -74,12 +66,7 @@ export function parseFilterFromParams(params: URLSearchParams): JobsFilterValues
     splitCsv(params.get('seniority')).includes(value),
   );
 
-  const scopeParam = params.get('scope') ?? '';
-  const scope = MARKET_SCOPE_OPTIONS.some((option) => option.value === scopeParam)
-    ? (scopeParam as JobsFilterValues['scope'])
-    : 'all';
-
-  return { ...EMPTY_JOBS_FILTER, technologies, seniorities, scope };
+  return { ...EMPTY_JOBS_FILTER, technologies, seniorities };
 }
 
 function splitCsv(value: string | null): string[] {
@@ -233,24 +220,6 @@ export function JobsFilterForm({
       </fieldset>
 
       <fieldset className="flex flex-wrap items-center gap-2">
-        <legend className="mb-1 text-xs font-medium text-content-muted">Mercado</legend>
-        {MARKET_SCOPE_OPTIONS.map((option) => (
-          <label
-            key={option.value}
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-border-subtle bg-surface-raised px-3 py-1.5 text-sm text-content-secondary has-checked:border-accent has-checked:text-accent"
-          >
-            <input
-              type="radio"
-              value={option.value}
-              {...register('scope', applyOnChange)}
-              className="size-3.5 accent-[var(--color-accent)]"
-            />
-            {option.label}
-          </label>
-        ))}
-      </fieldset>
-
-      <fieldset className="flex flex-wrap items-center gap-2">
         <legend className="mb-1 text-xs font-medium text-content-muted">Modalidade</legend>
         {WORK_MODE_OPTIONS.map((option) => (
           <label
@@ -278,7 +247,6 @@ export function toJobsListFilters(values: JobsFilterValues): {
   readonly seniorities: readonly string[] | undefined;
   readonly source: string | undefined;
   readonly isRemote: boolean | undefined;
-  readonly scope: string | undefined;
 } {
   const search = values.search?.trim() ?? '';
 
@@ -288,7 +256,6 @@ export function toJobsListFilters(values: JobsFilterValues): {
     seniorities: values.seniorities.length > 0 ? values.seniorities : undefined,
     source: values.source.length > 0 ? values.source : undefined,
     isRemote: toIsRemote(values.workMode),
-    scope: values.scope === 'all' ? undefined : values.scope,
   };
 }
 

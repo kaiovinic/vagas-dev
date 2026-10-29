@@ -220,25 +220,6 @@ describe('JobsPage', () => {
     );
   });
 
-  it.each([
-    ['Nacionais', 'scope=NATIONAL'],
-    ['Internacionais', 'scope=INTERNATIONAL'],
-  ])('filtra vagas %s', async (label, esperado) => {
-    const spy = stubApi();
-
-    renderWithProviders(<JobsPage />);
-
-    await waitFor(() =>
-      expect(screen.getByText('Desenvolvedor Frontend React')).toBeInTheDocument(),
-    );
-
-    await userEvent.click(screen.getByRole('radio', { name: label }));
-
-    await waitFor(() =>
-      expect(spy.mock.calls.some((call) => String(call[0]).includes(esperado))).toBe(true),
-    );
-  });
-
   it('traduz a modalidade em isRemote na query string', async () => {
     const spy = stubApi();
 
@@ -385,17 +366,15 @@ describe('JobsPage', () => {
     );
   });
 
-  it('ja chega com o mercado marcado quando vem da aba Mercado', async () => {
+  it('ignora um scope herdado na url, que nao existe mais como filtro', async () => {
     const spy = stubApi();
 
     renderWithProviders(<JobsPage />, { route: '/vagas?scope=INTERNATIONAL' });
 
     await waitFor(() =>
-      expect(screen.getByRole('radio', { name: 'Internacionais' })).toBeChecked(),
+      expect(screen.getByText('Desenvolvedor Frontend React')).toBeInTheDocument(),
     );
-    expect(spy.mock.calls.some((call) => String(call[0]).includes('scope=INTERNATIONAL'))).toBe(
-      true,
-    );
+    expect(spy.mock.calls.some((call) => String(call[0]).includes('scope='))).toBe(false);
   });
 
   it('ignora valores desconhecidos vindos da url', async () => {

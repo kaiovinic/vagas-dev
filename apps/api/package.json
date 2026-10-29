@@ -18,7 +18,8 @@
     "db:studio": "prisma studio",
     "test:int": "vitest run --config vitest.integration.config.ts",
     "telegram:test": "dotenv -e .env -- tsx scripts/send-telegram-test.ts",
-    "jobs:purge-international": "dotenv -e .env -- tsx scripts/purge-international-jobs.ts"
+    "jobs:purge-international": "dotenv -e .env -- tsx scripts/purge-international-jobs.ts",
+    "jobs:list-unknown": "dotenv -e .env -- tsx scripts/list-unknown-scope-jobs.ts"
   },
   "dependencies": {
     "@nestjs/common": "11.1.6",

@@ -43,7 +43,7 @@ Seis abas: `Vagas`, `Dashboard`, `Empresas`, `Recrutadores`, `Mercado` e `Regras
 
 - **KPIs** — vagas abertas, novas em 24h com variação contra as 24h anteriores, remotas (total e percentual) e empresas contratando.
 - **Gráficos** — rosca de vagas por fonte e barras empilhadas por dia de publicação, com seletor de período.
-- **Filtros** — busca textual, tecnologias, modalidade, senioridade, fonte e mercado, todos refletidos na URL.
+- **Filtros** — busca textual, tecnologias, modalidade, senioridade e fonte, todos refletidos na URL.
 - **Cabeçalho de status** — horário da última captura e previsão da próxima, no fuso de Brasília.
 
 ### Alertas no Telegram
@@ -182,6 +182,7 @@ Sobe PostgreSQL com volume persistente, a API (que aplica as migrations no entry
 | `npm run db:studio` | Prisma Studio |
 | `npm run telegram:test --workspace @devradar/api` | Envia uma mensagem de teste ao chat |
 | `npm run jobs:purge-international --workspace @devradar/api` | Lista (e com `-- --apply` remove) vagas internacionais antigas |
+| `npm run jobs:list-unknown --workspace @devradar/api` | Lista as vagas cujo mercado o classificador nao determinou |
 
 ---
 

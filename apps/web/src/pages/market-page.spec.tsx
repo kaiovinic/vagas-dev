@@ -49,31 +49,27 @@ describe('MarketPage', () => {
     expect(spy.mock.calls[0]?.[0]).toBe('/api/market');
   });
 
-  it('mostra a divisao nacional x internacional', async () => {
+  it('mostra a divisao por mercado', async () => {
     stubApi();
 
     renderWithProviders(<MarketPage />);
 
     const nacional = await screen.findByTestId('slice-scope-NATIONAL');
 
-    expect(screen.getByRole('heading', { name: 'Nacional x Internacional' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Mercado' })).toBeInTheDocument();
     expect(nacional).toHaveTextContent('Nacionais');
     expect(nacional).toHaveTextContent('27');
     expect(nacional).toHaveTextContent('54%');
-    expect(screen.getByTestId('slice-scope-INTERNATIONAL')).toHaveTextContent('19');
   });
 
-  it('leva para a aba Vagas filtrada pelo mercado', async () => {
+  it('nao linka o mercado para a aba Vagas, que nao filtra mais por ele', async () => {
     stubApi();
 
     renderWithProviders(<MarketPage />);
 
-    await waitFor(() => expect(screen.getByTestId('slice-scope-INTERNATIONAL')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('slice-scope-NATIONAL')).toBeInTheDocument());
 
-    expect(screen.getByRole('link', { name: 'Internacionais' })).toHaveAttribute(
-      'href',
-      '/vagas?scope=INTERNATIONAL',
-    );
+    expect(screen.queryByRole('link', { name: 'Nacionais' })).not.toBeInTheDocument();
   });
 
   it('mostra os tres blocos de tendencia', async () => {

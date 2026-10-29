@@ -13,7 +13,6 @@ export interface JobsListFilters {
   readonly technologies?: readonly string[] | undefined;
   readonly seniorities?: readonly string[] | undefined;
   readonly source?: string | undefined;
-  readonly scope?: string | undefined;
   readonly company?: string | undefined;
   readonly recruiterName?: string | undefined;
   readonly city?: string | undefined;
@@ -48,7 +47,6 @@ function toQueryParams(filters: JobsListFilters): Record<string, string | number
     tech: toCsv(filters.technologies),
     seniority: toCsv(filters.seniorities),
     source: filters.source,
-    scope: filters.scope,
     company: filters.company,
     recruiterName: filters.recruiterName,
     city: filters.city,
