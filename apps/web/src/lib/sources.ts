@@ -11,6 +11,7 @@ const SOURCES: Readonly<Record<string, SourcePresentation>> = {
   remotar: { label: 'Remotar', color: 'var(--color-source-remotar)' },
   programathor: { label: 'ProgramaThor', color: 'var(--color-source-programathor)' },
   jobbol: { label: 'Jobbol', color: 'var(--color-source-jobbol)' },
+  solides: { label: 'Sólides', color: 'var(--color-source-solides)' },
 };
 
 const FALLBACK: SourcePresentation = {

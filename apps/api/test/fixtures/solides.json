@@ -1,0 +1,184 @@
+{
+  "_comentario": [
+    "Fixture real da API da Solides.",
+    "Origem : https://vagas.solides.com.br/api/vacancies?page=1&take=24&occupationAreas=tecnologia&locations=BA",
+    "Captura: 29/10/2026",
+    "Recortes: 4 das 24 vagas (presencial em Salvador, remota, hibrida e uma 4a sem cidade",
+    "nem estado, montada a partir de uma vaga real para exercitar o caso de borda);",
+    "campos irrelevantes para o parser removidos e descricao cortada em 220 caracteres."
+  ],
+
+  "totalPages": 6,
+  "currentPage": 1,
+  "count": 124,
+  "data": [
+    {
+      "id": 940362,
+      "title": "Líder técnico",
+      "description": "<p>Descrição da Vaga: Técnico em Telecomunicações</p>\n<ul>\n<li>Responsabilidades:</li>\n<li>Realizar instalação, configuração e manutenção de sistemas de telecomunicações.</li>\n<li>Diagnosticar e solucionar problemas em r",
+      "companyName": "49.543.007 VINICIUS PARODE FEIJO",
+      "createdAt": "2026-10-19",
+      "jobType": "presencial",
+      "homeOffice": false,
+      "city": {
+        "id": 2163,
+        "name": "Salvador",
+        "stateId": 16
+      },
+      "state": {
+        "id": 16,
+        "name": "Bahia",
+        "code": "BA"
+      },
+      "seniority": [
+        {
+          "id": 5,
+          "name": "Pleno"
+        },
+        {
+          "id": 6,
+          "name": "Sênior"
+        }
+      ],
+      "recruitmentContractType": [
+        {
+          "id": 9,
+          "name": "PJ"
+        }
+      ],
+      "hardSkills": [],
+      "occupationAreas": [
+        {
+          "id": 349589,
+          "name": "Engenharia"
+        },
+        {
+          "id": 349584,
+          "name": "Tecnologia"
+        }
+      ],
+      "slug": ""
+    },
+    {
+      "id": 939575,
+      "title": "Técnico de suporte ao usuário de tecnologia da informação (Helpdesk)",
+      "description": "<p>O <strong>Técnico de suporte ao usuário de tecnologia da informação (CBO 3172-10)</strong> é o profissional responsável por prestar atendimento e orientação aos usuários no uso de softwares e hardwares, além de instal",
+      "companyName": "IMPULSE CONSULTORIA EMPRESARIAL LTDA",
+      "createdAt": "2026-10-16",
+      "jobType": "remoto",
+      "homeOffice": false,
+      "city": {
+        "id": 1917,
+        "name": "Casa Nova",
+        "stateId": 16
+      },
+      "state": {
+        "id": 16,
+        "name": "Bahia",
+        "code": "BA"
+      },
+      "seniority": [
+        {
+          "id": 5,
+          "name": "Pleno"
+        }
+      ],
+      "recruitmentContractType": [
+        {
+          "id": 10,
+          "name": "CLT"
+        }
+      ],
+      "hardSkills": [],
+      "occupationAreas": [
+        {
+          "id": 349584,
+          "name": "Tecnologia"
+        },
+        {
+          "id": 349591,
+          "name": "Comunicação"
+        }
+      ],
+      "slug": "rhimpulse"
+    },
+    {
+      "id": 945234,
+      "title": "Analista de Desenvolvimento Progress",
+      "description": "<p>A <strong>Schmersal Brasil</strong> seleciona candidatos para a vaga <strong>Analista de Desenvolvimento Progress </strong>para atuar em <strong>Boituva/SP.</strong></p>\n<p>Estamos buscando um(a) <strong>Analista de D",
+      "companyName": "ACE SCHMERSAL ELETROELETRONICA INDUSTRIAL LTDA",
+      "createdAt": "2026-10-28",
+      "jobType": "hibrido",
+      "homeOffice": false,
+      "city": {
+        "id": 3346,
+        "name": "Boituva",
+        "stateId": 20
+      },
+      "state": {
+        "id": 20,
+        "name": "São Paulo",
+        "code": "SP"
+      },
+      "seniority": [
+        {
+          "id": 6,
+          "name": "Sênior"
+        },
+        {
+          "id": 7,
+          "name": "Especialista"
+        }
+      ],
+      "recruitmentContractType": [
+        {
+          "id": 9,
+          "name": "PJ"
+        }
+      ],
+      "hardSkills": [],
+      "occupationAreas": [
+        {
+          "id": 349584,
+          "name": "Tecnologia"
+        }
+      ],
+      "slug": "schmersal"
+    },
+    {
+      "id": 999001,
+      "title": "Pessoa Desenvolvedora Frontend React",
+      "description": "<p>O <strong>Técnico de suporte ao usuário de tecnologia da informação (CBO 3172-10)</strong> é o profissional responsável por prestar atendimento e orientação aos usuários no uso de softwares e hardwares, além de instal",
+      "companyName": "Empresa Sem Endereco",
+      "createdAt": "2026-10-16",
+      "jobType": "remoto",
+      "homeOffice": false,
+      "city": null,
+      "state": null,
+      "seniority": [
+        {
+          "id": 5,
+          "name": "Pleno"
+        }
+      ],
+      "recruitmentContractType": [
+        {
+          "id": 10,
+          "name": "CLT"
+        }
+      ],
+      "hardSkills": [],
+      "occupationAreas": [
+        {
+          "id": 349584,
+          "name": "Tecnologia"
+        },
+        {
+          "id": 349591,
+          "name": "Comunicação"
+        }
+      ],
+      "slug": "rhimpulse"
+    }
+  ]
+}

@@ -25,7 +25,7 @@ Este projeto resolve as duas coisas: busca sozinho, e **joga fora o que não é 
 
 ### Coletor
 
-Varre cinco fontes a cada 2 horas: **Gupy**, **LinkedIn**, **Remotar**, **ProgramaThor** e repositórios de vagas no **GitHub**.
+Varre seis fontes a cada 2 horas: **Gupy**, **LinkedIn**, **Remotar**, **ProgramaThor**, **Sólides** e repositórios de vagas no **GitHub**.
 
 > Existe também um coletor do **Jobbol**, implementado e testado, mas inativo na prática: o site fica atrás do Bot Management da Cloudflare, que responde `403` a qualquer cliente HTTP que não seja um navegador. O coletor continua registrado e passa a funcionar sem alteração caso o acesso seja liberado. Também dá para disparar na hora, pelo botão `Capturar agora` do dashboard.
 
@@ -192,7 +192,7 @@ Sobe PostgreSQL com volume persistente, a API (que aplica as migrations no entry
 
 ## Qualidade
 
-**946 testes**, rodando em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração contra um PostgreSQL real, build dos workspaces e build das duas imagens Docker.
+**966 testes**, rodando em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração contra um PostgreSQL real, build dos workspaces e build das duas imagens Docker.
 
 | Camada | Cobertura |
 |---|---|
