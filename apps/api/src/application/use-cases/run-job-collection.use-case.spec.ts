@@ -165,7 +165,16 @@ describe('RunJobCollectionUseCase', () => {
             tags: ['💼 CLT'],
             url: 'https://remotar.com.br/vaga/2',
           }),
-          rawJob({ company: 'Initech', location: 'Remoto', url: 'https://remotar.com.br/vaga/3' }),
+          // Titulo em ingles e sem localidade: o unico jeito de a vaga ficar
+          // sem mercado identificado depois da calibracao, que trata cargo em
+          // portugues como sinal brasileiro.
+          rawJob({
+            company: 'Initech',
+            title: 'React Engineer',
+            description: 'Remote role',
+            location: 'Remoto',
+            url: 'https://remotar.com.br/vaga/3',
+          }),
         ]),
       ]).execute(FIXED_NOW);
 

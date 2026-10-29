@@ -103,6 +103,7 @@ export class JobRuleEngine {
     const matchedSpamTerms = matchKeywordLabels(text, this.spamGroups);
     const scope = classifyJobScope({
       title: job.title,
+      company: job.company,
       description: job.description,
       location: job.location,
       tags,

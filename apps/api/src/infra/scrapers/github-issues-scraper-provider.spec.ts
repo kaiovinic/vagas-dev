@@ -90,6 +90,68 @@ describe('GithubIssuesScraperProvider', () => {
     expect(jobs[0]?.publishedAt?.toISOString()).toBe('2026-10-19T16:48:53.000Z');
   });
 
+  describe('metadados no titulo nunca viram empresa', () => {
+    it('extrai a empresa de uma issue real com jornada depois do travessao', async () => {
+      const provider = new GithubIssuesScraperProvider(http, ['frontendbr/vagas']);
+
+      const jobs = await provider.scrape();
+      const weatherwise = jobs.find((job) => job.url.endsWith('/8572'));
+
+      // Titulo: "[Remoto] Senior Front-end / Product Engineer na WeatherWise — 4 dias / 32h"
+      expect(weatherwise).toMatchObject({
+        title: 'Senior Front-end / Product Engineer',
+        company: 'WeatherWise',
+      });
+    });
+
+    it.each([
+      [
+        'jornada depois do travessao',
+        '[Remoto] Senior Front-end / Product Engineer (React/TypeScript) na WeatherWise — 4 dias / 32h',
+        'Senior Front-end / Product Engineer (React/TypeScript)',
+        'WeatherWise',
+      ],
+      [
+        'area antes da empresa e jornada depois da barra vertical',
+        '[Remoto] Desenvolvedor(a) Full Stack Sênior — AI & Agents na WeatherWise | 4 dias / 32h',
+        'Desenvolvedor(a) Full Stack Sênior',
+        'WeatherWise',
+      ],
+      [
+        'faixa salarial depois da empresa',
+        '[Remoto] Dev React na Acme Corp — R$ 12k',
+        'Dev React',
+        'Acme Corp',
+      ],
+      [
+        'carga horaria depois da empresa',
+        '[Remoto] Dev React - Acme Corp - 20h semanais',
+        'Dev React',
+        'Acme Corp',
+      ],
+    ])('%s', async (_caso, title, esperadoTitulo, esperadaEmpresa) => {
+      const provider = new GithubIssuesScraperProvider(
+        new FakeHttpClient(() => [issue({ title })]),
+        ['frontendbr/vagas'],
+      );
+
+      const jobs = await provider.scrape();
+
+      expect(jobs[0]).toMatchObject({ title: esperadoTitulo, company: esperadaEmpresa });
+    });
+
+    it('cai para o autor quando so sobra metadado depois do separador', async () => {
+      const provider = new GithubIssuesScraperProvider(
+        new FakeHttpClient(() => [issue({ title: '[Remoto] Dev React — 4 dias / 32h' })]),
+        ['frontendbr/vagas'],
+      );
+
+      const jobs = await provider.scrape();
+
+      expect(jobs[0]).toMatchObject({ title: 'Dev React', company: 'octocat' });
+    });
+  });
+
   it.each([
     [' - ', '[Remoto] Dev Frontend - Acme Corp', 'Dev Frontend', 'Acme Corp'],
     [' | ', '[Remoto] Dev Frontend | Acme Corp', 'Dev Frontend', 'Acme Corp'],

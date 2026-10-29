@@ -58,5 +58,26 @@
       }
     ],
     "body": "## Descrição da vaga: \nEsta é uma vaga de um parceiro da plataforma Coodesh, ao candidatar-se você terá acesso as informações completas sobre a empresa e benefícios.\n\n\nFique atento ao redirecionamento que vai te levar para uma url [https://coodesh.com](https://coodesh.com/jobs/senior-ux-engineer-search-ai-181723214?utm_source=github&utm_medium=frontendbr-vagas&modal=open) para realizar a candidatu"
+  },
+  {
+    "title": "[Remoto] Senior Front-end / Product Engineer na WeatherWise — 4 dias / 32h",
+    "html_url": "https://github.com/frontendbr/vagas/issues/8572",
+    "created_at": "2026-10-27T16:01:03Z",
+    "state": "open",
+    "user": {
+      "login": "fmoura-ehab"
+    },
+    "labels": [
+      {
+        "name": "Sênior"
+      },
+      {
+        "name": "PJ"
+      },
+      {
+        "name": "Remoto"
+      }
+    ],
+    "body": "## Nossa empresa\n\nWeatherWise (Ehabitation Ltd, trading as EHAB) is a London-based weather risk specialist."
   }
 ]

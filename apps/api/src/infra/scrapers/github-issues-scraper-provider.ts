@@ -14,11 +14,22 @@ import {
 const GITHUB_API_URL = 'https://api.github.com';
 const ISSUES_PER_PAGE = 50;
 const MODALITY_PATTERN = /^\s*\[([^\]]+)\]\s*/;
+
 /**
- * Ordem importa: o hifen e a convencao principal (`[Modalidade] Cargo - Empresa`)
- * e ` na ` e a variacao usada nas issues ("... Full Stack na Google").
+ * Separadores entre as partes do titulo: os tracos e o arroba da convencao
+ * `[Modalidade] Cargo - Empresa`, a barra vertical usada para anexar
+ * informacao extra, e ` na `, a variacao corrente nas issues ("... Full Stack
+ * na Google").
  */
-const COMPANY_SEPARATORS = [' - ', ' – ', ' — ', ' @ ', ' | ', ' na '];
+const TITLE_SEPARATORS = /\s+[-–—@|]\s+|\s+na\s+/;
+
+/**
+ * Trecho que descreve a vaga, nao a empresa. Quem publica costuma anexar
+ * jornada ou faixa salarial depois do nome da empresa — e era isso que vinha
+ * parar no campo `company`, porque o parser pegava sempre o ULTIMO separador.
+ */
+const METADATA_SEGMENT =
+  /^\s*(?:r\$|us\$|usd|eur)|\d+\s*(?:h|hs|horas?|dias?|semanas?|meses|k|mil)\b|\b(?:clt|pj|home\s*office|remoto|hibrido|presencial|vaga|vagas)\b/i;
 
 export const GITHUB_VACANCY_REPOSITORIES: readonly string[] = [
   'frontendbr/vagas',
@@ -128,25 +139,37 @@ interface ParsedIssueTitle {
   readonly company: string;
 }
 
+/**
+ * Quebra `[Modalidade] Cargo - Empresa` nas tres partes.
+ *
+ * O titulo e dividido em segmentos por todos os separadores de uma vez, em vez
+ * de cortar no ultimo: na pratica as issues encadeiam mais de dois trechos
+ * ("Cargo na Empresa — 4 dias / 32h", "Cargo — Area na Empresa | jornada"), e
+ * cortar no ultimo separador gravava a jornada como nome da empresa.
+ *
+ * O cargo e sempre o primeiro segmento. A empresa e o ultimo que nao parece
+ * metadado; nao sobrando nenhum, usa-se o autor da issue, que e quem publicou
+ * a vaga.
+ */
 function parseIssueTitle(rawTitle: string, author: string): ParsedIssueTitle {
   const modalityMatch = MODALITY_PATTERN.exec(rawTitle);
   const modality = collapseSpaces(modalityMatch?.[1] ?? '');
   const withoutModality = collapseSpaces(rawTitle.replace(MODALITY_PATTERN, ''));
-  const separator = COMPANY_SEPARATORS.find((candidate) => withoutModality.includes(candidate));
 
-  if (!separator) {
+  const segments = withoutModality
+    .split(TITLE_SEPARATORS)
+    .map((segment) => collapseSpaces(segment))
+    .filter((segment) => segment.length > 0);
+
+  const [title, ...rest] = segments;
+
+  if (title === undefined || title.length === 0) {
     return { modality, title: withoutModality, company: author };
   }
 
-  const separatorIndex = withoutModality.lastIndexOf(separator);
-  const title = collapseSpaces(withoutModality.slice(0, separatorIndex));
-  const company = collapseSpaces(withoutModality.slice(separatorIndex + separator.length));
+  const company = [...rest].reverse().find((segment) => !METADATA_SEGMENT.test(segment));
 
-  if (company.length === 0 || title.length === 0) {
-    return { modality, title: withoutModality, company: author };
-  }
-
-  return { modality, title, company };
+  return { modality, title, company: company ?? author };
 }
 
 function readString(value: unknown): string {
