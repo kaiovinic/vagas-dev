@@ -1,7 +1,11 @@
 import { Inject, Injectable, Logger, Optional, type OnModuleInit } from '@nestjs/common';
 
 import { HTTP_CLIENT, type IHttpClient } from '@/domain/providers/http-client';
-import type { ITelegramNotifier, JobAlert } from '@/domain/providers/telegram-notifier';
+import type {
+  ITelegramNotifier,
+  JobAlert,
+  WeeklyDigest,
+} from '@/domain/providers/telegram-notifier';
 import type { JobScope } from '@/domain/services/job-scope';
 import type { JobWorkModel } from '@/domain/entities/job';
 
@@ -64,7 +68,25 @@ export class TelegramHttpNotifier implements ITelegramNotifier, OnModuleInit {
       return;
     }
 
-    this.queue = this.queue.then(() => this.sendThrottled(alert));
+    this.queue = this.queue.then(() =>
+      this.sendThrottled(buildMessage(alert), `"${alert.job.title}"`),
+    );
+
+    return this.queue;
+  }
+
+  /**
+   * Resumo da semana. Entra na mesma fila dos alertas: se o cron de segunda
+   * cair junto de uma captura, os envios continuam espacados.
+   */
+  async notifyWeeklyDigest(digest: WeeklyDigest): Promise<void> {
+    if (!this.isConfigured()) {
+      this.logger.debug('Telegram nao configurado: resumo semanal ignorado');
+
+      return;
+    }
+
+    this.queue = this.queue.then(() => this.sendThrottled(buildDigestMessage(digest), 'resumo semanal'));
 
     return this.queue;
   }
@@ -80,15 +102,16 @@ export class TelegramHttpNotifier implements ITelegramNotifier, OnModuleInit {
     await this.http.get(this.buildUrl(text), { headers: { Accept: 'application/json' } });
   }
 
-  private async sendThrottled(alert: JobAlert): Promise<void> {
+  /** `subject` so aparece no log de falha, para dizer o que nao foi enviado. */
+  private async sendThrottled(text: string, subject: string): Promise<void> {
     try {
-      await this.http.get(this.buildUrl(buildMessage(alert)), {
+      await this.http.get(this.buildUrl(text), {
         headers: { Accept: 'application/json' },
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
 
-      this.logger.warn(`Falha ao notificar "${alert.job.title}" no Telegram: ${message}`);
+      this.logger.warn(`Falha ao notificar ${subject} no Telegram: ${message}`);
     }
 
     await delay(this.minIntervalMs);
@@ -141,6 +164,52 @@ export function buildMessage(alert: JobAlert): string {
   lines.push('', `<a href="${escapeHtml(job.url)}">Ver vaga e se candidatar</a>`);
 
   return lines.join('\n');
+}
+
+const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  month: '2-digit',
+  timeZone: 'America/Bahia',
+});
+
+/**
+ * Resumo da semana. Numero puro nao diz nada sozinho, entao cada linha traz a
+ * comparacao que da sentido a ele: o percentual de remotas sobre as abertas e
+ * o periodo coberto no cabecalho.
+ */
+export function buildDigestMessage(digest: WeeklyDigest): string {
+  const inicio = DAY_MONTH.format(digest.periodStart);
+  const fim = DAY_MONTH.format(digest.periodEnd);
+  const lines = [
+    `📊 <b>DevRadar — resumo da semana</b>`,
+    `<i>${inicio} a ${fim}</i>`,
+    '',
+    `💼 <b>${digest.openJobs}</b> vagas abertas no radar`,
+    `🆕 <b>${digest.newInPeriod}</b> publicadas nos ultimos 7 dias`,
+    `🏠 <b>${digest.remoteJobs}</b> remotas (${percentageOf(digest.remoteJobs, digest.openJobs)})`,
+    `📍 <b>${digest.localJobs}</b> em Salvador e regiao`,
+  ];
+
+  if (digest.topTechnologies.length > 0) {
+    lines.push('', '🏆 <b>Stacks mais pedidas</b>');
+
+    digest.topTechnologies.forEach((technology, index) => {
+      lines.push(`${MEDALS[index] ?? '▫️'} ${escapeHtml(technology.label)} — ${technology.total}`);
+    });
+  }
+
+  return lines.join('\n');
+}
+
+const MEDALS = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+
+/** Percentual sobre o total de vagas abertas; sem vagas, nao ha o que comparar. */
+function percentageOf(part: number, total: number): string {
+  if (total <= 0) {
+    return '0%';
+  }
+
+  return `${Math.round((part / total) * 100)}%`;
 }
 
 /** "Remoto · 🌎 Internacional" ou "Presencial · Salvador/BA". */

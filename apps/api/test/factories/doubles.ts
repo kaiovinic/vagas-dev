@@ -1,7 +1,11 @@
 import type { RawJobProps } from '@/domain/dtos/raw-job-props';
 import type { ICaptureSchedule } from '@/domain/providers/capture-schedule';
 import type { IJobScraperProvider } from '@/domain/providers/job-scraper-provider';
-import type { ITelegramNotifier, JobAlert } from '@/domain/providers/telegram-notifier';
+import type {
+  ITelegramNotifier,
+  JobAlert,
+  WeeklyDigest,
+} from '@/domain/providers/telegram-notifier';
 import type {
   FinishCaptureInput,
   ICaptureLogRepository,
@@ -131,6 +135,7 @@ export class InMemoryCaptureLogRepository implements ICaptureLogRepository {
 
 export class FakeTelegramNotifier implements ITelegramNotifier {
   readonly notified: JobAlert[] = [];
+  readonly digests: WeeklyDigest[] = [];
   shouldFail = false;
 
   async notifyNewJob(alert: JobAlert): Promise<void> {
@@ -139,6 +144,14 @@ export class FakeTelegramNotifier implements ITelegramNotifier {
     }
 
     this.notified.push(alert);
+  }
+
+  async notifyWeeklyDigest(digest: WeeklyDigest): Promise<void> {
+    if (this.shouldFail) {
+      throw new Error('telegram indisponivel');
+    }
+
+    this.digests.push(digest);
   }
 }
 

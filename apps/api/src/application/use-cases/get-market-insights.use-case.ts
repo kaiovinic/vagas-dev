@@ -101,7 +101,7 @@ export class GetMarketInsightsUseCase {
   }
 }
 
-function technologyBuckets(): KeywordBucket[] {
+export function technologyBuckets(): KeywordBucket[] {
   return STACK_KEYWORDS.map((group) => ({
     id: group.label,
     label: group.label,

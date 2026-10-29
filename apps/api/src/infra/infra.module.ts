@@ -9,6 +9,7 @@ import { TELEGRAM_NOTIFIER } from '@/domain/providers/telegram-notifier';
 import { CAPTURE_LOG_REPOSITORY } from '@/domain/repositories/capture-log-repository';
 import { DASHBOARD_METRICS_REPOSITORY } from '@/domain/repositories/dashboard-metrics-repository';
 import { MARKET_INSIGHTS_REPOSITORY } from '@/domain/repositories/market-insights-repository';
+import { WEEKLY_DIGEST_REPOSITORY } from '@/domain/repositories/weekly-digest-repository';
 import { JOB_QUERY_REPOSITORY } from '@/domain/repositories/job-query-repository';
 import { JOB_WRITE_REPOSITORY } from '@/domain/repositories/job-write-repository';
 import { AxiosHttpClient } from '@/infra/http/axios-http-client';
@@ -17,6 +18,7 @@ import { PrismaCaptureLogRepository } from '@/infra/prisma/prisma-capture-log-re
 import { PrismaJobQueryRepository } from '@/infra/prisma/prisma-job-query-repository';
 import { PrismaMarketInsightsRepository } from '@/infra/prisma/prisma-market-insights-repository';
 import { PrismaJobRepository } from '@/infra/prisma/prisma-job-repository';
+import { PrismaWeeklyDigestRepository } from '@/infra/prisma/prisma-weekly-digest-repository';
 import { PrismaService } from '@/infra/prisma/prisma.service';
 import { GithubIssuesScraperProvider } from '@/infra/scrapers/github-issues-scraper-provider';
 import { GupyScraperProvider } from '@/infra/scrapers/gupy-scraper-provider';
@@ -50,6 +52,7 @@ const SCRAPERS = [
     PrismaJobQueryRepository,
     PrismaCaptureLogRepository,
     PrismaMarketInsightsRepository,
+    PrismaWeeklyDigestRepository,
     { provide: HTTP_CLIENT, useClass: AxiosHttpClient },
     { provide: TELEGRAM_NOTIFIER, useClass: TelegramHttpNotifier },
     ...SCRAPERS,
@@ -63,6 +66,7 @@ const SCRAPERS = [
     { provide: JOB_QUERY_REPOSITORY, useExisting: PrismaJobQueryRepository },
     { provide: CAPTURE_LOG_REPOSITORY, useExisting: PrismaCaptureLogRepository },
     { provide: MARKET_INSIGHTS_REPOSITORY, useExisting: PrismaMarketInsightsRepository },
+    { provide: WEEKLY_DIGEST_REPOSITORY, useExisting: PrismaWeeklyDigestRepository },
   ],
   exports: [
     JOB_SCRAPERS,
@@ -71,6 +75,7 @@ const SCRAPERS = [
     JOB_QUERY_REPOSITORY,
     CAPTURE_LOG_REPOSITORY,
     MARKET_INSIGHTS_REPOSITORY,
+    WEEKLY_DIGEST_REPOSITORY,
     TELEGRAM_NOTIFIER,
     PrismaService,
   ],

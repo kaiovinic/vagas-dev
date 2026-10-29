@@ -62,6 +62,8 @@ Ver vaga e se candidatar
 
 A API avisa no boot se os alertas estão ligados ou não — um deploy sem token não sobe calado.
 
+**Toda segunda às 08:00** sai também o resumo da semana: vagas abertas, publicadas nos últimos 7 dias, remotas × Salvador/RMS e as cinco stacks mais pedidas.
+
 ---
 
 ## Decisões de arquitetura
@@ -181,6 +183,7 @@ Sobe PostgreSQL com volume persistente, a API (que aplica as migrations no entry
 | `npm run db:migrate` | Aplica as migrations |
 | `npm run db:studio` | Prisma Studio |
 | `npm run telegram:test --workspace @devradar/api` | Envia uma mensagem de teste ao chat |
+| `npm run telegram:digest --workspace @devradar/api` | Dispara o resumo semanal agora |
 | `npm run jobs:purge-international --workspace @devradar/api` | Lista (e com `-- --apply` remove) vagas internacionais antigas |
 | `npm run jobs:list-unknown --workspace @devradar/api` | Lista as vagas cujo mercado o classificador nao determinou |
 | `npm run jobs:reclassify --workspace @devradar/api` | Recalcula o mercado das vagas ja gravadas (`-- --apply` grava) |
@@ -189,7 +192,7 @@ Sobe PostgreSQL com volume persistente, a API (que aplica as migrations no entry
 
 ## Qualidade
 
-**912 testes**, rodando em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração contra um PostgreSQL real, build dos workspaces e build das duas imagens Docker.
+**946 testes**, rodando em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração contra um PostgreSQL real, build dos workspaces e build das duas imagens Docker.
 
 | Camada | Cobertura |
 |---|---|

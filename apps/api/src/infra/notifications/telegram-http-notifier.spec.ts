@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Logger } from '@nestjs/common';
 
-import type { JobAlert } from '@/domain/providers/telegram-notifier';
+import type { JobAlert, WeeklyDigest } from '@/domain/providers/telegram-notifier';
 import {
   TELEGRAM_MIN_INTERVAL_MS,
   TelegramHttpNotifier,
+  buildDigestMessage,
   buildMessage,
 } from '@/infra/notifications/telegram-http-notifier';
 import { FakeHttpClient, failingHttpClient } from '../../../test/factories/fake-http-client';
@@ -28,6 +29,22 @@ function alert(overrides: Partial<JobAlert> = {}): JobAlert {
 
 function textOf(http: FakeHttpClient, index = 0): string {
   return new URL(http.requestedUrls[index] ?? '').searchParams.get('text') ?? '';
+}
+
+function digest(overrides: Partial<WeeklyDigest> = {}): WeeklyDigest {
+  return {
+    periodStart: new Date('2026-10-19T12:00:00.000Z'),
+    periodEnd: new Date('2026-10-26T12:00:00.000Z'),
+    openJobs: 88,
+    newInPeriod: 134,
+    remoteJobs: 74,
+    localJobs: 14,
+    topTechnologies: [
+      { label: 'React', total: 61 },
+      { label: 'Node.js', total: 44 },
+    ],
+    ...overrides,
+  };
 }
 
 describe('TelegramHttpNotifier', () => {
@@ -203,6 +220,96 @@ describe('TelegramHttpNotifier', () => {
       ]);
 
       expect(http.requestedUrls).toHaveLength(2);
+    });
+  });
+
+  describe('resumo semanal', () => {
+    it('envia o resumo para o chat configurado', async () => {
+      const http = new FakeHttpClient(() => ({ ok: true }));
+
+      await notifier(http).notifyWeeklyDigest(digest());
+
+      expect(http.requestedUrls).toHaveLength(1);
+      expect(textOf(http)).toContain('resumo da semana');
+    });
+
+    it('vira no-op quando nao ha bot configurado', async () => {
+      const http = new FakeHttpClient(() => ({ ok: true }));
+
+      await new TelegramHttpNotifier(http, { botToken: '', chatId: '' }, 0).notifyWeeklyDigest(
+        digest(),
+      );
+
+      expect(http.requestedUrls).toEqual([]);
+    });
+
+    it('nao propaga falha da api', async () => {
+      const telegram = new TelegramHttpNotifier(failingHttpClient('500'), CONFIG, 0);
+
+      await expect(telegram.notifyWeeklyDigest(digest())).resolves.toBeUndefined();
+    });
+
+    it('entra na mesma fila dos alertas de vaga', async () => {
+      const ordem: string[] = [];
+      const http = new FakeHttpClient((url) => {
+        ordem.push(new URL(url).searchParams.get('text')?.slice(0, 12) ?? '');
+
+        return { ok: true };
+      });
+      const telegram = notifier(http);
+
+      await Promise.all([
+        telegram.notifyNewJob(alert({ job: makeJob({ title: 'Primeira vaga' }) })),
+        telegram.notifyWeeklyDigest(digest()),
+      ]);
+
+      expect(ordem).toHaveLength(2);
+      expect(ordem[1]).toContain('📊');
+    });
+  });
+
+  describe('template do resumo', () => {
+    it('traz o periodo coberto no horario de Brasilia', () => {
+      expect(buildDigestMessage(digest())).toContain('19/10 a 26/10');
+    });
+
+    it('traz os quatro numeros da semana', () => {
+      const message = buildDigestMessage(digest());
+
+      expect(message).toContain('<b>88</b> vagas abertas');
+      expect(message).toContain('<b>134</b> publicadas');
+      expect(message).toContain('<b>74</b> remotas');
+      expect(message).toContain('<b>14</b> em Salvador');
+    });
+
+    it('mostra o percentual de remotas sobre as abertas', () => {
+      expect(buildDigestMessage(digest())).toContain('(84%)');
+    });
+
+    it('nao divide por zero em semana sem vaga aberta', () => {
+      const message = buildDigestMessage(digest({ openJobs: 0, remoteJobs: 0 }));
+
+      expect(message).toContain('(0%)');
+      expect(message).not.toContain('NaN');
+    });
+
+    it('ranqueia as stacks com medalha', () => {
+      const message = buildDigestMessage(digest());
+
+      expect(message).toContain('🥇 React — 61');
+      expect(message).toContain('🥈 Node.js — 44');
+    });
+
+    it('omite o bloco de stacks quando nao houve nenhuma', () => {
+      const message = buildDigestMessage(digest({ topTechnologies: [] }));
+
+      expect(message).not.toContain('Stacks mais pedidas');
+    });
+
+    it('escapa html do rotulo da stack', () => {
+      const message = buildDigestMessage(digest({ topTechnologies: [{ label: 'C<#>', total: 1 }] }));
+
+      expect(message).toContain('C&lt;#&gt;');
     });
   });
 
