@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { Job, type JobWorkModel } from '@/domain/entities/job';
 import { InvalidJobError } from '@/domain/errors/invalid-job-error';
+import type { JobScope } from '@/domain/services/job-scope';
 import {
   JobRuleEngine,
   type JobRejectionReason,
@@ -29,6 +30,8 @@ export interface TestJobRulesOutput {
   readonly matchedStack: readonly string[];
   readonly matchedLocations: readonly string[];
   readonly matchedSpamTerms: readonly string[];
+  /** Mercado identificado no texto colado: `Regras` mostra por que reprovou. */
+  readonly scope: JobScope;
   readonly evaluated: {
     readonly title: string;
     readonly company: string;
@@ -81,6 +84,7 @@ export class TestJobRulesUseCase {
       matchedStack: evaluation.matchedStack,
       matchedLocations: evaluation.matchedLocations,
       matchedSpamTerms: evaluation.matchedSpamTerms,
+      scope: evaluation.scope,
       evaluated: {
         title: job.title,
         company: job.company,

@@ -23,8 +23,11 @@ const BRAZILIAN_CONTRACT = compileKeywordGroups([
   { label: 'CLT', aliases: ['clt', 'carteira assinada', 'regime celetista'] },
 ]);
 
-/** Vaga aberta para fora do Brasil ou sem fronteira definida. */
-const INTERNATIONAL = compileKeywordGroups([
+/**
+ * Marcadores que caracterizam vaga internacional. Ficam exportados porque a aba
+ * publica de `Regras` precisa mostra-los: o motor rejeita por esses termos.
+ */
+export const INTERNATIONAL_SCOPE_KEYWORDS = [
   {
     label: 'Internacional',
     aliases: [
@@ -42,7 +45,9 @@ const INTERNATIONAL = compileKeywordGroups([
     label: 'Pagamento em moeda estrangeira',
     aliases: ['em dolar', 'pagamento em dolar', 'usd', 'eur', 'paid in dollars'],
   },
-]);
+] as const;
+
+const INTERNATIONAL = compileKeywordGroups(INTERNATIONAL_SCOPE_KEYWORDS);
 
 /** Estados e termos que amarram a vaga ao mercado brasileiro. */
 const BRAZILIAN_LOCATION = compileKeywordGroups([

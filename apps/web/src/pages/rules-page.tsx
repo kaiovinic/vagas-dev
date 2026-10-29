@@ -11,6 +11,7 @@ const KIND_LABELS: Readonly<Record<string, string>> = {
   KEYWORD_ALLOW_LIST: 'Termos aceitos',
   KEYWORD_DENY_LIST: 'Termos bloqueados',
   LOCATION_ALLOW_LIST: 'Localidades aceitas',
+  SCOPE_DENY_LIST: 'Mercados bloqueados',
 };
 
 export function RulesPage(): ReactNode {

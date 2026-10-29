@@ -289,6 +289,80 @@ describe('JobRuleEngine (domain service)', () => {
     });
   });
 
+  describe('regra 5: somente mercado nacional', () => {
+    it('reprova vaga marcada como internacional', () => {
+      const job = makeJob({
+        title: 'Senior React Developer',
+        description: 'Remote position, work from anywhere in the world.',
+      });
+
+      const result = engine.evaluate(job, FIXED_NOW);
+
+      expect(result.approved).toBe(false);
+      expect(result.rejectionReasons).toContain(JobRejectionReason.InternationalScope);
+    });
+
+    it('reprova quando o sinal de internacional vem nas tags da captura', () => {
+      const job = makeJob({ title: 'Desenvolvedor React', description: 'Vaga remota' });
+
+      const result = engine.evaluate(job, FIXED_NOW, ['Vaga internacional']);
+
+      expect(result.rejectionReasons).toContain(JobRejectionReason.InternationalScope);
+    });
+
+    it.each(['LATAM', 'worldwide', 'pagamento em dolar'])(
+      'reprova o marcador "%s"',
+      (marcador) => {
+        const job = makeJob({ title: 'Dev React', description: `Vaga remota, ${marcador}` });
+
+        expect(engine.isApproved(job, FIXED_NOW)).toBe(false);
+      },
+    );
+
+    it('aprova vaga nacional', () => {
+      const job = makeJob({ title: 'Dev React', description: 'Vaga CLT remota' });
+
+      const result = engine.evaluate(job, FIXED_NOW);
+
+      expect(result.approved).toBe(true);
+      expect(result.scope).toBe('NATIONAL');
+    });
+
+    it('nao reprova vaga de escopo indefinido: so o internacional confirmado sai', () => {
+      const job = makeJob({ title: 'Dev React', description: 'Vaga remota', location: '' });
+      const result = engine.evaluate(job, FIXED_NOW);
+
+      expect(result.scope).toBe('UNKNOWN');
+      expect(result.rejectionReasons).not.toContain(JobRejectionReason.InternationalScope);
+    });
+
+    it('CLT vence o sinal de internacional, como na classificacao de escopo', () => {
+      const job = makeJob({
+        title: 'Dev React',
+        description: 'Vaga CLT com pagamento em dolar',
+      });
+
+      expect(engine.isApproved(job, FIXED_NOW)).toBe(true);
+    });
+
+    it('entrega o escopo ja classificado, para quem avalia nao calcular de novo', () => {
+      const job = makeJob({ title: 'Dev React', description: 'Remote, worldwide' });
+
+      expect(engine.evaluate(job, FIXED_NOW).scope).toBe('INTERNATIONAL');
+    });
+
+    it('repassa as tags ao filtrar em lote', () => {
+      const nacional = makeJob({ title: 'Dev React', description: 'Vaga CLT' });
+      const internacional = makeJob({
+        title: 'Dev Node',
+        company: 'Global Corp',
+        description: 'Vaga remota worldwide',
+      });
+
+      expect(engine.filter([nacional, internacional], FIXED_NOW)).toEqual([nacional]);
+    });
+  });
+
   describe('acumulo de rejeicoes', () => {
     it('reporta todas as regras violadas', () => {
       const job = makeJob({
@@ -319,7 +393,7 @@ describe('JobRuleEngine (domain service)', () => {
       expect(publicRules.version).toMatch(/^\d+\.\d+\.\d+$/);
     });
 
-    it('expoe as quatro regras na ordem de avaliacao', () => {
+    it('expoe as cinco regras na ordem de avaliacao', () => {
       const ids = engine.getPublicRules().rules.map((rule) => rule.id);
 
       expect(ids).toEqual([
@@ -327,6 +401,7 @@ describe('JobRuleEngine (domain service)', () => {
         'stack-match',
         'location-match',
         'spam-filter',
+        'national-scope',
       ]);
     });
 
@@ -337,6 +412,16 @@ describe('JobRuleEngine (domain service)', () => {
         expect(rule.criteria.length).toBeGreaterThan(0);
         expect(Object.values(JobRejectionReason)).toContain(rule.rejectionReason);
       }
+    });
+
+    it('publica os marcadores que caracterizam vaga internacional', () => {
+      const scopeRule = engine
+        .getPublicRules()
+        .rules.find((rule) => rule.id === 'national-scope');
+
+      expect(scopeRule?.kind).toBe('SCOPE_DENY_LIST');
+      expect(scopeRule?.rejectionReason).toBe(JobRejectionReason.InternationalScope);
+      expect(scopeRule?.criteria).toContain('Internacional');
     });
 
     it('lista os criterios da stack aceita', () => {

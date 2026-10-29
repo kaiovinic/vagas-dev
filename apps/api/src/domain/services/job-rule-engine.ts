@@ -6,6 +6,11 @@ import {
   STACK_KEYWORDS,
 } from '@/domain/services/job-rule-catalog';
 import {
+  INTERNATIONAL_SCOPE_KEYWORDS,
+  classifyJobScope,
+  type JobScope,
+} from '@/domain/services/job-scope';
+import {
   compileKeywordGroups,
   matchKeywordLabels,
   normalizeForMatching,
@@ -20,6 +25,7 @@ export const JobRejectionReason = {
   StackNotMatched: 'STACK_NOT_MATCHED',
   LocationNotAllowed: 'LOCATION_NOT_ALLOWED',
   SpamDetected: 'SPAM_DETECTED',
+  InternationalScope: 'INTERNATIONAL_SCOPE',
 } as const;
 
 export type JobRejectionReason = (typeof JobRejectionReason)[keyof typeof JobRejectionReason];
@@ -28,7 +34,8 @@ export type PublicRuleKind =
   | 'TIME_WINDOW'
   | 'KEYWORD_ALLOW_LIST'
   | 'KEYWORD_DENY_LIST'
-  | 'LOCATION_ALLOW_LIST';
+  | 'LOCATION_ALLOW_LIST'
+  | 'SCOPE_DENY_LIST';
 
 export interface JobEvaluation {
   readonly approved: boolean;
@@ -36,10 +43,21 @@ export interface JobEvaluation {
   readonly matchedStack: readonly string[];
   readonly matchedLocations: readonly string[];
   readonly matchedSpamTerms: readonly string[];
+  /**
+   * Mercado classificado durante a avaliacao. Sai junto para que o chamador
+   * grave a coluna `scope` sem classificar de novo — a regra e a coluna
+   * passam a ler da mesma fonte.
+   */
+  readonly scope: JobScope;
 }
 
 export interface PublicJobRule {
-  readonly id: 'publication-window' | 'stack-match' | 'location-match' | 'spam-filter';
+  readonly id:
+    | 'publication-window'
+    | 'stack-match'
+    | 'location-match'
+    | 'spam-filter'
+    | 'national-scope';
   readonly name: string;
   readonly description: string;
   readonly kind: PublicRuleKind;
@@ -69,11 +87,26 @@ export class JobRuleEngine {
 
   private readonly publicRules: PublicJobRules = buildPublicRules();
 
-  evaluate(job: Job, reference: Date = new Date()): JobEvaluation {
+  /**
+   * `tags` sao os rotulos que a fonte publica junto da vaga (a Remotar marca
+   * "Vaga internacional" assim). A entidade `Job` nao os carrega — sao metadado
+   * da captura —, mas eles decidem o mercado, por isso entram aqui.
+   */
+  evaluate(
+    job: Job,
+    reference: Date = new Date(),
+    tags: readonly string[] = [],
+  ): JobEvaluation {
     const text = normalizeForMatching(job.searchableText);
     const matchedStack = matchKeywordLabels(text, this.stackGroups);
     const matchedLocations = this.matchLocations(job, text);
     const matchedSpamTerms = matchKeywordLabels(text, this.spamGroups);
+    const scope = classifyJobScope({
+      title: job.title,
+      description: job.description,
+      location: job.location,
+      tags,
+    });
     const rejectionReasons: JobRejectionReason[] = [];
 
     if (!this.isWithinPublicationWindow(job, reference)) {
@@ -92,17 +125,24 @@ export class JobRuleEngine {
       rejectionReasons.push(JobRejectionReason.SpamDetected);
     }
 
+    // So o internacional confirmado sai. `UNKNOWN` fica, porque a maioria das
+    // vagas nao declara mercado e descartar por duvida esvaziaria o radar.
+    if (scope === 'INTERNATIONAL') {
+      rejectionReasons.push(JobRejectionReason.InternationalScope);
+    }
+
     return {
       approved: rejectionReasons.length === 0,
       rejectionReasons,
       matchedStack,
       matchedLocations,
       matchedSpamTerms,
+      scope,
     };
   }
 
-  isApproved(job: Job, reference?: Date): boolean {
-    return this.evaluate(job, reference).approved;
+  isApproved(job: Job, reference?: Date, tags?: readonly string[]): boolean {
+    return this.evaluate(job, reference, tags).approved;
   }
 
   filter(jobs: readonly Job[], reference?: Date): Job[] {
@@ -175,6 +215,15 @@ function buildPublicRules(): PublicJobRules {
       kind: 'KEYWORD_DENY_LIST',
       criteria: SPAM_KEYWORDS.map((group) => group.label),
       rejectionReason: JobRejectionReason.SpamDetected,
+    },
+    {
+      id: 'national-scope',
+      name: 'Somente mercado nacional',
+      description:
+        'O radar cobre apenas o mercado brasileiro. Vagas que se declaram internacionais, abertas para qualquer pais ou com pagamento em moeda estrangeira sao descartadas. Vaga em regime CLT e sempre nacional, mesmo citando pagamento em dolar.',
+      kind: 'SCOPE_DENY_LIST',
+      criteria: INTERNATIONAL_SCOPE_KEYWORDS.map((group) => group.label),
+      rejectionReason: JobRejectionReason.InternationalScope,
     },
   ];
 

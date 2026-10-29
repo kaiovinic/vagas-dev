@@ -26,7 +26,6 @@ import {
   type PersistableJob,
 } from '@/domain/repositories/job-write-repository';
 import { JobRuleEngine } from '@/domain/services/job-rule-engine';
-import { classifyJobScope } from '@/domain/services/job-scope';
 
 export type CaptureReport = FinishCaptureInput & {
   readonly startedAt: Date;
@@ -129,11 +128,18 @@ export class RunJobCollectionUseCase {
     return raw.flatMap((props) => {
       const job = this.toJob(props, reference);
 
-      if (!job || !this.ruleEngine.isApproved(job, reference)) {
+      if (!job) {
         return [];
       }
 
       const tags = props.tags ?? [];
+      // As tags entram na avaliacao porque decidem o mercado: a Remotar marca
+      // "Vaga internacional" ali, e nao no titulo nem na descricao.
+      const evaluation = this.ruleEngine.evaluate(job, reference, tags);
+
+      if (!evaluation.approved) {
+        return [];
+      }
 
       return [
         {
@@ -141,12 +147,9 @@ export class RunJobCollectionUseCase {
           publishedAtSource: props.publishedAtSource,
           recruiterName: props.recruiterName ?? '',
           tags,
-          scope: classifyJobScope({
-            title: job.title,
-            description: job.description,
-            location: job.location,
-            tags,
-          }),
+          // Reaproveita o escopo que a avaliacao ja classificou, em vez de
+          // classificar de novo: regra e coluna leem da mesma fonte.
+          scope: evaluation.scope,
         },
       ];
     });

@@ -31,7 +31,7 @@ Varre cinco fontes a cada 2 horas: **Gupy**, **LinkedIn**, **Remotar**, **Progra
 
 O que entra passa por um funil de três etapas:
 
-1. **Regras de negócio** — janela estrita de 72h, match de stack (React, Next.js, TypeScript, Node.js, Angular, C#/.NET), localidade (Remoto ou Salvador + RMS) e um filtro anti-ruído que descarta curso, bootcamp, lista de grupo e `#opentowork`. As regras ficam **públicas na aba `Regras`**, com um testador: você cola um texto e vê exatamente qual regra aprovou ou reprovou.
+1. **Regras de negócio** — janela estrita de 72h, match de stack (React, Next.js, TypeScript, Node.js, Angular, C#/.NET), localidade (Remoto ou Salvador + RMS), mercado nacional (vaga declaradamente internacional é descartada) e um filtro anti-ruído que elimina curso, bootcamp, lista de grupo e `#opentowork`. As regras ficam **públicas na aba `Regras`**, com um testador: você cola um texto e vê exatamente qual regra aprovou ou reprovou.
 2. **Deduplicação** — um fingerprint SHA-256 de `empresa + título` normalizados. A mesma vaga anunciada no LinkedIn e na Gupy conta uma vez só.
 3. **Classificação** — senioridade (pelo título, não pela descrição) e mercado nacional × internacional, gravados em coluna no momento da captura.
 
@@ -181,12 +181,13 @@ Sobe PostgreSQL com volume persistente, a API (que aplica as migrations no entry
 | `npm run db:migrate` | Aplica as migrations |
 | `npm run db:studio` | Prisma Studio |
 | `npm run telegram:test --workspace @devradar/api` | Envia uma mensagem de teste ao chat |
+| `npm run jobs:purge-international --workspace @devradar/api` | Lista (e com `-- --apply` remove) vagas internacionais antigas |
 
 ---
 
 ## Qualidade
 
-**878 testes**, rodando em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração contra um PostgreSQL real, build dos workspaces e build das duas imagens Docker.
+**890 testes**, rodando em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração contra um PostgreSQL real, build dos workspaces e build das duas imagens Docker.
 
 | Camada | Cobertura |
 |---|---|

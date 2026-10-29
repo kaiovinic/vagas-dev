@@ -156,8 +156,8 @@ describe('RunJobCollectionUseCase', () => {
       expect(report.totalRejected).toBe(2);
     });
 
-    it('classifica a vaga entre mercado nacional e internacional', async () => {
-      await buildUseCase([
+    it('descarta a vaga internacional e grava o mercado das demais', async () => {
+      const report = await buildUseCase([
         new StubScraperProvider('remotar', [
           rawJob({ tags: ['✈️ Vaga internacional'], url: 'https://remotar.com.br/vaga/1' }),
           rawJob({
@@ -169,11 +169,21 @@ describe('RunJobCollectionUseCase', () => {
         ]),
       ]).execute(FIXED_NOW);
 
-      expect(jobs.saved.map((entry) => entry.scope)).toEqual([
-        'INTERNATIONAL',
-        'NATIONAL',
-        'UNKNOWN',
-      ]);
+      // O radar cobre so o mercado brasileiro: a primeira nao chega ao banco.
+      expect(jobs.saved.map((entry) => entry.scope)).toEqual(['NATIONAL', 'UNKNOWN']);
+      expect(report.totalApproved).toBe(2);
+      expect(report.totalRejected).toBe(1);
+    });
+
+    it('reprova pela tag da fonte, que nem aparece no titulo ou na descricao', async () => {
+      const report = await buildUseCase([
+        new StubScraperProvider('remotar', [
+          rawJob({ tags: ['✈️ Vaga internacional'], url: 'https://remotar.com.br/vaga/9' }),
+        ]),
+      ]).execute(FIXED_NOW);
+
+      expect(report.totalApproved).toBe(0);
+      expect(jobs.saved).toEqual([]);
     });
 
     it('aprova vaga remota de qualquer cidade', async () => {

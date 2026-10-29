@@ -22,6 +22,7 @@ describe('TestJobRulesUseCase', () => {
         'stack-match',
         'location-match',
         'spam-filter',
+        'national-scope',
       ]);
     });
   });
