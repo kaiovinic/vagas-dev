@@ -34,6 +34,11 @@ export interface ListJobsInput {
   readonly sortDirection?: SortDirection | undefined;
   /** Por padrao a listagem respeita a janela de 72h, como as abas do dashboard. */
   readonly includeExpired?: boolean | undefined;
+  /**
+   * Recorte temporal da aba `Vagas` (1h, 6h, 24h...). Nunca amplia a janela
+   * publica de 72h: o maximo e o proprio limite do radar.
+   */
+  readonly withinHours?: number | undefined;
 }
 
 export interface ListJobsOutput {
@@ -65,7 +70,8 @@ export class ListJobsUseCase {
       recruiterName: input.recruiterName,
       isRemote: input.isRemote,
       city: input.city,
-      publishedAfter: input.includeExpired === true ? undefined : openWindowStart(reference),
+      publishedAfter:
+        input.includeExpired === true ? undefined : windowStart(input.withinHours, reference),
       page,
       perPage,
       sortBy: input.sortBy ?? 'publishedAt',
@@ -110,6 +116,16 @@ function normalizeTechnologies(
     .filter((technology) => technology.length > 0);
 
   return cleaned.length > 0 ? cleaned : undefined;
+}
+
+/**
+ * Inicio da janela consultada. Sem `withinHours`, usa as 72h do radar; com,
+ * usa o menor dos dois — pedir 200h nao pode revelar vaga ja expirada.
+ */
+function windowStart(withinHours: number | undefined, reference: Date): Date {
+  const hours = Math.min(withinHours ?? PUBLICATION_WINDOW_IN_HOURS, PUBLICATION_WINDOW_IN_HOURS);
+
+  return new Date(reference.getTime() - hours * 60 * 60 * 1000);
 }
 
 function openWindowStart(reference: Date): Date {

@@ -60,6 +60,32 @@ describe('ListJobsUseCase', () => {
     });
   });
 
+  describe('recorte temporal da barra de controle', () => {
+    it.each([1, 6, 24, 48])('consulta so as ultimas %s hora(s)', async (hours) => {
+      await useCase.execute({ withinHours: hours }, FIXED_NOW);
+
+      expect(jobs.lastFilters?.publishedAfter).toEqual(hoursAgo(hours));
+    });
+
+    it('usa a janela de 72h quando nenhum recorte e pedido', async () => {
+      await useCase.execute({}, FIXED_NOW);
+
+      expect(jobs.lastFilters?.publishedAfter).toEqual(hoursAgo(72));
+    });
+
+    it('nunca amplia a janela publica, mesmo pedindo mais', async () => {
+      await useCase.execute({ withinHours: 500 }, FIXED_NOW);
+
+      expect(jobs.lastFilters?.publishedAfter).toEqual(hoursAgo(72));
+    });
+
+    it('includeExpired continua vencendo o recorte', async () => {
+      await useCase.execute({ withinHours: 6, includeExpired: true }, FIXED_NOW);
+
+      expect(jobs.lastFilters?.publishedAfter).toBeUndefined();
+    });
+  });
+
   describe('filtro de tecnologias', () => {
     it('repassa as tecnologias marcadas', async () => {
       await useCase.execute({ technologies: ['React', 'Node.js'] }, FIXED_NOW);

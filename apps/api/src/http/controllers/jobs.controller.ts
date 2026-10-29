@@ -48,6 +48,8 @@ const listJobsQuerySchema = z.object({
   city: text,
   isRemote: booleanFlag,
   includeExpired: booleanFlag,
+  /** Recorte temporal da barra de controle: 1, 6, 24, 48 ou 72 horas. */
+  withinHours: z.coerce.number().int().min(1).max(72).optional(),
   page: z.coerce.number().int().min(1).optional(),
   perPage: z.coerce.number().int().min(1).max(MAX_PER_PAGE).optional(),
   scope: z.enum(JOB_SCOPES).optional(),
