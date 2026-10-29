@@ -20,7 +20,6 @@ import { PrismaJobRepository } from '@/infra/prisma/prisma-job-repository';
 import { PrismaService } from '@/infra/prisma/prisma.service';
 import { GithubIssuesScraperProvider } from '@/infra/scrapers/github-issues-scraper-provider';
 import { GupyScraperProvider } from '@/infra/scrapers/gupy-scraper-provider';
-import { JobbolScraperProvider } from '@/infra/scrapers/jobbol-scraper-provider';
 import { LinkedinGuestScraperProvider } from '@/infra/scrapers/linkedin-guest-scraper-provider';
 import { ProgramathorScraperProvider } from '@/infra/scrapers/programathor-scraper-provider';
 import { RemotarScraperProvider } from '@/infra/scrapers/remotar-scraper-provider';
@@ -35,7 +34,13 @@ const SCRAPERS = [
   LinkedinGuestScraperProvider,
   RemotarScraperProvider,
   ProgramathorScraperProvider,
-  JobbolScraperProvider,
+  // JobbolScraperProvider: fora do registro de proposito. O site esta atras do
+  // Bot Management da Cloudflare, que responde 403 (`cf-mitigated: challenge`)
+  // a qualquer cliente HTTP que nao seja navegador — o bloqueio e por
+  // impressao digital de TLS, nao por cabecalho, e nenhuma configuracao daqui
+  // resolve. Registrado, o coletor so gastaria quatro requisicoes recusadas e
+  // um WARN por captura. O parser e os 18 testes seguem no repositorio; para
+  // religar, basta o import e esta linha de volta.
 ];
 
 @Module({
