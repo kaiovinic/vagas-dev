@@ -233,6 +233,7 @@ describe('useJobsList', () => {
           url: 'https://gupy.io/vagas/1',
           tags: ['React'],
           publishedAt: '2026-10-26T10:00:00.000Z',
+          description: 'Descricao da vaga para o painel de detalhe.',
           publishedAtSource: 'SOURCE',
         },
       ],

@@ -54,6 +54,7 @@ const JOB = {
   url: 'https://gupy.io/vagas/1',
   tags: ['React', 'TypeScript'],
   publishedAt: '2026-10-26T11:00:00.000Z',
+  description: 'Descricao da vaga para o painel de detalhe.',
   publishedAtSource: 'SOURCE',
 };
 
@@ -143,25 +144,155 @@ describe('DashboardPage', () => {
   });
 });
 
+/**
+ * O jsdom nao implementa `matchMedia`. Sem este duplo, `useMediaQuery` sempre
+ * devolve false — o caminho do celular. Os testes de desktop precisam dizer
+ * que estao no desktop.
+ */
+function simulateViewport(isDesktop: boolean): void {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: isDesktop,
+    media: query,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }));
+}
+
+describe('JobsPage (split view)', () => {
+  it('abre com a primeira vaga ja no painel, sem exigir clique', async () => {
+    simulateViewport(true);
+    stubApi();
+
+    renderWithProviders(<JobsPage />);
+
+    await waitFor(() => expect(screen.getByTestId('job-detail')).toBeInTheDocument());
+
+    expect(screen.getByTestId('job-detail')).toHaveTextContent('Desenvolvedor Frontend React');
+  });
+
+  it('troca a vaga do painel ao escolher outro card', async () => {
+    simulateViewport(true);
+
+    const spy = stubApi();
+
+    spy.mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse({
+          items: [
+            JOB,
+            { ...JOB, id: 'job-2', title: 'Pessoa Desenvolvedora Node', company: 'Globex' },
+          ],
+          total: 2,
+          page: 1,
+          perPage: 20,
+          totalPages: 1,
+        }),
+      ),
+    );
+
+    renderWithProviders(<JobsPage />);
+
+    await waitFor(() => expect(screen.getByTestId('job-card-job-2')).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId('job-card-job-2'));
+
+    expect(screen.getByTestId('job-detail')).toHaveTextContent('Pessoa Desenvolvedora Node');
+  });
+
+  it('comeca o recorte temporal em 72h', async () => {
+    const spy = stubApi();
+
+    renderWithProviders(<JobsPage />);
+
+    await waitFor(() =>
+      expect(spy.mock.calls.some((call) => String(call[0]).includes('withinHours=72'))).toBe(true),
+    );
+  });
+
+  it('manda o recorte escolhido para a api', async () => {
+    const spy = stubApi();
+
+    renderWithProviders(<JobsPage />);
+
+    await waitFor(() => expect(screen.getByTestId('job-card-job-1')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('radio', { name: '6h' }));
+
+    await waitFor(() =>
+      expect(spy.mock.calls.some((call) => String(call[0]).includes('withinHours=6'))).toBe(true),
+    );
+  });
+
+  it('comeca com o radar pausado, sem aviso de novidade', async () => {
+    stubApi();
+
+    renderWithProviders(<JobsPage />);
+
+    await waitFor(() => expect(screen.getByTestId('job-card-job-1')).toBeInTheDocument());
+
+    expect(screen.getByText('Radar pausado')).toBeInTheDocument();
+    expect(screen.queryByTestId('new-jobs-notice')).not.toBeInTheDocument();
+  });
+
+  it('nao monta o drawer antes de escolher a vaga', async () => {
+    simulateViewport(false);
+    stubApi();
+
+    renderWithProviders(<JobsPage />);
+
+    await waitFor(() => expect(screen.getByTestId('job-card-job-1')).toBeInTheDocument());
+
+    expect(screen.queryByTestId('job-drawer')).not.toBeInTheDocument();
+  });
+
+  it('nao monta o drawer no desktop, onde o painel ja mostra a vaga', async () => {
+    simulateViewport(true);
+    stubApi();
+
+    renderWithProviders(<JobsPage />);
+
+    await waitFor(() => expect(screen.getByTestId('job-card-job-1')).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId('job-card-job-1'));
+
+    // Dois `job-detail` fariam o leitor de tela anunciar a vaga duas vezes.
+    expect(screen.queryByTestId('job-drawer')).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('job-detail')).toHaveLength(1);
+  });
+
+  it('abre o drawer ao escolher a vaga, para o celular', async () => {
+    simulateViewport(false);
+    stubApi();
+
+    renderWithProviders(<JobsPage />);
+
+    await waitFor(() => expect(screen.getByTestId('job-card-job-1')).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId('job-card-job-1'));
+
+    expect(screen.getByTestId('job-drawer')).toBeInTheDocument();
+  });
+});
+
 describe('JobsPage', () => {
   it('lista as vagas abertas da api', async () => {
+    simulateViewport(true);
     stubApi();
 
     renderWithProviders(<JobsPage />);
 
     await waitFor(() =>
-      expect(screen.getByText('Desenvolvedor Frontend React')).toBeInTheDocument(),
+      expect(screen.getByTestId('job-card-job-1')).toBeInTheDocument(),
     );
 
-    const link = screen.getByRole('link', { name: /Desenvolvedor Frontend React/ });
-    const row = link.closest('li');
+    const card = screen.getByTestId('job-card-job-1');
 
-    expect(link).toHaveAttribute('href', 'https://gupy.io/vagas/1');
-    // Escopo na linha da vaga: "React" e "Remoto" tambem aparecem no filtro acima.
-    expect(row).toHaveTextContent('Acme Corp');
-    expect(row).toHaveTextContent('Salvador/BA');
-    expect(row).toHaveTextContent('Remoto');
-    expect(row).toHaveTextContent('React');
+    // Escopo no card: "React" e "Remoto" tambem aparecem no filtro acima.
+    expect(card).toHaveTextContent('Desenvolvedor Frontend React');
+    expect(card).toHaveTextContent('Acme Corp');
+    expect(card).toHaveTextContent('Remoto BR');
+    expect(card).toHaveTextContent('React');
+
+    // O link de candidatura vive no painel de detalhe, nao no card.
+    const detalhe = screen.getByTestId('job-detail');
+
+    expect(detalhe.querySelector('a')).toHaveAttribute('href', 'https://gupy.io/vagas/1');
   });
 
   it('busca pelo termo submetido no filtro', async () => {
@@ -170,7 +301,7 @@ describe('JobsPage', () => {
     renderWithProviders(<JobsPage />);
 
     await waitFor(() =>
-      expect(screen.getByText('Desenvolvedor Frontend React')).toBeInTheDocument(),
+      expect(screen.getByTestId('job-card-job-1')).toBeInTheDocument(),
     );
 
     await userEvent.type(screen.getByLabelText('Busca'), 'angular');
@@ -189,7 +320,7 @@ describe('JobsPage', () => {
     renderWithProviders(<JobsPage />);
 
     await waitFor(() =>
-      expect(screen.getByText('Desenvolvedor Frontend React')).toBeInTheDocument(),
+      expect(screen.getByTestId('job-card-job-1')).toBeInTheDocument(),
     );
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'React' }));
@@ -208,7 +339,7 @@ describe('JobsPage', () => {
     renderWithProviders(<JobsPage />);
 
     await waitFor(() =>
-      expect(screen.getByText('Desenvolvedor Frontend React')).toBeInTheDocument(),
+      expect(screen.getByTestId('job-card-job-1')).toBeInTheDocument(),
     );
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'Pleno' }));
@@ -226,7 +357,7 @@ describe('JobsPage', () => {
     renderWithProviders(<JobsPage />);
 
     await waitFor(() =>
-      expect(screen.getByText('Desenvolvedor Frontend React')).toBeInTheDocument(),
+      expect(screen.getByTestId('job-card-job-1')).toBeInTheDocument(),
     );
 
     await userEvent.click(
@@ -246,7 +377,7 @@ describe('JobsPage', () => {
     renderWithProviders(<JobsPage />);
 
     await waitFor(() =>
-      expect(screen.getByText('Desenvolvedor Frontend React')).toBeInTheDocument(),
+      expect(screen.getByTestId('job-card-job-1')).toBeInTheDocument(),
     );
 
     await userEvent.selectOptions(screen.getByLabelText('Fonte'), 'gupy');
@@ -262,7 +393,7 @@ describe('JobsPage', () => {
     renderWithProviders(<JobsPage />);
 
     await waitFor(() =>
-      expect(screen.getByText('Desenvolvedor Frontend React')).toBeInTheDocument(),
+      expect(screen.getByTestId('job-card-job-1')).toBeInTheDocument(),
     );
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'React' }));
@@ -372,7 +503,7 @@ describe('JobsPage', () => {
     renderWithProviders(<JobsPage />, { route: '/vagas?scope=INTERNATIONAL' });
 
     await waitFor(() =>
-      expect(screen.getByText('Desenvolvedor Frontend React')).toBeInTheDocument(),
+      expect(screen.getByTestId('job-card-job-1')).toBeInTheDocument(),
     );
     expect(spy.mock.calls.some((call) => String(call[0]).includes('scope='))).toBe(false);
   });
@@ -383,7 +514,7 @@ describe('JobsPage', () => {
     renderWithProviders(<JobsPage />, { route: '/vagas?tech=Cobol&seniority=ARQUITETO' });
 
     await waitFor(() =>
-      expect(screen.getByText('Desenvolvedor Frontend React')).toBeInTheDocument(),
+      expect(screen.getByTestId('job-card-job-1')).toBeInTheDocument(),
     );
     expect(screen.getByRole('checkbox', { name: 'React' })).not.toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Senior' })).not.toBeChecked();
@@ -395,7 +526,7 @@ describe('JobsPage', () => {
     renderWithProviders(<JobsPage />);
 
     await waitFor(() =>
-      expect(screen.getByText('Desenvolvedor Frontend React')).toBeInTheDocument(),
+      expect(screen.getByTestId('job-card-job-1')).toBeInTheDocument(),
     );
     expect(screen.queryByTestId('drilldown-chips')).not.toBeInTheDocument();
   });

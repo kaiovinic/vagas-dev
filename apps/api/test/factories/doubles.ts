@@ -222,6 +222,7 @@ export function jobListItem(overrides: Partial<JobListItem> = {}): JobListItem {
     workModel: 'REMOTE',
     url: 'https://gupy.io/vagas/1',
     tags: ['React'],
+    description: 'Vaga de teste para a listagem.',
     scope: 'NATIONAL',
     publishedAt: hoursAgo(2),
     publishedAtSource: 'SOURCE',

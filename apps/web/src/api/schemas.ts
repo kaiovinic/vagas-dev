@@ -63,6 +63,7 @@ export const jobListItemSchema = z.object({
   workModel: workModelSchema,
   url: z.string(),
   tags: z.array(z.string()),
+  description: z.string(),
   publishedAt: z.string().datetime(),
   publishedAtSource: z.enum(['SOURCE', 'CAPTURE']),
 });

@@ -53,6 +53,8 @@ export interface JobListItem {
   readonly workModel: JobWorkModel;
   readonly url: string;
   readonly tags: readonly string[];
+  /** Texto da vaga, usado pelo painel de detalhe da aba `Vagas`. */
+  readonly description: string;
   readonly publishedAt: Date;
   readonly publishedAtSource: PublishedAtSource;
 }

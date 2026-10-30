@@ -23,6 +23,7 @@ const LIST_SELECTION = {
   workModel: true,
   url: true,
   tags: true,
+  description: true,
   publishedAt: true,
   publishedAtSource: true,
 } as const;

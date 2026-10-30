@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ExternalLink, X } from 'lucide-react';
+import { ArrowUp, X } from 'lucide-react';
 
 import type { JobListItem } from '@/api/schemas';
 import {
@@ -9,47 +9,76 @@ import {
   toJobsListFilters,
   type JobsFilterValues,
 } from '@/components/jobs/jobs-filter-form';
+import {
+  DEFAULT_TIME_WINDOW,
+  JobsControlBar,
+  type TimeWindowHours,
+} from '@/components/jobs/jobs-control-bar';
+import { JobDetail } from '@/components/jobs/job-detail';
+import { JobDetailDrawer } from '@/components/jobs/job-detail-drawer';
+import { JobFeedCard } from '@/components/jobs/job-feed-card';
 import { Panel, Skeleton, StateMessage } from '@/components/ui/panel';
 import { useJobsList, type JobsListFilters } from '@/hooks/use-jobs-list';
-import { formatDateTime } from '@/lib/brasilia-time';
-import { formatInteger, sourceLabel } from '@/lib/sources';
-
-const WORK_MODEL_LABELS: Readonly<Record<JobListItem['workModel'], string>> = {
-  REMOTE: 'Remoto',
-  HYBRID: 'Hibrido',
-  ONSITE: 'Presencial',
-  UNKNOWN: 'Nao informada',
-};
+import { LIVE_RADAR_INTERVAL_MS, useLiveRadar } from '@/hooks/use-live-radar';
+import { DESKTOP_QUERY, useMediaQuery } from '@/hooks/use-media-query';
+import { formatInteger } from '@/lib/sources';
 
 export function JobsPage(): ReactNode {
   // As abas Empresas, Recrutadores e Mercado entram aqui por query param.
   const [searchParams, setSearchParams] = useSearchParams();
   // So na montagem: depois disso quem manda no filtro e o formulario.
-  const [initialFilter] = useState<JobsFilterValues>(() =>
-    parseFilterFromParams(searchParams),
-  );
+  const [initialFilter] = useState<JobsFilterValues>(() => parseFilterFromParams(searchParams));
   const [applied, setApplied] = useState<JobsFilterValues>(initialFilter);
   const [page, setPage] = useState(1);
+  const [window, setWindow] = useState<TimeWindowHours>(DEFAULT_TIME_WINDOW);
+  const [isLive, setIsLive] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [drawerJob, setDrawerJob] = useState<JobListItem | null>(null);
+
+  const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const company = searchParams.get('company') ?? undefined;
   const recruiterName = searchParams.get('recruiterName') ?? undefined;
 
   const filters: JobsListFilters = {
     page,
+    withinHours: window,
     ...toJobsListFilters(applied),
     company,
     recruiterName,
   };
-  const jobs = useJobsList(filters);
 
-  // Cada novo filtro recomeca na primeira pagina.
+  const jobs = useJobsList(filters, {
+    refetchInterval: isLive ? LIVE_RADAR_INTERVAL_MS : false,
+  });
+  const loaded = useMemo<readonly JobListItem[]>(() => jobs.data?.items ?? [], [jobs.data]);
+  const radar = useLiveRadar(loaded, isLive, JSON.stringify(filters));
+
+  const selected = loaded.find((job) => job.id === selectedId) ?? loaded[0] ?? null;
+
   const handleFilter = useCallback((values: JobsFilterValues) => {
     setApplied(values);
     setPage(1);
   }, []);
 
+  // Trocar o recorte ou o alvo do filtro recomeca na primeira pagina e solta a
+  // selecao: a vaga aberta pode nem existir na nova lista.
   useEffect(() => {
     setPage(1);
-  }, [company, recruiterName]);
+    setSelectedId(null);
+  }, [company, recruiterName, window]);
+
+  /**
+   * No desktop a vaga vai para o painel ao lado; o drawer nem e montado. Nao
+   * basta esconder com CSS: o drawer e um `role="dialog"` com o mesmo
+   * conteudo, e no DOM ele faria o leitor de tela anunciar a vaga duas vezes.
+   */
+  const handleSelect = useCallback(
+    (job: JobListItem) => {
+      setSelectedId(job.id);
+      setDrawerJob(isDesktop ? null : job);
+    },
+    [isDesktop],
+  );
 
   const clearParam = (param: 'company' | 'recruiterName'): void => {
     const next = new URLSearchParams(searchParams);
@@ -59,81 +88,159 @@ export function JobsPage(): ReactNode {
   };
 
   return (
-    <Panel
-      title="Vagas abertas"
-      description="Publicadas nas ultimas 72h em Salvador/BA, Regiao Metropolitana ou 100% remotas"
-    >
-      <div className="mb-4">
-        <JobsFilterForm
-          onSubmit={handleFilter}
-          isLoading={jobs.isFetching}
-          initialValues={initialFilter}
-        />
-      </div>
+    <div className="flex flex-col gap-4">
+      <Panel
+        title="Vagas abertas"
+        description="Publicadas nas ultimas 72h em Salvador/BA, Regiao Metropolitana ou 100% remotas"
+      >
+        <div className="flex flex-col gap-4">
+          <JobsFilterForm
+            onSubmit={handleFilter}
+            isLoading={jobs.isFetching}
+            initialValues={initialFilter}
+          />
 
-      {(company !== undefined || recruiterName !== undefined) && (
-        <div className="mb-4 flex flex-wrap gap-2" data-testid="drilldown-chips">
-          {company !== undefined && (
-            <FilterChip
-              label={`Empresa: ${company}`}
-              onClear={() => clearParam('company')}
-            />
-          )}
-          {recruiterName !== undefined && (
-            <FilterChip
-              label={`Recrutador: ${recruiterName}`}
-              onClear={() => clearParam('recruiterName')}
-            />
+          <JobsControlBar
+            window={window}
+            onWindowChange={setWindow}
+            isLive={isLive}
+            onLiveChange={setIsLive}
+            total={jobs.data?.total ?? 0}
+          />
+
+          {(company !== undefined || recruiterName !== undefined) && (
+            <div className="flex flex-wrap gap-2" data-testid="drilldown-chips">
+              {company !== undefined && (
+                <FilterChip label={`Empresa: ${company}`} onClear={() => clearParam('company')} />
+              )}
+              {recruiterName !== undefined && (
+                <FilterChip
+                  label={`Recrutador: ${recruiterName}`}
+                  onClear={() => clearParam('recruiterName')}
+                />
+              )}
+            </div>
           )}
         </div>
-      )}
+      </Panel>
 
       {jobs.error !== null ? (
-        <StateMessage
-          title="Nao foi possivel carregar as vagas"
-          description={jobs.error.message}
-          tone="negative"
-        />
+        <Panel>
+          <StateMessage
+            title="Nao foi possivel carregar as vagas"
+            description={jobs.error.message}
+            tone="negative"
+          />
+        </Panel>
       ) : jobs.isPending ? (
-        <div className="flex flex-col gap-2">
-          {[0, 1, 2, 3, 4].map((row) => (
-            <Skeleton key={row} className="h-16 w-full" />
-          ))}
-        </div>
-      ) : jobs.data.items.length === 0 ? (
-        <StateMessage
-          title="Nenhuma vaga encontrada"
-          description="Ajuste a busca ou aguarde a proxima captura."
-        />
-      ) : (
-        <>
-          <ul className="flex flex-col gap-2">
-            {jobs.data.items.map((job) => (
-              <JobRow key={job.id} job={job} />
+        <Panel>
+          <div className="flex flex-col gap-2">
+            {[0, 1, 2, 3, 4].map((row) => (
+              <Skeleton key={row} className="h-20 w-full" />
             ))}
-          </ul>
+          </div>
+        </Panel>
+      ) : loaded.length === 0 ? (
+        <Panel>
+          <StateMessage
+            title="Nenhuma vaga encontrada"
+            description="Amplie o recorte de tempo, ajuste a busca ou aguarde a proxima captura."
+          />
+        </Panel>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-5">
+          {/* Feed: 2 de 5 colunas (~40%), com rolagem propria no desktop. */}
+          <section className="flex flex-col gap-3 lg:col-span-2" aria-label="Lista de vagas">
+            {radar.newCount > 0 && (
+              <NewJobsNotice count={radar.newCount} onDismiss={radar.acknowledge} />
+            )}
 
-          <footer className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-content-muted">
-            <span>
-              {formatInteger(jobs.data.total)} vaga(s) · pagina {jobs.data.page} de{' '}
-              {Math.max(jobs.data.totalPages, 1)}
-            </span>
-            <span className="flex gap-2">
-              <PagerButton
-                label="Anterior"
-                disabled={jobs.data.page <= 1}
-                onClick={() => setPage((current) => Math.max(current - 1, 1))}
-              />
-              <PagerButton
-                label="Proxima"
-                disabled={jobs.data.page >= jobs.data.totalPages}
-                onClick={() => setPage((current) => current + 1)}
-              />
-            </span>
-          </footer>
-        </>
+            <ul className="flex flex-col gap-2 lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto lg:pr-1">
+              {loaded.map((job) => (
+                <JobFeedCard
+                  key={job.id}
+                  job={job}
+                  isActive={selected?.id === job.id}
+                  onSelect={handleSelect}
+                />
+              ))}
+            </ul>
+
+            <Pager
+              page={jobs.data.page}
+              totalPages={jobs.data.totalPages}
+              total={jobs.data.total}
+              onChange={setPage}
+            />
+          </section>
+
+          {/* Painel: 3 de 5 colunas (~60%), fixo ao rolar. So existe no desktop:
+              no celular o mesmo conteudo vai para o drawer, e manter os dois
+              no DOM faria o leitor de tela anunciar a vaga duas vezes. */}
+          {isDesktop && (
+            <section
+              aria-label="Detalhes da vaga"
+              className="lg:sticky lg:top-4 lg:col-span-3 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
+            >
+              <Panel>
+                <JobDetail job={selected} />
+              </Panel>
+            </section>
+          )}
+        </div>
       )}
-    </Panel>
+
+      <JobDetailDrawer job={drawerJob} onClose={() => setDrawerJob(null)} />
+    </div>
+  );
+}
+
+interface NewJobsNoticeProps {
+  readonly count: number;
+  readonly onDismiss: () => void;
+}
+
+/** Aviso discreto no topo do feed: informa, nao interrompe. */
+function NewJobsNotice({ count, onDismiss }: NewJobsNoticeProps): ReactNode {
+  return (
+    <button
+      type="button"
+      onClick={onDismiss}
+      data-testid="new-jobs-notice"
+      className="inline-flex items-center justify-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-accent hover:bg-accent/15"
+    >
+      <ArrowUp aria-hidden="true" className="size-4" />
+      {count === 1 ? '1 vaga nova no radar' : `${count} vagas novas no radar`}
+    </button>
+  );
+}
+
+interface PagerProps {
+  readonly page: number;
+  readonly totalPages: number;
+  readonly total: number;
+  readonly onChange: (updater: (current: number) => number) => void;
+}
+
+function Pager({ page, totalPages, total, onChange }: PagerProps): ReactNode {
+  return (
+    <footer className="flex flex-wrap items-center justify-between gap-3 text-xs text-content-muted">
+      <span>
+        {formatInteger(total)} vaga(s) · pagina {page} de {Math.max(totalPages, 1)}
+      </span>
+      <span className="flex gap-2">
+        <PagerButton
+          label="Anterior"
+          disabled={page <= 1}
+          onClick={() => onChange((current) => Math.max(current - 1, 1))}
+        />
+        <PagerButton
+          label="Proxima"
+          disabled={page >= totalPages}
+          onClick={() => onChange((current) => current + 1)}
+        />
+      </span>
+    </footer>
   );
 }
 
@@ -154,51 +261,6 @@ function FilterChip({ label, onClear }: FilterChipProps): ReactNode {
       >
         <X aria-hidden="true" className="size-3.5" />
       </button>
-    </span>
-  );
-}
-
-function JobRow({ job }: { readonly job: JobListItem }): ReactNode {
-  return (
-    <li className="rounded-xl border border-border-subtle bg-surface-base/50 p-3">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <a
-            href={job.url}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="inline-flex items-center gap-1.5 font-medium text-content-primary hover:text-accent"
-          >
-            {job.title}
-            <ExternalLink aria-hidden="true" className="size-3.5 shrink-0" />
-          </a>
-          <p className="mt-0.5 text-sm text-content-secondary">
-            {job.company}
-            {job.city !== null && <span className="text-content-muted"> · {job.city}</span>}
-          </p>
-        </div>
-
-        <div className="flex shrink-0 flex-col items-end gap-1 text-xs text-content-muted">
-          <span>{sourceLabel(job.source)}</span>
-          <span>{formatDateTime(new Date(job.publishedAt))}</span>
-        </div>
-      </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <Tag>{WORK_MODEL_LABELS[job.workModel]}</Tag>
-        {job.publishedAtSource === 'CAPTURE' && <Tag>Data estimada na captura</Tag>}
-        {job.tags.slice(0, 6).map((tag) => (
-          <Tag key={tag}>{tag}</Tag>
-        ))}
-      </div>
-    </li>
-  );
-}
-
-function Tag({ children }: { readonly children: ReactNode }): ReactNode {
-  return (
-    <span className="rounded-full bg-surface-overlay px-2 py-0.5 text-xs text-content-secondary">
-      {children}
     </span>
   );
 }

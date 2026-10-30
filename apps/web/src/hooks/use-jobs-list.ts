@@ -18,6 +18,8 @@ export interface JobsListFilters {
   readonly city?: string | undefined;
   readonly isRemote?: boolean | undefined;
   readonly includeExpired?: boolean | undefined;
+  /** Recorte temporal da barra de controle: 1, 6, 24, 48 ou 72 horas. */
+  readonly withinHours?: number | undefined;
   readonly page?: number | undefined;
   readonly perPage?: number | undefined;
   readonly sortBy?: JobSortField | undefined;
@@ -28,12 +30,21 @@ export function jobsListQueryKey(filters: JobsListFilters): readonly unknown[] {
   return ['jobs', 'list', filters] as const;
 }
 
-export function useJobsList(filters: JobsListFilters = {}): UseQueryResult<JobsList, Error> {
+export interface UseJobsListOptions {
+  /** Polling do "Radar Ativo"; `false` desliga, que e o padrao. */
+  readonly refetchInterval?: number | false | undefined;
+}
+
+export function useJobsList(
+  filters: JobsListFilters = {},
+  options: UseJobsListOptions = {},
+): UseQueryResult<JobsList, Error> {
   return useQuery({
     queryKey: jobsListQueryKey(filters),
     queryFn: ({ signal }) =>
       fetchJson(buildPath('/api/jobs', toQueryParams(filters)), jobsListSchema, signal),
     staleTime: JOBS_STALE_TIME_MS,
+    refetchInterval: options.refetchInterval ?? false,
     // Paginar e filtrar sem derrubar a tabela para o estado de carregamento.
     placeholderData: keepPreviousData,
   });
@@ -52,6 +63,7 @@ function toQueryParams(filters: JobsListFilters): Record<string, string | number
     city: filters.city,
     isRemote: toFlag(filters.isRemote),
     includeExpired: toFlag(filters.includeExpired),
+    withinHours: filters.withinHours,
     page: filters.page,
     perPage: filters.perPage,
     sortBy: filters.sortBy,

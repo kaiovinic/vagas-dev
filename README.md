@@ -43,7 +43,9 @@ Seis abas: `Vagas`, `Dashboard`, `Empresas`, `Recrutadores`, `Mercado` e `Regras
 
 - **KPIs** — vagas abertas, novas em 24h com variação contra as 24h anteriores, remotas (total e percentual) e empresas contratando.
 - **Gráficos** — rosca de vagas por fonte e barras empilhadas por dia de publicação, com seletor de período.
-- **Filtros** — busca textual, tecnologias, modalidade, senioridade e fonte, todos refletidos na URL.
+- **Filtros** — busca textual, tecnologias, modalidade, senioridade e fonte, mais um recorte temporal de `1h` a `72h`.
+- **Split view** — no desktop, feed de cards à esquerda e painel da vaga selecionada à direita; no celular, o mesmo painel abre em drawer.
+- **Radar ao vivo** — com o toggle ligado, a lista é reconsultada a cada 60s e um aviso discreto informa quantas vagas chegaram.
 - **Cabeçalho de status** — horário da última captura e previsão da próxima, no fuso de Brasília.
 
 ### Alertas no Telegram
@@ -193,7 +195,7 @@ Sobe PostgreSQL com volume persistente, a API (que aplica as migrations no entry
 
 ## Qualidade
 
-**992 testes**, rodando em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração contra um PostgreSQL real, build dos workspaces e build das duas imagens Docker.
+**1.043 testes**, rodando em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração contra um PostgreSQL real, build dos workspaces e build das duas imagens Docker.
 
 | Camada | Cobertura |
 |---|---|
