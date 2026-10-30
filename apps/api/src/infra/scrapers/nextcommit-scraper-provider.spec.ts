@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
-  NEXTCOMMIT_DEFAULT_TRACKS,
+  NEXTCOMMIT_DEFAULT_AREAS,
+  NEXTCOMMIT_PAGES,
   NextCommitScraperProvider,
 } from '@/infra/scrapers/nextcommit-scraper-provider';
 import {
@@ -18,7 +19,7 @@ describe('NextCommitScraperProvider', () => {
 
   beforeEach(() => {
     http = new FakeHttpClient(() => FIXTURE);
-    provider = new NextCommitScraperProvider(http, ['front-end']);
+    provider = new NextCommitScraperProvider(http, ['frontend'], 1);
   });
 
   it('identifica a fonte', () => {
@@ -27,23 +28,32 @@ describe('NextCommitScraperProvider', () => {
   });
 
   describe('requisicao', () => {
-    it('consulta a pagina de cada trilha configurada', async () => {
-      await new NextCommitScraperProvider(http, ['front-end', 'full-stack']).scrape();
+    it('consulta cada area, paginada', async () => {
+      await new NextCommitScraperProvider(http, ['frontend', 'fullstack'], 2).scrape();
 
       expect(http.requestedUrls).toEqual([
-        'https://www.nextcommit.dev/vagas/front-end',
-        'https://www.nextcommit.dev/vagas/full-stack',
+        'https://www.nextcommit.dev/vagas?area=frontend&pagina=1',
+        'https://www.nextcommit.dev/vagas?area=frontend&pagina=2',
+        'https://www.nextcommit.dev/vagas?area=fullstack&pagina=1',
+        'https://www.nextcommit.dev/vagas?area=fullstack&pagina=2',
       ]);
     });
 
-    it('cobre as trilhas que batem com a stack monitorada', () => {
-      expect(NEXTCOMMIT_DEFAULT_TRACKS).toEqual(['front-end', 'full-stack', 'back-end']);
+    it('cobre as areas que batem com a stack monitorada', () => {
+      expect(NEXTCOMMIT_DEFAULT_AREAS).toEqual(['frontend', 'fullstack', 'backend']);
     });
 
-    it('nao pagina: o servidor devolve sempre os mesmos 24 da primeira pagina', async () => {
+    it('usa o parametro em portugues, o unico que o site respeita', async () => {
       await provider.scrape();
 
-      expect(http.requestedUrls.every((url) => !url.includes('page='))).toBe(true);
+      // `?page=2` e aceito e ignorado: devolve a primeira pagina de novo.
+      expect(http.requestedUrls[0]).toContain('pagina=');
+      expect(http.requestedUrls[0]).not.toContain('page=');
+    });
+
+    it('busca mais de uma pagina por area, como margem', () => {
+      // A pagina 1 ja traz o mais novo; a 2 e margem para dia de volume alto.
+      expect(NEXTCOMMIT_PAGES).toBeGreaterThanOrEqual(2);
     });
   });
 
@@ -125,7 +135,8 @@ describe('NextCommitScraperProvider', () => {
       );
       const jobs = await new NextCommitScraperProvider(
         new FakeHttpClient(() => quebrado),
-        ['front-end'],
+        ['frontend'],
+        1,
       ).scrape();
 
       expect(jobs.some((job) => job.title === 'Engenheiro de Software')).toBe(false);
@@ -141,17 +152,14 @@ describe('NextCommitScraperProvider', () => {
       expect(jobs).toHaveLength(5);
     });
 
-    it('remove a mesma vaga repetida entre trilhas', async () => {
-      const jobs = await new NextCommitScraperProvider(http, [
-        'front-end',
-        'full-stack',
-      ]).scrape();
+    it('remove a mesma vaga repetida entre areas', async () => {
+      const jobs = await new NextCommitScraperProvider(http, ['frontend', 'fullstack'], 1).scrape();
 
       expect(jobs).toHaveLength(5);
     });
 
     it('devolve lista vazia quando a fonte esta fora do ar', async () => {
-      const fora = new NextCommitScraperProvider(failingHttpClient(), ['front-end']);
+      const fora = new NextCommitScraperProvider(failingHttpClient(), ['frontend'], 1);
 
       await expect(fora.scrape()).resolves.toEqual([]);
     });
@@ -159,7 +167,8 @@ describe('NextCommitScraperProvider', () => {
     it('devolve lista vazia quando o layout muda e nao ha mais card', async () => {
       const vazio = new NextCommitScraperProvider(
         new FakeHttpClient(() => '<html><body><p>sem vagas</p></body></html>'),
-        ['front-end'],
+        ['frontend'],
+        1,
       );
 
       await expect(vazio.scrape()).resolves.toEqual([]);
@@ -169,7 +178,8 @@ describe('NextCommitScraperProvider', () => {
       const semLink = FIXTURE.replace(/href="https:\/\/himalayas[^"]*"/g, 'href=""');
       const jobs = await new NextCommitScraperProvider(
         new FakeHttpClient(() => semLink),
-        ['front-end'],
+        ['frontend'],
+        1,
       ).scrape();
 
       expect(jobs.every((job) => job.url.length > 0)).toBe(true);

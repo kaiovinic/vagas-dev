@@ -20,7 +20,6 @@ import { PrismaMarketInsightsRepository } from '@/infra/prisma/prisma-market-ins
 import { PrismaJobRepository } from '@/infra/prisma/prisma-job-repository';
 import { PrismaWeeklyDigestRepository } from '@/infra/prisma/prisma-weekly-digest-repository';
 import { PrismaService } from '@/infra/prisma/prisma.service';
-import { CoodeshScraperProvider } from '@/infra/scrapers/coodesh-scraper-provider';
 import { GithubIssuesScraperProvider } from '@/infra/scrapers/github-issues-scraper-provider';
 import { GupyScraperProvider } from '@/infra/scrapers/gupy-scraper-provider';
 import { LinkedinGuestScraperProvider } from '@/infra/scrapers/linkedin-guest-scraper-provider';
@@ -28,7 +27,6 @@ import { LinkedinPostsScraperProvider } from '@/infra/scrapers/linkedin-posts-sc
 import { NextCommitScraperProvider } from '@/infra/scrapers/nextcommit-scraper-provider';
 import { ProgramathorScraperProvider } from '@/infra/scrapers/programathor-scraper-provider';
 import { RemotarScraperProvider } from '@/infra/scrapers/remotar-scraper-provider';
-import { SolidesScraperProvider } from '@/infra/scrapers/solides-scraper-provider';
 
 /**
  * Fiacao da infraestrutura. Novos coletores entram apenas nesta lista, sob o
@@ -40,8 +38,19 @@ const SCRAPERS = [
   LinkedinGuestScraperProvider,
   RemotarScraperProvider,
   ProgramathorScraperProvider,
-  SolidesScraperProvider,
-  CoodeshScraperProvider,
+  // SolidesScraperProvider e CoodeshScraperProvider: fora do registro. Medido
+  // sobre o que cada uma devolve por captura:
+  //
+  //   Solides | 124 vagas | 7 com nossa stack (6%) | 1 nas 72h | ambos: 0
+  //   Coodesh |  22 vagas | 1 com nossa stack (5%) | 14 nas 72h | ambos: 1
+  //
+  // A area de "tecnologia" da Solides e suporte e infraestrutura, nao
+  // desenvolvimento web; o sitemap publico da Coodesh e dominado por vagas de
+  // vendas do Google Cloud, e o catalogo real fica atras de api autenticada.
+  // Juntas custavam 16 requisicoes por captura para render quase nada.
+  //
+  // Os coletores e os 39 testes seguem no repositorio; para religar, basta o
+  // import e a linha de volta.
   LinkedinPostsScraperProvider,
   NextCommitScraperProvider,
   // JobbolScraperProvider: fora do registro de proposito. O site esta atras do

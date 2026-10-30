@@ -16,19 +16,22 @@ import {
 
 const NEXTCOMMIT_ORIGIN = 'https://www.nextcommit.dev';
 
+/** Areas que batem com a stack monitorada; `dados` e `mobile` ficam de fora. */
+export const NEXTCOMMIT_DEFAULT_AREAS: readonly string[] = ['frontend', 'fullstack', 'backend'];
+
 /**
- * Trilhas que batem com a stack monitorada. As demais do site (java, python,
- * dados, mobile) ficam de fora porque seriam reprovadas na regra de stack, e
- * as de senioridade (junior, pleno, senior) repetiriam estas.
- *
- * Cada trilha devolve 24 vagas distintas: medido, front-end e full-stack nao
- * tem um unico id em comum.
+ * Paginas por area. O feed e ordenado por data decrescente e pagina de 24 em
+ * 24, entao a pagina 1 ja traz o mais novo; a 2 e margem para dia de volume
+ * alto.
  */
-export const NEXTCOMMIT_DEFAULT_TRACKS: readonly string[] = [
-  'front-end',
-  'full-stack',
-  'back-end',
-];
+export const NEXTCOMMIT_PAGES = 2;
+
+export const NEXTCOMMIT_PAGE_SIZE = 24;
+
+export interface NextCommitQuery {
+  readonly area: string;
+  readonly pages: number;
+}
 
 type HtmlNodes = ReturnType<cheerio.CheerioAPI>;
 
@@ -43,8 +46,23 @@ type HtmlNodes = ReturnType<cheerio.CheerioAPI>;
  * `header`, `h3`, `time`), nunca as classes: elas sao hashes de build
  * (`fL9dtW_card`) e mudam a cada deploy do site.
  *
- * Nao ha paginacao a seguir: `?page=2` devolve exatamente os mesmos 24 cards
- * da primeira pagina, porque a paginacao e feita no cliente.
+ * Busca por `/vagas?area=<area>&pagina=<n>`, e nao pelas paginas de trilha
+ * (`/vagas/front-end`), que servem uma fatia fixa de 24 sem paginacao util.
+ *
+ * O nome do parametro e `pagina`, em portugues: `?page=2` e aceito e ignorado,
+ * devolvendo a primeira pagina de novo — e por isso parecia, de inicio, que a
+ * paginacao nao existia.
+ *
+ * Medido em 30/10/2026, sobre as vagas unicas que cada desenho devolve:
+ *
+ *   trilhas fixas    |  72 unicas | 32 com a stack (44%) | 3 aprovaveis
+ *   feed geral       |  96 unicas | 21 com a stack (22%) | 3 aprovaveis
+ *   area + paginacao | 138 unicas | 67 com a stack (49%) | 3 aprovaveis
+ *
+ * Os tres rendem o mesmo: o gargalo e a janela de 72h, nao a coleta — o site
+ * publica poucas vagas por dia. Este desenho foi escolhido por ter a melhor
+ * relevancia e por ser ordenado por data, o que faz diferenca em dia de
+ * volume alto, quando o que e novo nao cabe numa pagina so.
  */
 @Injectable()
 export class NextCommitScraperProvider extends BaseScraperProvider {
@@ -53,21 +71,27 @@ export class NextCommitScraperProvider extends BaseScraperProvider {
 
   constructor(
     @Inject(HTTP_CLIENT) private readonly http: IHttpClient,
-    @Optional() private readonly tracks: readonly string[] = NEXTCOMMIT_DEFAULT_TRACKS,
+    @Optional() private readonly areas: readonly string[] = NEXTCOMMIT_DEFAULT_AREAS,
+    @Optional() private readonly pages: number = NEXTCOMMIT_PAGES,
   ) {
     super();
   }
 
   protected async collect(): Promise<RawJobProps[]> {
-    const pages = await Promise.all(this.tracks.map((track) => this.fetchTrack(track)));
+    const requests = this.areas.flatMap((area) =>
+      Array.from({ length: this.pages }, (_unused, index) => this.fetchPage(area, index + 1)),
+    );
 
-    return dedupeByUrl(pages.flat());
+    return dedupeByUrl((await Promise.all(requests)).flat());
   }
 
-  private async fetchTrack(track: string): Promise<RawJobProps[]> {
-    const { body } = await this.http.get<string>(`${NEXTCOMMIT_ORIGIN}/vagas/${track}`, {
-      headers: { Accept: 'text/html' },
-    });
+  private async fetchPage(area: string, page: number): Promise<RawJobProps[]> {
+    const params = new URLSearchParams({ area, pagina: String(page) });
+
+    const { body } = await this.http.get<string>(
+      `${NEXTCOMMIT_ORIGIN}/vagas?${params.toString()}`,
+      { headers: { Accept: 'text/html' } },
+    );
 
     return this.parseCards(body);
   }
