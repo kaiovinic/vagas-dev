@@ -6,6 +6,24 @@ const REMOTE_HINTS = ['remoto', 'remota', 'remote', 'home office', 'anywhere'];
 const HYBRID_HINTS = ['hibrido', 'hybrid', 'semi presencial', 'semipresencial'];
 const ONSITE_HINTS = ['presencial', 'on site', 'onsite', 'on-site', 'presential', 'alocado'];
 
+/**
+ * Trecho que descreve a vaga, nao a empresa: jornada, faixa salarial, regime.
+ *
+ * Quem publica anexa isso ao titulo ("... na WeatherWise - 4 dias / 32h"), e
+ * parser que corta no ultimo separador acaba gravando a jornada no campo
+ * `company`. O DevRadar ja teve esse defeito no coletor do GitHub; o Next
+ * Commit tem o mesmo, e entrega o valor errado no `data-job-company`.
+ *
+ * Importa mais do que parece: o fingerprint e `empresa + titulo`, entao uma
+ * empresa errada cria vaga duplicada no painel.
+ */
+export function looksLikeJobMetadata(value: string): boolean {
+  return METADATA_SEGMENT.test(value);
+}
+
+const METADATA_SEGMENT =
+  /^\s*(?:r\$|us\$|usd|eur)|\d+\s*(?:h|hs|horas?|dias?|semanas?|meses|k|mil)\b|\b(?:clt|pj|home\s*office|remoto|hibrido|presencial|vaga|vagas)\b/i;
+
 export function collapseSpaces(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }

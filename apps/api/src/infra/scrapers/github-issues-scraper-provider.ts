@@ -5,6 +5,7 @@ import { HTTP_CLIENT, type IHttpClient } from '@/domain/providers/http-client';
 import { BaseScraperProvider } from '@/infra/scrapers/support/base-scraper-provider';
 import {
   collapseSpaces,
+  looksLikeJobMetadata,
   dedupeByUrl,
   parseDate,
   uniqueStrings,
@@ -28,8 +29,6 @@ const TITLE_SEPARATORS = /\s+[-–—@|]\s+|\s+na\s+/;
  * jornada ou faixa salarial depois do nome da empresa — e era isso que vinha
  * parar no campo `company`, porque o parser pegava sempre o ULTIMO separador.
  */
-const METADATA_SEGMENT =
-  /^\s*(?:r\$|us\$|usd|eur)|\d+\s*(?:h|hs|horas?|dias?|semanas?|meses|k|mil)\b|\b(?:clt|pj|home\s*office|remoto|hibrido|presencial|vaga|vagas)\b/i;
 
 export const GITHUB_VACANCY_REPOSITORIES: readonly string[] = [
   'frontendbr/vagas',
@@ -167,7 +166,7 @@ function parseIssueTitle(rawTitle: string, author: string): ParsedIssueTitle {
     return { modality, title: withoutModality, company: author };
   }
 
-  const company = [...rest].reverse().find((segment) => !METADATA_SEGMENT.test(segment));
+  const company = [...rest].reverse().find((segment) => !looksLikeJobMetadata(segment));
 
   return { modality, title, company: company ?? author };
 }

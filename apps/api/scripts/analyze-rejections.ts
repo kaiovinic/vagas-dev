@@ -22,6 +22,7 @@ import { CoodeshScraperProvider } from '@/infra/scrapers/coodesh-scraper-provide
 import { GithubIssuesScraperProvider } from '@/infra/scrapers/github-issues-scraper-provider';
 import { GupyScraperProvider } from '@/infra/scrapers/gupy-scraper-provider';
 import { LinkedinGuestScraperProvider } from '@/infra/scrapers/linkedin-guest-scraper-provider';
+import { NextCommitScraperProvider } from '@/infra/scrapers/nextcommit-scraper-provider';
 import { ProgramathorScraperProvider } from '@/infra/scrapers/programathor-scraper-provider';
 import { RemotarScraperProvider } from '@/infra/scrapers/remotar-scraper-provider';
 import { SolidesScraperProvider } from '@/infra/scrapers/solides-scraper-provider';
@@ -41,6 +42,7 @@ async function main(): Promise<void> {
     new ProgramathorScraperProvider(http),
     new SolidesScraperProvider(http),
     new CoodeshScraperProvider(http),
+    new NextCommitScraperProvider(http),
   ];
 
   console.log('Coletando de todas as fontes...\n');

@@ -25,7 +25,7 @@ Este projeto resolve as duas coisas: busca sozinho, e **joga fora o que não é 
 
 ### Coletor
 
-Varre sete fontes a cada 2 horas: **Gupy**, **LinkedIn**, **Remotar**, **ProgramaThor**, **Sólides**, **Coodesh** e repositórios de vagas no **GitHub**.
+Varre oito fontes a cada 2 horas: **Gupy**, **LinkedIn**, **Remotar**, **ProgramaThor**, **Sólides**, **Coodesh**, **Next Commit** e repositórios de vagas no **GitHub**.
 
 > O coletor de **publicações do LinkedIn** está implementado mas inativo: ele depende de uma API de SERP paga (`SERP_ENDPOINT` e `SERP_API_KEY`), já que o LinkedIn não expõe busca de posts sem autenticação. A data de cada post sai do snowflake embutido na URL, com precisão de minutos.
 
@@ -197,7 +197,7 @@ Sobe PostgreSQL com volume persistente, a API (que aplica as migrations no entry
 
 ## Qualidade
 
-**1.104 testes**, rodando em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração contra um PostgreSQL real, build dos workspaces e build das duas imagens Docker.
+**1.123 testes**, rodando em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração contra um PostgreSQL real, build dos workspaces e build das duas imagens Docker.
 
 | Camada | Cobertura |
 |---|---|

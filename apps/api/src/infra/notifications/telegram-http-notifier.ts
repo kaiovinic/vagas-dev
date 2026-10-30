@@ -249,6 +249,7 @@ function sourceLabel(source: string): string {
     solides: 'Solides',
     coodesh: 'Coodesh',
     'linkedin-posts': 'Publicacao LinkedIn',
+    nextcommit: 'Next Commit',
   };
 
   return labels[source] ?? source;
