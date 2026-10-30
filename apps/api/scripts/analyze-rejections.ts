@@ -62,7 +62,7 @@ async function main(): Promise<void> {
       continue;
     }
 
-    const evaluation = engine.evaluate(job, now, props.tags ?? []);
+    const evaluation = engine.evaluate(job, now, { tags: props.tags ?? [] });
 
     if (evaluation.approved) {
       aprovadas += 1;

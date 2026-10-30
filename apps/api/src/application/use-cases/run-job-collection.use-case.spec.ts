@@ -184,6 +184,39 @@ describe('RunJobCollectionUseCase', () => {
       expect(report.totalRejected).toBe(1);
     });
 
+    it('repassa a origem declarada pelo coletor ao motor de regras', async () => {
+      const report = await buildUseCase([
+        new StubScraperProvider('linkedin-posts', [
+          // Publicacao social sem marcador de anuncio: so passa se a origem
+          // NAO chegar ao motor, que e justamente o que este caso protege.
+          rawJob({
+            title: 'O mercado de React no Brasil',
+            description: 'Reflexao sobre a stack. Vaga remota CLT.',
+            origin: 'SOCIAL_POST',
+            url: 'https://www.linkedin.com/posts/acme_react-share-7521262024920764416-91vX',
+          }),
+        ]),
+      ]).execute(FIXED_NOW);
+
+      expect(report.totalApproved).toBe(0);
+      expect(report.totalRejected).toBe(1);
+    });
+
+    it('aprova a mesma publicacao quando ela anuncia a vaga', async () => {
+      const report = await buildUseCase([
+        new StubScraperProvider('linkedin-posts', [
+          rawJob({
+            title: 'Estamos contratando pessoa desenvolvedora React',
+            description: 'Vaga remota CLT.',
+            origin: 'SOCIAL_POST',
+            url: 'https://www.linkedin.com/posts/acme_react-share-7521262024920764416-91vX',
+          }),
+        ]),
+      ]).execute(FIXED_NOW);
+
+      expect(report.totalApproved).toBe(1);
+    });
+
     it('reprova pela tag da fonte, que nem aparece no titulo ou na descricao', async () => {
       const report = await buildUseCase([
         new StubScraperProvider('remotar', [

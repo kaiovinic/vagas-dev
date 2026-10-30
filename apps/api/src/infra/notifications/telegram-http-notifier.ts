@@ -248,6 +248,7 @@ function sourceLabel(source: string): string {
     jobbol: 'Jobbol',
     solides: 'Solides',
     coodesh: 'Coodesh',
+    'linkedin-posts': 'Publicacao LinkedIn',
   };
 
   return labels[source] ?? source;

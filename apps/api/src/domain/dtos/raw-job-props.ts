@@ -1,4 +1,5 @@
 import type { JobWorkModel } from '@/domain/entities/job';
+import type { JobOrigin } from '@/domain/services/job-rule-engine';
 
 /**
  * Origem da data de publicacao de uma vaga capturada: informada pela fonte ou
@@ -28,4 +29,9 @@ export interface RawJobProps {
   readonly workModel?: JobWorkModel | undefined;
   readonly recruiterName?: string | undefined;
   readonly tags?: readonly string[] | undefined;
+  /**
+   * De onde veio. Quem coleta e quem sabe: uma publicacao de rede social passa
+   * por regras que um anuncio de portal nao precisa. O padrao e `PORTAL`.
+   */
+  readonly origin?: JobOrigin | undefined;
 }

@@ -23,6 +23,7 @@ describe('TestJobRulesUseCase', () => {
         'location-match',
         'spam-filter',
         'national-scope',
+        'post-hiring-signal',
       ]);
     });
   });

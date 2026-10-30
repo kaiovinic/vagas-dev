@@ -85,7 +85,20 @@ export const SPAM_KEYWORDS: readonly KeywordGroup[] = [
     label: 'Inscricoes abertas',
     aliases: ['inscricoes abertas', 'matriculas abertas', 'inscreva-se'],
   },
-  { label: 'Grupo de vagas', aliases: ['grupo de vagas', 'grupo do whatsapp', 'grupo do telegram'] },
+  {
+    label: 'Grupo de vagas',
+    aliases: [
+      'grupo de vagas',
+      'grupo do whatsapp',
+      'grupo do telegram',
+      'canal do telegram',
+      'canal do whatsapp',
+      'entre no grupo',
+      'entra no grupo',
+      'comunidade de vagas',
+      'link na bio',
+    ],
+  },
   { label: 'Lista de vagas', aliases: ['lista de vagas'] },
   { label: '#opentowork', aliases: ['#opentowork'] },
   { label: 'Open to work', aliases: ['open to work'] },
@@ -94,5 +107,59 @@ export const SPAM_KEYWORDS: readonly KeywordGroup[] = [
     label: 'Busco oportunidade',
     aliases: ['busco oportunidade', 'buscando oportunidade', 'procuro oportunidade'],
   },
-  { label: 'Recolocacao', aliases: ['recolocacao'] },
+  {
+    label: 'Recolocacao',
+    aliases: ['recolocacao', 'em busca de recolocacao', 'disponivel para novas oportunidades'],
+  },
+];
+
+/**
+ * Marcadores de que o texto ANUNCIA uma vaga, e nao apenas fala sobre vagas.
+ *
+ * Exigidos so em publicacao de rede social. Um anuncio de portal nao precisa
+ * dizer "candidate-se" — o botao de candidatura esta na propria pagina. Ja um
+ * post e texto livre: sem um destes, o que sobra e opiniao sobre o mercado,
+ * relato de carreira ou divulgacao de conteudo, que citam as mesmas palavras.
+ */
+export const HIRING_SIGNAL_KEYWORDS: readonly KeywordGroup[] = [
+  {
+    label: 'Estamos contratando',
+    aliases: [
+      'estamos contratando',
+      'estou contratando',
+      'contratando',
+      'we are hiring',
+      "we're hiring",
+      'hiring',
+      '#contratando',
+      '#vagaaberta',
+    ],
+  },
+  {
+    label: 'Vaga aberta',
+    aliases: ['vaga para', 'vaga aberta', 'vagas abertas', 'nova vaga', 'oportunidade aberta'],
+  },
+  {
+    label: 'Chamada para candidatura',
+    aliases: [
+      'candidate-se',
+      'candidatem-se',
+      'inscreva seu curriculo',
+      'envie seu curriculo',
+      'mande seu curriculo',
+      'envie o cv',
+      'apply now',
+    ],
+  },
+  {
+    label: 'Procurando pessoa',
+    aliases: [
+      'estamos buscando',
+      'estamos procurando',
+      'procuramos',
+      'buscamos',
+      'estamos em busca de',
+      'queremos te conhecer',
+    ],
+  },
 ];

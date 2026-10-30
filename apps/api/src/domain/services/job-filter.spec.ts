@@ -289,6 +289,96 @@ describe('JobRuleEngine (domain service)', () => {
     });
   });
 
+  describe('regra 6: publicacao de rede social precisa anunciar vaga', () => {
+    const POST = { origin: 'SOCIAL_POST' } as const;
+
+    it.each([
+      'Estamos contratando pessoa desenvolvedora React',
+      'Vaga para Desenvolvedor React, candidate-se',
+      'We are hiring a React developer',
+      'Estamos buscando uma pessoa desenvolvedora React',
+    ])('aprova o post que anuncia: "%s"', (title) => {
+      const job = makeJob({ title, description: 'Vaga remota CLT' });
+
+      expect(engine.evaluate(job, FIXED_NOW, POST).approved).toBe(true);
+    });
+
+    it('reprova post que so fala sobre o mercado, sem anunciar', () => {
+      const job = makeJob({
+        title: 'O mercado de React no Brasil em 2026',
+        description: 'Reflexao sobre a stack e as tendencias, vaga remota CLT.',
+      });
+
+      const result = engine.evaluate(job, FIXED_NOW, POST);
+
+      expect(result.approved).toBe(false);
+      expect(result.rejectionReasons).toContain(JobRejectionReason.HiringSignalMissing);
+    });
+
+    it('nao exige marcador de anuncio de vaga vinda de portal', () => {
+      const job = makeJob({
+        title: 'Desenvolvedor React Pleno',
+        description: 'Vaga remota CLT.',
+      });
+
+      // Sem `origin`, o padrao e PORTAL: a pagina ja e o anuncio.
+      expect(engine.evaluate(job, FIXED_NOW).approved).toBe(true);
+    });
+
+    it('expoe os marcadores encontrados, para o testador de regras mostrar', () => {
+      const job = makeJob({ title: 'Estamos contratando Dev React', description: 'CLT remoto' });
+
+      expect(engine.evaluate(job, FIXED_NOW, POST).matchedHiringSignals).toContain(
+        'Estamos contratando',
+      );
+    });
+
+    it('o marcador de anuncio nao salva post de quem procura emprego', () => {
+      const job = makeJob({
+        title: 'Estou em busca de recolocacao como Dev React',
+        description: '#opentowork, candidate-se a me contratar. Vaga remota CLT.',
+      });
+
+      const result = engine.evaluate(job, FIXED_NOW, POST);
+
+      expect(result.approved).toBe(false);
+      expect(result.rejectionReasons).toContain(JobRejectionReason.SpamDetected);
+    });
+
+    it.each([
+      'canal do telegram',
+      'entre no grupo de vagas',
+      'comunidade de vagas',
+      'link na bio',
+    ])('reprova divulgacao sem curadoria: "%s"', (termo) => {
+      const job = makeJob({
+        title: 'Vaga para Dev React',
+        description: `Temos varias oportunidades, ${termo} para receber. CLT remoto.`,
+      });
+
+      const result = engine.evaluate(job, FIXED_NOW, POST);
+
+      expect(result.rejectionReasons).toContain(JobRejectionReason.SpamDetected);
+    });
+
+    it('acumula a falta de anuncio com os demais motivos', () => {
+      const job = makeJob({
+        title: 'Reflexao sobre carreira',
+        description: 'Texto sem stack e sem local',
+        location: '',
+        workModel: 'UNKNOWN',
+      });
+
+      const result = engine.evaluate(job, FIXED_NOW, POST);
+
+      expect(result.rejectionReasons).toEqual([
+        JobRejectionReason.StackNotMatched,
+        JobRejectionReason.LocationNotAllowed,
+        JobRejectionReason.HiringSignalMissing,
+      ]);
+    });
+  });
+
   describe('falsos positivos de localidade', () => {
     it('nao aceita San Salvador, capital de El Salvador, como Salvador/BA', () => {
       const job = makeJob({
@@ -356,7 +446,7 @@ describe('JobRuleEngine (domain service)', () => {
     it('reprova quando o sinal de internacional vem nas tags da captura', () => {
       const job = makeJob({ title: 'Desenvolvedor React', description: 'Vaga remota' });
 
-      const result = engine.evaluate(job, FIXED_NOW, ['Vaga internacional']);
+      const result = engine.evaluate(job, FIXED_NOW, { tags: ['Vaga internacional'] });
 
       expect(result.rejectionReasons).toContain(JobRejectionReason.InternationalScope);
     });
@@ -444,7 +534,7 @@ describe('JobRuleEngine (domain service)', () => {
       expect(publicRules.version).toMatch(/^\d+\.\d+\.\d+$/);
     });
 
-    it('expoe as cinco regras na ordem de avaliacao', () => {
+    it('expoe as seis regras na ordem de avaliacao', () => {
       const ids = engine.getPublicRules().rules.map((rule) => rule.id);
 
       expect(ids).toEqual([
@@ -453,6 +543,7 @@ describe('JobRuleEngine (domain service)', () => {
         'location-match',
         'spam-filter',
         'national-scope',
+        'post-hiring-signal',
       ]);
     });
 

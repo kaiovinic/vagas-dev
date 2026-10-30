@@ -135,7 +135,10 @@ export class RunJobCollectionUseCase {
       const tags = props.tags ?? [];
       // As tags entram na avaliacao porque decidem o mercado: a Remotar marca
       // "Vaga internacional" ali, e nao no titulo nem na descricao.
-      const evaluation = this.ruleEngine.evaluate(job, reference, tags);
+      const evaluation = this.ruleEngine.evaluate(job, reference, {
+        tags,
+        ...(props.origin ? { origin: props.origin } : {}),
+      });
 
       if (!evaluation.approved) {
         return [];

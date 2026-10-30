@@ -13,6 +13,7 @@ const SOURCES: Readonly<Record<string, SourcePresentation>> = {
   jobbol: { label: 'Jobbol', color: 'var(--color-source-jobbol)' },
   solides: { label: 'Sólides', color: 'var(--color-source-solides)' },
   coodesh: { label: 'Coodesh', color: 'var(--color-source-coodesh)' },
+  'linkedin-posts': { label: 'Publicação LinkedIn', color: 'var(--color-source-linkedin-posts)' },
 };
 
 const FALLBACK: SourcePresentation = {

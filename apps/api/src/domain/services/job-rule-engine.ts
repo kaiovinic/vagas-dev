@@ -1,5 +1,6 @@
 import type { Job } from '@/domain/entities/job';
 import {
+  HIRING_SIGNAL_KEYWORDS,
   LOCATION_FALSE_POSITIVES,
   LOCATION_KEYWORDS,
   REMOTE_LOCATION_LABEL,
@@ -27,7 +28,23 @@ export const JobRejectionReason = {
   LocationNotAllowed: 'LOCATION_NOT_ALLOWED',
   SpamDetected: 'SPAM_DETECTED',
   InternationalScope: 'INTERNATIONAL_SCOPE',
+  HiringSignalMissing: 'HIRING_SIGNAL_MISSING',
 } as const;
+
+/**
+ * De onde veio a publicacao. Um anuncio de portal ja e, por construcao, uma
+ * vaga; uma publicacao de rede social e texto livre, e precisa provar que
+ * anuncia uma vaga antes de entrar no radar.
+ */
+export const JOB_ORIGINS = ['PORTAL', 'SOCIAL_POST'] as const;
+
+export type JobOrigin = (typeof JOB_ORIGINS)[number];
+
+export interface EvaluationContext {
+  /** Rotulos que a fonte publica junto da vaga; decidem o mercado. */
+  readonly tags?: readonly string[] | undefined;
+  readonly origin?: JobOrigin | undefined;
+}
 
 export type JobRejectionReason = (typeof JobRejectionReason)[keyof typeof JobRejectionReason];
 
@@ -36,7 +53,8 @@ export type PublicRuleKind =
   | 'KEYWORD_ALLOW_LIST'
   | 'KEYWORD_DENY_LIST'
   | 'LOCATION_ALLOW_LIST'
-  | 'SCOPE_DENY_LIST';
+  | 'SCOPE_DENY_LIST'
+  | 'POST_REQUIREMENT';
 
 export interface JobEvaluation {
   readonly approved: boolean;
@@ -44,6 +62,8 @@ export interface JobEvaluation {
   readonly matchedStack: readonly string[];
   readonly matchedLocations: readonly string[];
   readonly matchedSpamTerms: readonly string[];
+  /** Marcadores de contratacao achados; so consultados em publicacao social. */
+  readonly matchedHiringSignals: readonly string[];
   /**
    * Mercado classificado durante a avaliacao. Sai junto para que o chamador
    * grave a coluna `scope` sem classificar de novo — a regra e a coluna
@@ -58,7 +78,8 @@ export interface PublicJobRule {
     | 'stack-match'
     | 'location-match'
     | 'spam-filter'
-    | 'national-scope';
+    | 'national-scope'
+    | 'post-hiring-signal';
   readonly name: string;
   readonly description: string;
   readonly kind: PublicRuleKind;
@@ -86,6 +107,9 @@ export class JobRuleEngine {
   private readonly spamGroups: readonly CompiledKeywordGroup[] =
     compileKeywordGroups(SPAM_KEYWORDS);
 
+  private readonly hiringSignalGroups: readonly CompiledKeywordGroup[] =
+    compileKeywordGroups(HIRING_SIGNAL_KEYWORDS);
+
   private readonly publicRules: PublicJobRules = buildPublicRules();
 
   /**
@@ -96,12 +120,15 @@ export class JobRuleEngine {
   evaluate(
     job: Job,
     reference: Date = new Date(),
-    tags: readonly string[] = [],
+    context: EvaluationContext = {},
   ): JobEvaluation {
+    const tags = context.tags ?? [];
+    const origin = context.origin ?? 'PORTAL';
     const text = normalizeForMatching(job.searchableText);
     const matchedStack = matchKeywordLabels(text, this.stackGroups);
     const matchedLocations = this.matchLocations(job, text);
     const matchedSpamTerms = matchKeywordLabels(text, this.spamGroups);
+    const matchedHiringSignals = matchKeywordLabels(text, this.hiringSignalGroups);
     const scope = classifyJobScope({
       title: job.title,
       company: job.company,
@@ -133,18 +160,24 @@ export class JobRuleEngine {
       rejectionReasons.push(JobRejectionReason.InternationalScope);
     }
 
+    // So publicacao de rede social precisa provar que anuncia uma vaga.
+    if (origin === 'SOCIAL_POST' && matchedHiringSignals.length === 0) {
+      rejectionReasons.push(JobRejectionReason.HiringSignalMissing);
+    }
+
     return {
       approved: rejectionReasons.length === 0,
       rejectionReasons,
       matchedStack,
       matchedLocations,
       matchedSpamTerms,
+      matchedHiringSignals,
       scope,
     };
   }
 
-  isApproved(job: Job, reference?: Date, tags?: readonly string[]): boolean {
-    return this.evaluate(job, reference, tags).approved;
+  isApproved(job: Job, reference?: Date, context?: EvaluationContext): boolean {
+    return this.evaluate(job, reference, context).approved;
   }
 
   filter(jobs: readonly Job[], reference?: Date): Job[] {
@@ -234,6 +267,15 @@ function buildPublicRules(): PublicJobRules {
       kind: 'SCOPE_DENY_LIST',
       criteria: INTERNATIONAL_SCOPE_KEYWORDS.map((group) => group.label),
       rejectionReason: JobRejectionReason.InternationalScope,
+    },
+    {
+      id: 'post-hiring-signal',
+      name: 'Publicacao precisa anunciar uma vaga',
+      description:
+        'Vale apenas para publicacoes de rede social. O texto precisa conter um marcador de contratacao; sem ele, o que sobra e opiniao sobre o mercado, relato de carreira ou divulgacao de conteudo, que citam as mesmas tecnologias. Anuncio de portal nao passa por esta regra.',
+      kind: 'POST_REQUIREMENT',
+      criteria: HIRING_SIGNAL_KEYWORDS.map((group) => group.label),
+      rejectionReason: JobRejectionReason.HiringSignalMissing,
     },
   ];
 

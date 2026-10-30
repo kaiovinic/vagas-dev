@@ -24,6 +24,7 @@ import { CoodeshScraperProvider } from '@/infra/scrapers/coodesh-scraper-provide
 import { GithubIssuesScraperProvider } from '@/infra/scrapers/github-issues-scraper-provider';
 import { GupyScraperProvider } from '@/infra/scrapers/gupy-scraper-provider';
 import { LinkedinGuestScraperProvider } from '@/infra/scrapers/linkedin-guest-scraper-provider';
+import { LinkedinPostsScraperProvider } from '@/infra/scrapers/linkedin-posts-scraper-provider';
 import { ProgramathorScraperProvider } from '@/infra/scrapers/programathor-scraper-provider';
 import { RemotarScraperProvider } from '@/infra/scrapers/remotar-scraper-provider';
 import { SolidesScraperProvider } from '@/infra/scrapers/solides-scraper-provider';
@@ -40,6 +41,7 @@ const SCRAPERS = [
   ProgramathorScraperProvider,
   SolidesScraperProvider,
   CoodeshScraperProvider,
+  LinkedinPostsScraperProvider,
   // JobbolScraperProvider: fora do registro de proposito. O site esta atras do
   // Bot Management da Cloudflare, que responde 403 (`cf-mitigated: challenge`)
   // a qualquer cliente HTTP que nao seja navegador — o bloqueio e por

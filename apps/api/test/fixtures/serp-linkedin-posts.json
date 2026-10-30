@@ -1,0 +1,46 @@
+{
+  "_comentario": [
+    "ATENCAO: esta fixture NAO foi capturada de uma resposta real.",
+    "Todas as APIs de SERP com indice do Google exigem cadastro com cartao, que",
+    "nao foi feito. O conteudo foi montado a partir do contrato documentado do",
+    "SerpApi (chave `organic_results`), e as URLs das publicacoes sao REAIS,",
+    "capturadas em 29/10/2026 — e delas que sai a data, pelo snowflake.",
+    "Todas as outras fixtures deste repositorio vieram de resposta real; esta e",
+    "a excecao, e o acerto do formato so se confirma com uma chave de verdade."
+  ],
+  "search_metadata": {
+    "status": "Success"
+  },
+  "organic_results": [
+    {
+      "position": 1,
+      "title": "Mayara Moroni on LinkedIn: Estamos buscando uma Desenvolvedora... | LinkedIn",
+      "link": "https://www.linkedin.com/posts/mayaramoroni_estamos-buscando-uma-desenvolvedora-share-7521262024920764416-91vX/",
+      "snippet": "Estamos buscando um(a) Desenvolvedor(a) Fullstack SR para atuar na evolucao da nossa plataforma, com React e Node. Vaga 100% remota, CLT. Candidate-se pelo link."
+    },
+    {
+      "position": 2,
+      "title": "Herbert Durante Perazzelli on LinkedIn: VAGA: Desenvolvedor(a) PHP",
+      "link": "https://www.linkedin.com/posts/herbert-durante-perazzelli-539b0b100_vaga-desenvolvedora-php-100-remoto-share-7521249835149062144-WURs/",
+      "snippet": "VAGA: Desenvolvedor(a) React - 100% REMOTO. Estamos contratando! Envie seu curriculo."
+    },
+    {
+      "position": 3,
+      "title": "Carreira em tecnologia: o mercado de React em 2026 | LinkedIn",
+      "link": "https://www.linkedin.com/posts/analista-exemplo_react-mercado-share-7521200000000000000-ABcd/",
+      "snippet": "Uma reflexao sobre o mercado de React no Brasil, as tendencias de frontend e o que mudou nos ultimos anos."
+    },
+    {
+      "position": 4,
+      "title": "Mayara Moroni | LinkedIn",
+      "link": "https://www.linkedin.com/in/mayaramoroni",
+      "snippet": "Perfil no LinkedIn. Nao e uma publicacao: o buscador mistura perfis nos resultados."
+    },
+    {
+      "position": 5,
+      "title": "Vagas Remotas TI on LinkedIn: 5 VAGAS HOME OFFICE",
+      "link": "https://www.linkedin.com/posts/vagas-remotas-ti_vagas-home-office-share-7521255000000000000-ZZzz/",
+      "snippet": "5 VAGAS HOME OFFICE de React e Node! Entre no grupo do telegram para receber todas as vagas em primeira mao."
+    }
+  ]
+}
