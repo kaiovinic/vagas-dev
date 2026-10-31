@@ -238,6 +238,220 @@ describe('GithubIssuesScraperProvider', () => {
     expect(jobs[0]?.workModel).toBe('REMOTE');
   });
 
+  describe('precisao das tags', () => {
+    /**
+     * O react-brasil prefixa as labels com icone; os outros dois repositorios
+     * escrevem o mesmo termo sem icone. Sem limpar, "Remoto" e "🏢 Remoto" sao
+     * duas tags e a aba Mercado conta a mesma coisa duas vezes.
+     */
+    it('tira o icone do inicio do rotulo', async () => {
+      const provider = new GithubIssuesScraperProvider(
+        new FakeHttpClient(() => [
+          issue({
+            labels: [
+              { name: '🏢 Remoto' },
+              { name: '⚖️ PJ' },
+              { name: '👨 Pleno' },
+              { name: '💰 15k+' },
+            ],
+          }),
+        ]),
+        ['react-brasil/vagas'],
+      );
+
+      const jobs = await provider.scrape();
+
+      expect(jobs[0]?.tags).toEqual(['Remoto', 'PJ', 'Pleno', '15k+']);
+    });
+
+    it.each(['Stale', 'verificada', 'formato-sugerido', 'good first issue', 'duplicate'])(
+      'descarta o rotulo de controle da issue: %s',
+      async (name) => {
+        const provider = new GithubIssuesScraperProvider(
+          new FakeHttpClient(() => [issue({ labels: [{ name }, { name: 'React' }] })]),
+          ['backend-br/vagas'],
+        );
+
+        const jobs = await provider.scrape();
+
+        expect(jobs[0]?.tags).toEqual(['React']);
+      },
+    );
+
+    it('nao deixa o mesmo termo entrar duas vezes por causa do icone', async () => {
+      const provider = new GithubIssuesScraperProvider(
+        new FakeHttpClient(() => [issue({ labels: [{ name: '🏢 Remoto' }, { name: 'Remoto' }] })]),
+        ['react-brasil/vagas'],
+      );
+
+      const jobs = await provider.scrape();
+
+      expect(jobs[0]?.tags).toEqual(['Remoto']);
+    });
+  });
+
+  describe('precisao da modalidade', () => {
+    /**
+     * Caso real medido em 31/10/2026 no frontendbr: tres vagas hibridas de
+     * Curitiba entravam como remotas. O publicador marca "Remoto" E "Híbrido"
+     * quando aceita negociar, e as labels eram lidas junto do colchete num
+     * texto so — onde "remoto" e procurado primeiro.
+     */
+    it('prefere o colchete do titulo aos rotulos da issue', async () => {
+      const provider = new GithubIssuesScraperProvider(
+        new FakeHttpClient(() => [
+          issue({
+            title: '[Híbrido/Curitiba] Front-end Developer React - Jcal',
+            labels: [{ name: 'Sênior' }, { name: 'Remoto' }, { name: 'Híbrido' }],
+          }),
+        ]),
+        ['frontendbr/vagas'],
+      );
+
+      const jobs = await provider.scrape();
+
+      expect(jobs[0]?.workModel).toBe('HYBRID');
+      expect(jobs[0]?.location).toBe('Híbrido/Curitiba');
+    });
+
+    it.each([
+      ['[Remoto]', 'REMOTE'],
+      ['[Híbrido]', 'HYBRID'],
+      ['[Presencial]', 'ONSITE'],
+    ])('le a modalidade %s do colchete', async (bracket, expected) => {
+      const provider = new GithubIssuesScraperProvider(
+        new FakeHttpClient(() => [
+          issue({ title: `${bracket} Dev - Acme`, labels: [{ name: 'Alocado' }] }),
+        ]),
+        ['frontendbr/vagas'],
+      );
+
+      const jobs = await provider.scrape();
+
+      expect(jobs[0]?.workModel).toBe(expected);
+    });
+
+    it('cai nos rotulos quando o colchete e uma cidade, sem modalidade', async () => {
+      const provider = new GithubIssuesScraperProvider(
+        new FakeHttpClient(() => [
+          issue({
+            title: '[Belo Horizonte, Brasil] Software Engineer na Google',
+            labels: [{ name: 'Alocado' }],
+          }),
+        ]),
+        ['frontendbr/vagas'],
+      );
+
+      const jobs = await provider.scrape();
+
+      expect(jobs[0]?.workModel).toBe('ONSITE');
+    });
+
+    it('deixa em UNKNOWN quando nem colchete nem rotulo dizem a modalidade', async () => {
+      const provider = new GithubIssuesScraperProvider(
+        new FakeHttpClient(() => [
+          issue({
+            title: '[Nova Lima, Brasil] Full Cycle Developer na Coodesh',
+            labels: [{ name: 'CLT' }, { name: 'Junior' }],
+          }),
+        ]),
+        ['react-brasil/vagas'],
+      );
+
+      const jobs = await provider.scrape();
+
+      expect(jobs[0]?.workModel).toBe('UNKNOWN');
+    });
+  });
+
+  describe('issues fechadas', () => {
+    const closedUrl = (suffix: string): string =>
+      `https://github.com/frontendbr/vagas/issues/${suffix}`;
+
+    it('consulta as issues fechadas de cada repositorio', async () => {
+      const client = new FakeHttpClient(() => []);
+
+      await new GithubIssuesScraperProvider(client).findClosedJobUrls();
+
+      expect(client.requestedUrls).toEqual(
+        GITHUB_VACANCY_REPOSITORIES.map(
+          (repository) =>
+            `https://api.github.com/repos/${repository}/issues` +
+            '?state=closed&sort=updated&direction=desc&per_page=20',
+        ),
+      );
+    });
+
+    it('devolve a url de cada issue fechada', async () => {
+      const client = new FakeHttpClient(() => [
+        issue({ state: 'closed', html_url: closedUrl('10') }),
+        issue({ state: 'closed', html_url: closedUrl('11') }),
+      ]);
+
+      const urls = await new GithubIssuesScraperProvider(client, [
+        'frontendbr/vagas',
+      ]).findClosedJobUrls();
+
+      expect(urls).toEqual([closedUrl('10'), closedUrl('11')]);
+    });
+
+    it('ignora pull request fechado', async () => {
+      const client = new FakeHttpClient(() => [
+        issue({ state: 'closed', html_url: closedUrl('12'), pull_request: { url: 'x' } }),
+      ]);
+
+      const urls = await new GithubIssuesScraperProvider(client, [
+        'frontendbr/vagas',
+      ]).findClosedJobUrls();
+
+      expect(urls).toEqual([]);
+    });
+
+    it('nao repete a url quando dois repositorios devolvem a mesma', async () => {
+      const client = new FakeHttpClient(() => [
+        issue({ state: 'closed', html_url: closedUrl('13') }),
+      ]);
+
+      const urls = await new GithubIssuesScraperProvider(client, [
+        'frontendbr/vagas',
+        'react-brasil/vagas',
+      ]).findClosedJobUrls();
+
+      expect(urls).toEqual([closedUrl('13')]);
+    });
+
+    it('devolve lista vazia quando a api nao responde um array', async () => {
+      const client = new FakeHttpClient(() => ({ message: 'API rate limit exceeded' }));
+
+      await expect(
+        new GithubIssuesScraperProvider(client, ['frontendbr/vagas']).findClosedJobUrls(),
+      ).resolves.toEqual([]);
+    });
+
+    it('nao propaga excecao quando o github esta fora do ar', async () => {
+      await expect(
+        new GithubIssuesScraperProvider(failingHttpClient(), [
+          'frontendbr/vagas',
+        ]).findClosedJobUrls(),
+      ).resolves.toEqual([]);
+    });
+
+    it('a falha de um repositorio nao esconde o encerramento dos outros', async () => {
+      const client = new FakeHttpClient((url) =>
+        url.includes('frontendbr')
+          ? new Error('403 rate limit')
+          : [issue({ state: 'closed', html_url: closedUrl('14') })],
+      );
+
+      const urls = await new GithubIssuesScraperProvider(client, [
+        'frontendbr/vagas',
+        'react-brasil/vagas',
+      ]).findClosedJobUrls();
+
+      expect(urls).toEqual([closedUrl('14')]);
+    });
+  });
+
   it('trata issue sem labels', async () => {
     const provider = new GithubIssuesScraperProvider(
       new FakeHttpClient(() => [issue({ labels: undefined })]),

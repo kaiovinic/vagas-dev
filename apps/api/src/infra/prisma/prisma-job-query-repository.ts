@@ -8,6 +8,7 @@ import type {
   JobListItem,
   PaginatedJobs,
 } from '@/domain/repositories/job-query-repository';
+import { OPEN_JOBS } from '@/infra/prisma/support/open-jobs';
 import { PrismaService } from '@/infra/prisma/prisma.service';
 
 const LIST_SELECTION = {
@@ -60,6 +61,7 @@ export class PrismaJobQueryRepository implements IJobQueryRepository {
    */
   async countByCompany(publishedAfter: Date): Promise<HiringEntityCount[]> {
     const where: Prisma.JobWhereInput = {
+      ...OPEN_JOBS,
       publishedAt: { gte: publishedAfter },
       company: { not: '' },
     };
@@ -90,6 +92,7 @@ export class PrismaJobQueryRepository implements IJobQueryRepository {
 
   async countByRecruiter(publishedAfter: Date): Promise<HiringEntityCount[]> {
     const where: Prisma.JobWhereInput = {
+      ...OPEN_JOBS,
       publishedAt: { gte: publishedAfter },
       recruiterName: { not: null },
     };
@@ -157,7 +160,7 @@ function mergeCounts(
 }
 
 function buildWhere(filters: JobListFilters): Prisma.JobWhereInput {
-  const where: Prisma.JobWhereInput = {};
+  const where: Prisma.JobWhereInput = { ...OPEN_JOBS };
 
   if (filters.source) {
     where.source = filters.source;

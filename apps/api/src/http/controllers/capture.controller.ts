@@ -12,6 +12,8 @@ export interface CaptureRunResponse {
   readonly totalApproved: number;
   readonly totalPersisted: number;
   readonly totalDuplicated: number;
+  /** Vagas encerradas na fonte e retiradas do feed neste ciclo. */
+  readonly totalClosed: number;
   readonly failedSources: readonly string[];
   /** `true` quando havia captura em andamento e esta chamada so aguardou o fim. */
   readonly joinedRunning: boolean;
@@ -42,6 +44,7 @@ export class CaptureController {
       totalApproved: report.totalApproved,
       totalPersisted: report.totalPersisted,
       totalDuplicated: report.totalDuplicated,
+      totalClosed: report.totalClosed,
       failedSources: report.failedSources,
       joinedRunning,
     };

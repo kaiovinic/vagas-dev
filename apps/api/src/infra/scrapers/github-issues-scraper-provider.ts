@@ -1,7 +1,9 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 
 import type { RawJobProps } from '@/domain/dtos/raw-job-props';
+import type { JobWorkModel } from '@/domain/entities/job';
 import { HTTP_CLIENT, type IHttpClient } from '@/domain/providers/http-client';
+import type { IJobClosureProvider } from '@/domain/providers/job-closure-provider';
 import { BaseScraperProvider } from '@/infra/scrapers/support/base-scraper-provider';
 import {
   collapseSpaces,
@@ -13,6 +15,12 @@ import {
 } from '@/infra/scrapers/support/scraper-helpers';
 
 const GITHUB_API_URL = 'https://api.github.com';
+
+const GITHUB_HEADERS: Readonly<Record<string, string>> = {
+  Accept: 'application/vnd.github+json',
+  'X-GitHub-Api-Version': '2022-11-28',
+  'User-Agent': 'DevRadar',
+};
 const ISSUES_PER_PAGE = 50;
 const MODALITY_PATTERN = /^\s*\[([^\]]+)\]\s*/;
 
@@ -36,6 +44,50 @@ export const GITHUB_VACANCY_REPOSITORIES: readonly string[] = [
   'backend-br/vagas',
 ];
 
+/**
+ * Issues fechadas consultadas por repositorio.
+ *
+ * Ordenadas pela ultima alteracao, nao pela criacao: interessa o que fechou
+ * agora, e vaga fora da janela de 72h ja saiu do feed por idade. Vinte cobrem
+ * com folga o que fecha entre duas capturas, que distam duas horas.
+ */
+const CLOSED_ISSUES_PER_PAGE = 20;
+
+/**
+ * Rotulos que descrevem a ISSUE, nao a vaga.
+ *
+ * Entram na mesma lista de labels que as tecnologias e iam direto para as tags
+ * da vaga, aparecendo no painel e nas contagens da aba Mercado como se fossem
+ * stack. "Stale" e do bot que marca issue parada; "verificada" e
+ * "formato-sugerido" sao controle de qualidade dos mantenedores.
+ */
+const HOUSEKEEPING_LABELS: readonly string[] = [
+  'stale',
+  'verificada',
+  'formato-sugerido',
+  'formato sugerido',
+  'duplicate',
+  'duplicada',
+  'invalid',
+  'question',
+  'documentation',
+  'help wanted',
+  'good first issue',
+  'wontfix',
+  'enhancement',
+  'bug',
+];
+
+/**
+ * Emoji e simbolos no inicio do rotulo.
+ *
+ * O react-brasil prefixa as labels com icone ("🏢 Remoto", "⚖️ PJ", "👨
+ * Pleno"), e os outros dois repositorios escrevem o mesmo termo sem icone. Sem
+ * limpar, "Remoto" e "🏢 Remoto" viram duas tags diferentes e a aba Mercado
+ * conta a mesma coisa duas vezes.
+ */
+const LABEL_DECORATION = /^[^\p{L}\p{N}]+/u;
+
 interface GithubIssue {
   readonly title?: unknown;
   readonly html_url?: unknown;
@@ -53,7 +105,10 @@ interface GithubIssue {
  * empresa e modalidade.
  */
 @Injectable()
-export class GithubIssuesScraperProvider extends BaseScraperProvider {
+export class GithubIssuesScraperProvider
+  extends BaseScraperProvider
+  implements IJobClosureProvider
+{
   readonly source = 'github';
   readonly label = 'GitHub (repos de vagas)';
 
@@ -77,13 +132,7 @@ export class GithubIssuesScraperProvider extends BaseScraperProvider {
       `${GITHUB_API_URL}/repos/${repository}/issues` +
       `?state=open&sort=created&direction=desc&per_page=${ISSUES_PER_PAGE}`;
 
-    const { body } = await this.http.get<unknown>(url, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'DevRadar',
-      },
-    });
+    const { body } = await this.http.get<unknown>(url, { headers: GITHUB_HEADERS });
 
     if (!Array.isArray(body)) {
       return [];
@@ -112,7 +161,7 @@ export class GithubIssuesScraperProvider extends BaseScraperProvider {
       return [];
     }
 
-    const labels = uniqueStrings((issue.labels ?? []).map((label) => readString(label.name)));
+    const labels = readLabels(issue);
 
     return [
       {
@@ -124,12 +173,84 @@ export class GithubIssuesScraperProvider extends BaseScraperProvider {
         publishedAtSource: 'SOURCE',
         description: readString(issue.body),
         location: modality,
-        workModel: workModelFromText([modality, ...labels].join(' ')),
+        workModel: resolveWorkModel(modality, labels),
         recruiterName: author,
         tags: labels,
       },
     ];
   }
+
+  /**
+   * Urls das vagas cujas issues foram fechadas.
+   *
+   * Uma requisicao por repositorio, com `state=closed`. Falha de um
+   * repositorio nao esconde os encerramentos dos outros, e nenhuma propaga
+   * excecao: no pior caso o ciclo nao encerra nada e tenta de novo em duas
+   * horas.
+   */
+  async findClosedJobUrls(): Promise<readonly string[]> {
+    const perRepository = await Promise.all(
+      this.repositories.map((repository) => this.fetchClosedUrls(repository)),
+    );
+
+    return [...new Set(perRepository.flat())];
+  }
+
+  private async fetchClosedUrls(repository: string): Promise<string[]> {
+    const url =
+      `${GITHUB_API_URL}/repos/${repository}/issues` +
+      `?state=closed&sort=updated&direction=desc&per_page=${CLOSED_ISSUES_PER_PAGE}`;
+
+    try {
+      const { body } = await this.http.get<unknown>(url, { headers: GITHUB_HEADERS });
+
+      if (!Array.isArray(body)) {
+        return [];
+      }
+
+      return (body as GithubIssue[])
+        .filter((issue) => !issue.pull_request)
+        .map((issue) => readString(issue.html_url))
+        .filter((issueUrl) => issueUrl.length > 0);
+    } catch (error: unknown) {
+      this.logger.warn(
+        `Issues fechadas de ${repository}: ${error instanceof Error ? error.message : error}`,
+      );
+
+      return [];
+    }
+  }
+}
+
+/**
+ * Modalidade, com o colchete do titulo valendo mais que os rotulos.
+ *
+ * Os dois eram juntados num texto so, e `workModelFromText` procura "remoto"
+ * antes de "hibrido" — entao uma issue com `[Híbrido/Curitiba]` no titulo e as
+ * labels "Remoto" e "Híbrido" marcadas (o publicador marca as duas quando
+ * aceita negociar) era gravada como REMOTA. Medido em 31/10/2026 nas issues do
+ * frontendbr: tres vagas hibridas de Curitiba entravam como remotas, e vaga
+ * remota salta a regra de localidade inteira.
+ *
+ * O colchete e o que o publicador escreveu para AQUELA vaga; o rotulo e
+ * classificacao do repositorio e vale como segunda opiniao.
+ */
+function resolveWorkModel(modality: string, labels: readonly string[]): JobWorkModel {
+  const fromTitle = workModelFromText(modality);
+
+  return fromTitle === 'UNKNOWN' ? workModelFromText(labels.join(' ')) : fromTitle;
+}
+
+function readLabels(issue: GithubIssue): string[] {
+  const names = (issue.labels ?? []).map((label) =>
+    collapseSpaces(readString(label.name).replace(LABEL_DECORATION, '')),
+  );
+
+  return uniqueStrings(names.filter((name) => !isHousekeeping(name)));
+}
+
+function isHousekeeping(label: string): boolean {
+  return HOUSEKEEPING_LABELS.includes(label.toLowerCase());
 }
 
 interface ParsedIssueTitle {

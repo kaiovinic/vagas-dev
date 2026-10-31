@@ -183,7 +183,7 @@ describe('PrismaJobRepository', () => {
       await repository.getOpenJobsSummary(FIXED_NOW);
 
       expect(prisma.job.count).toHaveBeenNthCalledWith(1, {
-        where: { publishedAt: { gte: hoursAgo(72), lte: FIXED_NOW } },
+        where: { closedAt: null, publishedAt: { gte: hoursAgo(72), lte: FIXED_NOW } },
       });
     });
 
@@ -191,7 +191,7 @@ describe('PrismaJobRepository', () => {
       await repository.getOpenJobsSummary(FIXED_NOW);
 
       expect(prisma.job.count).toHaveBeenNthCalledWith(3, {
-        where: { publishedAt: { gte: hoursAgo(48), lt: hoursAgo(24) } },
+        where: { closedAt: null, publishedAt: { gte: hoursAgo(48), lt: hoursAgo(24) } },
       });
     });
 
@@ -199,7 +199,7 @@ describe('PrismaJobRepository', () => {
       await repository.getOpenJobsSummary(FIXED_NOW);
 
       expect(prisma.job.count).toHaveBeenNthCalledWith(4, {
-        where: { publishedAt: { gte: hoursAgo(72), lte: FIXED_NOW }, isRemote: true },
+        where: { closedAt: null, publishedAt: { gte: hoursAgo(72), lte: FIXED_NOW }, isRemote: true },
       });
     });
 
@@ -208,7 +208,7 @@ describe('PrismaJobRepository', () => {
 
       expect(prisma.job.groupBy).toHaveBeenCalledWith({
         by: ['company'],
-        where: { publishedAt: { gte: hoursAgo(72), lte: FIXED_NOW }, company: { not: '' } },
+        where: { closedAt: null, publishedAt: { gte: hoursAgo(72), lte: FIXED_NOW }, company: { not: '' } },
       });
     });
   });
@@ -233,7 +233,7 @@ describe('PrismaJobRepository', () => {
 
       expect(prisma.job.groupBy).toHaveBeenCalledWith({
         by: ['source'],
-        where: { publishedAt: { gte: hoursAgo(72), lte: FIXED_NOW } },
+        where: { closedAt: null, publishedAt: { gte: hoursAgo(72), lte: FIXED_NOW } },
         _count: { _all: true },
       });
     });

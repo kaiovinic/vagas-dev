@@ -31,7 +31,7 @@ describe('PrismaMarketInsightsRepository', () => {
 
     await expect(repository.countOpenJobs(FIXED_NOW)).resolves.toBe(52);
     expect(prisma.job.count).toHaveBeenCalledWith({
-      where: { publishedAt: { gte: hoursAgo(72), lte: FIXED_NOW } },
+      where: { closedAt: null, publishedAt: { gte: hoursAgo(72), lte: FIXED_NOW } },
     });
   });
 
@@ -59,7 +59,7 @@ describe('PrismaMarketInsightsRepository', () => {
     ]);
     expect(prisma.job.groupBy).toHaveBeenCalledWith({
       by: ['scope'],
-      where: { publishedAt: { gte: hoursAgo(72), lte: FIXED_NOW } },
+      where: { closedAt: null, publishedAt: { gte: hoursAgo(72), lte: FIXED_NOW } },
       _count: { _all: true },
     });
   });
@@ -84,6 +84,7 @@ describe('PrismaMarketInsightsRepository', () => {
 
       expect(prisma.job.count).toHaveBeenCalledWith({
         where: {
+          closedAt: null,
           publishedAt: { gte: hoursAgo(72), lte: FIXED_NOW },
           OR: [
             { title: { contains: 'senior', mode: 'insensitive' } },

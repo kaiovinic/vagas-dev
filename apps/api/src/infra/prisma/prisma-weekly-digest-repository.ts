@@ -10,6 +10,7 @@ import type {
   WeeklyDigestSnapshot,
 } from '@/domain/repositories/weekly-digest-repository';
 import { PUBLICATION_WINDOW_IN_HOURS } from '@/domain/services/job-rule-engine';
+import { OPEN_JOBS } from '@/infra/prisma/support/open-jobs';
 import { PrismaService } from '@/infra/prisma/prisma.service';
 
 const MILLISECONDS_IN_HOUR = 60 * 60 * 1000;
@@ -61,6 +62,7 @@ export class PrismaWeeklyDigestRepository implements IWeeklyDigestRepository {
 
 function window(reference: Date, hours: number): Prisma.JobWhereInput {
   return {
+    ...OPEN_JOBS,
     publishedAt: {
       gte: new Date(reference.getTime() - hours * MILLISECONDS_IN_HOUR),
       lte: reference,

@@ -2,6 +2,10 @@ import { Module } from '@nestjs/common';
 
 import { HTTP_CLIENT, type IHttpClient } from '@/domain/providers/http-client';
 import {
+  JOB_CLOSURE_PROVIDERS,
+  type IJobClosureProvider,
+} from '@/domain/providers/job-closure-provider';
+import {
   JOB_SCRAPERS,
   type IJobScraperProvider,
 } from '@/domain/providers/job-scraper-provider';
@@ -15,6 +19,7 @@ import {
   SOURCE_HEALTH_WRITER,
   SOURCE_LAST_RUN_READER,
 } from '@/domain/repositories/source-health-repository';
+import { JOB_CLOSURE_WRITER } from '@/domain/repositories/job-closure-repository';
 import { JOB_DESCRIPTION_READER } from '@/domain/repositories/job-description-repository';
 import { JOB_QUERY_REPOSITORY } from '@/domain/repositories/job-query-repository';
 import { JOB_WRITE_REPOSITORY } from '@/domain/repositories/job-write-repository';
@@ -22,6 +27,7 @@ import { AxiosHttpClient } from '@/infra/http/axios-http-client';
 import { RetryingHttpClient } from '@/infra/http/retrying-http-client';
 import { TelegramHttpNotifier } from '@/infra/notifications/telegram-http-notifier';
 import { PrismaCaptureLogRepository } from '@/infra/prisma/prisma-capture-log-repository';
+import { PrismaJobClosureRepository } from '@/infra/prisma/prisma-job-closure-repository';
 import { PrismaJobDescriptionRepository } from '@/infra/prisma/prisma-job-description-repository';
 import { PrismaJobQueryRepository } from '@/infra/prisma/prisma-job-query-repository';
 import { PrismaMarketInsightsRepository } from '@/infra/prisma/prisma-market-insights-repository';
@@ -79,6 +85,7 @@ const SCRAPERS = [
     PrismaJobRepository,
     PrismaJobQueryRepository,
     PrismaJobDescriptionRepository,
+    PrismaJobClosureRepository,
     PrismaCaptureLogRepository,
     PrismaMarketInsightsRepository,
     PrismaWeeklyDigestRepository,
@@ -98,6 +105,15 @@ const SCRAPERS = [
       useFactory: (...scrapers: IJobScraperProvider[]): IJobScraperProvider[] => scrapers,
       inject: SCRAPERS,
     },
+    // So o coletor do GitHub sabe dizer que uma vaga acabou; a lista existe
+    // para que a segunda fonte com issue fechada entre aqui e nao no caso de
+    // uso (OCP).
+    {
+      provide: JOB_CLOSURE_PROVIDERS,
+      useFactory: (github: GithubIssuesScraperProvider): IJobClosureProvider[] => [github],
+      inject: [GithubIssuesScraperProvider],
+    },
+    { provide: JOB_CLOSURE_WRITER, useExisting: PrismaJobClosureRepository },
     { provide: JOB_WRITE_REPOSITORY, useExisting: PrismaJobRepository },
     { provide: DASHBOARD_METRICS_REPOSITORY, useExisting: PrismaJobRepository },
     { provide: JOB_QUERY_REPOSITORY, useExisting: PrismaJobQueryRepository },
@@ -111,6 +127,8 @@ const SCRAPERS = [
   ],
   exports: [
     JOB_SCRAPERS,
+    JOB_CLOSURE_PROVIDERS,
+    JOB_CLOSURE_WRITER,
     JOB_WRITE_REPOSITORY,
     DASHBOARD_METRICS_REPOSITORY,
     JOB_QUERY_REPOSITORY,

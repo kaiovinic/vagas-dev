@@ -30,10 +30,17 @@ import {
   type PersistableJob,
 } from '@/domain/repositories/job-write-repository';
 import { JobRuleEngine } from '@/domain/services/job-rule-engine';
+import { CloseFinishedJobsUseCase } from '@/application/use-cases/close-finished-jobs.use-case';
 
 export type CaptureReport = FinishCaptureInput & {
   readonly startedAt: Date;
   readonly nextRunAt: Date;
+  /**
+   * Vagas que a fonte declarou encerradas neste ciclo. Fica fora do
+   * `capture_logs`: e informacao do ciclo, nao do historico de captura, e nao
+   * vale uma coluna nova na tabela.
+   */
+  readonly totalClosed: number;
 };
 
 interface SourceOutcome {
@@ -72,6 +79,7 @@ export class RunJobCollectionUseCase {
     @Inject(TELEGRAM_NOTIFIER) private readonly notifier: ITelegramNotifier,
     @Inject(CAPTURE_SCHEDULE) private readonly schedule: ICaptureSchedule,
     @Inject(SOURCE_HEALTH_WRITER) private readonly sourceHealth: ISourceHealthWriter,
+    private readonly closeFinishedJobs: CloseFinishedJobsUseCase,
   ) {}
 
   async execute(reference: Date = new Date()): Promise<CaptureReport> {
@@ -90,6 +98,11 @@ export class RunJobCollectionUseCase {
 
     await this.notifyAll(fresh);
 
+    // Depois de persistir, e nao antes: a vaga que acabou de entrar e a que
+    // acabou de fechar sao eventos independentes, e encerrar primeiro deixaria
+    // o feed mostrando por duas horas algo que a fonte ja tirou do ar.
+    const { totalClosed } = await this.closeFinishedJobs.execute(reference);
+
     const outcome: FinishCaptureInput = {
       captureId,
       finishedAt: new Date(),
@@ -105,7 +118,7 @@ export class RunJobCollectionUseCase {
 
     await this.captureLogs.finish(outcome);
 
-    return { ...outcome, startedAt: reference, nextRunAt };
+    return { ...outcome, startedAt: reference, nextRunAt, totalClosed };
   }
 
   /**

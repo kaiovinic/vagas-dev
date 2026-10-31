@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 
 import { HTTP_CLIENT, type IHttpClient } from '@/domain/providers/http-client';
 import {
+  JOB_CLOSURE_PROVIDERS,
+  type IJobClosureProvider,
+} from '@/domain/providers/job-closure-provider';
+import {
   JOB_SCRAPERS,
   type IJobScraperProvider,
 } from '@/domain/providers/job-scraper-provider';
@@ -34,5 +38,13 @@ describe('InfraModule', () => {
 
     expect(sources).toContain('inhire');
     expect(new Set(sources).size).toBe(sources.length);
+  });
+
+  it('registra o coletor do GitHub como fonte de encerramento', async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [InfraModule] }).compile();
+
+    const providers = moduleRef.get<IJobClosureProvider[]>(JOB_CLOSURE_PROVIDERS);
+
+    expect(providers.map((provider) => provider.source)).toEqual(['github']);
   });
 });

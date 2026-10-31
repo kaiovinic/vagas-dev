@@ -39,6 +39,8 @@ import type {
   SaveJobsResult,
 } from '@/domain/repositories/job-write-repository';
 
+import type { IJobClosureProvider } from '@/domain/providers/job-closure-provider';
+import type { IJobClosureWriter } from '@/domain/repositories/job-closure-repository';
 import { hoursAgo } from './make-job';
 
 export function rawJob(overrides: Partial<RawJobProps> = {}): RawJobProps {
@@ -280,6 +282,41 @@ export function jobListItem(overrides: Partial<JobListItem> = {}): JobListItem {
     publishedAtSource: 'SOURCE',
     ...overrides,
   };
+}
+
+/** Fonte que declara encerramentos: `closed` e o que ela vai devolver. */
+export class StubJobClosureProvider implements IJobClosureProvider {
+  calls = 0;
+
+  constructor(
+    readonly source: string,
+    private readonly closed: readonly string[] | Error = [],
+  ) {}
+
+  async findClosedJobUrls(): Promise<readonly string[]> {
+    this.calls += 1;
+
+    if (this.closed instanceof Error) {
+      throw this.closed;
+    }
+
+    return this.closed;
+  }
+}
+
+/** Escrita de encerramento em memoria. */
+export class InMemoryJobClosureWriter implements IJobClosureWriter {
+  readonly closed = new Map<string, Date>();
+
+  async closeByUrl(urls: readonly string[], closedAt: Date): Promise<number> {
+    const novas = urls.filter((url) => !this.closed.has(url));
+
+    for (const url of novas) {
+      this.closed.set(url, closedAt);
+    }
+
+    return novas.length;
+  }
 }
 
 /** Cache de descricao em memoria: o que ele "ja conhece" e o mapa `stored`. */

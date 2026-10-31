@@ -38,10 +38,23 @@ describe('PrismaJobQueryRepository', () => {
     repository = new PrismaJobQueryRepository(prisma as unknown as PrismaService);
   });
 
-  function lastWhere(): Record<string, unknown> {
+  function rawWhere(): Record<string, unknown> {
     const [[call]] = prisma.job.findMany.mock.calls as [[{ where: Record<string, unknown> }]];
 
     return call.where;
+  }
+
+  /**
+   * O `where` sem o recorte de vaga aberta.
+   *
+   * `closedAt: null` entra em TODA consulta e e conferido no teste proprio
+   * logo abaixo; retirado aqui, cada expectativa segue falando so do filtro
+   * que o seu caso exercita.
+   */
+  function lastWhere(): Record<string, unknown> {
+    const { closedAt: _closedAt, ...rest } = rawWhere();
+
+    return rest;
   }
 
   describe('list', () => {
@@ -75,6 +88,12 @@ describe('PrismaJobQueryRepository', () => {
       await repository.list(baseFilters());
 
       expect(lastWhere()).toEqual({});
+    });
+
+    it('pede sempre e so a vaga aberta, qualquer que seja o filtro', async () => {
+      await repository.list(baseFilters({ source: 'gupy' }));
+
+      expect(rawWhere()).toMatchObject({ closedAt: null });
     });
 
     it('filtra pela janela de publicacao', async () => {
@@ -203,7 +222,9 @@ describe('PrismaJobQueryRepository', () => {
     it('usa o mesmo filtro na contagem e na busca', async () => {
       await repository.list(baseFilters({ source: 'gupy' }));
 
-      expect(prisma.job.count).toHaveBeenCalledWith({ where: { source: 'gupy' } });
+      expect(prisma.job.count).toHaveBeenCalledWith({
+        where: { closedAt: null, source: 'gupy' },
+      });
     });
   });
 
@@ -263,13 +284,18 @@ describe('PrismaJobQueryRepository', () => {
 
       expect(prisma.job.groupBy).toHaveBeenNthCalledWith(1, {
         by: ['company'],
-        where: { publishedAt: { gte: hoursAgo(72) }, company: { not: '' } },
+        where: { closedAt: null, publishedAt: { gte: hoursAgo(72) }, company: { not: '' } },
         _count: { _all: true },
         _max: { publishedAt: true },
       });
       expect(prisma.job.groupBy).toHaveBeenNthCalledWith(2, {
         by: ['company'],
-        where: { publishedAt: { gte: hoursAgo(72) }, company: { not: '' }, isRemote: true },
+        where: {
+          closedAt: null,
+          publishedAt: { gte: hoursAgo(72) },
+          company: { not: '' },
+          isRemote: true,
+        },
         _count: { _all: true },
       });
     });
@@ -294,7 +320,7 @@ describe('PrismaJobQueryRepository', () => {
 
       expect(prisma.job.groupBy).toHaveBeenNthCalledWith(1, {
         by: ['recruiterName'],
-        where: { publishedAt: { gte: FIXED_NOW }, recruiterName: { not: null } },
+        where: { closedAt: null, publishedAt: { gte: FIXED_NOW }, recruiterName: { not: null } },
         _count: { _all: true },
         _max: { publishedAt: true },
       });

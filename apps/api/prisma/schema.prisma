@@ -52,6 +52,8 @@ model Job {
   tags              String[]          @default([])
   publishedAt       DateTime
   publishedAtSource PublishedAtSource @default(SOURCE)
+  /// Encerrada na fonte (issue fechada no GitHub). Nulo significa aberta.
+  closedAt          DateTime?
   firstSeenAt       DateTime          @default(now())
   lastSeenAt        DateTime          @default(now())
   createdAt         DateTime          @default(now())
@@ -61,6 +63,7 @@ model Job {
   @@index([source, publishedAt])
   @@index([isRemote, publishedAt])
   @@index([scope, publishedAt])
+  @@index([closedAt, publishedAt])
   @@index([company])
   @@map("jobs")
 }

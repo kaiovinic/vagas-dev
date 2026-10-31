@@ -9,6 +9,7 @@ import type {
   WorkModelCount,
 } from '@/domain/repositories/market-insights-repository';
 import { PUBLICATION_WINDOW_IN_HOURS } from '@/domain/services/job-rule-engine';
+import { OPEN_JOBS } from '@/infra/prisma/support/open-jobs';
 import { PrismaService } from '@/infra/prisma/prisma.service';
 
 const MILLISECONDS_IN_HOUR = 60 * 60 * 1000;
@@ -67,6 +68,7 @@ export class PrismaMarketInsightsRepository implements IMarketInsightsRepository
 
 function openWindow(reference: Date): Prisma.JobWhereInput {
   return {
+    ...OPEN_JOBS,
     publishedAt: {
       gte: new Date(reference.getTime() - PUBLICATION_WINDOW_IN_HOURS * MILLISECONDS_IN_HOUR),
       lte: reference,

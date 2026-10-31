@@ -13,6 +13,7 @@ import type {
   SaveJobsResult,
 } from '@/domain/repositories/job-write-repository';
 import { PUBLICATION_WINDOW_IN_HOURS } from '@/domain/services/job-rule-engine';
+import { OPEN_JOBS } from '@/infra/prisma/support/open-jobs';
 import { PrismaService } from '@/infra/prisma/prisma.service';
 
 const MILLISECONDS_IN_HOUR = 60 * 60 * 1000;
@@ -85,17 +86,19 @@ export class PrismaJobRepository implements IJobWriteRepository, IDashboardMetri
     const openWindow = publicationWindow(reference, PUBLICATION_WINDOW_IN_HOURS);
 
     const [openJobs, newInLast24h, newInPrevious24h, remoteJobs, companies] = await Promise.all([
-      this.prisma.job.count({ where: { publishedAt: openWindow } }),
+      this.prisma.job.count({ where: { ...OPEN_JOBS, publishedAt: openWindow } }),
       this.prisma.job.count({
-        where: { publishedAt: publicationWindow(reference, KPI_WINDOW_IN_HOURS) },
+        where: { ...OPEN_JOBS, publishedAt: publicationWindow(reference, KPI_WINDOW_IN_HOURS) },
       }),
       this.prisma.job.count({
-        where: { publishedAt: previousWindow(reference, KPI_WINDOW_IN_HOURS) },
+        where: { ...OPEN_JOBS, publishedAt: previousWindow(reference, KPI_WINDOW_IN_HOURS) },
       }),
-      this.prisma.job.count({ where: { publishedAt: openWindow, isRemote: true } }),
+      this.prisma.job.count({
+        where: { ...OPEN_JOBS, publishedAt: openWindow, isRemote: true },
+      }),
       this.prisma.job.groupBy({
         by: ['company'],
-        where: { publishedAt: openWindow, company: { not: '' } },
+        where: { ...OPEN_JOBS, publishedAt: openWindow, company: { not: '' } },
       }),
     ]);
 
@@ -105,7 +108,10 @@ export class PrismaJobRepository implements IJobWriteRepository, IDashboardMetri
   async countOpenJobsBySource(reference: Date): Promise<SourceJobCount[]> {
     const rows = await this.prisma.job.groupBy({
       by: ['source'],
-      where: { publishedAt: publicationWindow(reference, PUBLICATION_WINDOW_IN_HOURS) },
+      where: {
+        ...OPEN_JOBS,
+        publishedAt: publicationWindow(reference, PUBLICATION_WINDOW_IN_HOURS),
+      },
       _count: { _all: true },
     });
 
@@ -130,7 +136,8 @@ export class PrismaJobRepository implements IJobWriteRepository, IDashboardMetri
              "source" AS source,
              COUNT(*) AS total
       FROM "jobs"
-      WHERE "publishedAt" >= (${start}::timestamptz AT TIME ZONE 'UTC')
+      WHERE "closedAt" IS NULL
+        AND "publishedAt" >= (${start}::timestamptz AT TIME ZONE 'UTC')
         AND "publishedAt" <= (${end}::timestamptz AT TIME ZONE 'UTC')
       GROUP BY 1, 2
       ORDER BY 1 ASC, 3 DESC

@@ -12,7 +12,10 @@ import {
   StubScraperProvider,
   rawJob,
   InMemorySourceHealthWriter,
+  InMemoryJobClosureWriter,
+  StubJobClosureProvider,
 } from '../../../test/factories/doubles';
+import { CloseFinishedJobsUseCase } from '@/application/use-cases/close-finished-jobs.use-case';
 import { FIXED_NOW, hoursAgo } from '../../../test/factories/make-job';
 
 describe('RunJobCollectionUseCase', () => {
@@ -21,6 +24,7 @@ describe('RunJobCollectionUseCase', () => {
   let notifier: FakeTelegramNotifier;
   let schedule: FakeCaptureSchedule;
   let sourceHealth: InMemorySourceHealthWriter;
+  let closures: InMemoryJobClosureWriter;
 
   beforeEach(() => {
     jobs = new InMemoryJobWriteRepository();
@@ -28,9 +32,13 @@ describe('RunJobCollectionUseCase', () => {
     notifier = new FakeTelegramNotifier();
     schedule = new FakeCaptureSchedule();
     sourceHealth = new InMemorySourceHealthWriter();
+    closures = new InMemoryJobClosureWriter();
   });
 
-  function buildUseCase(scrapers: StubScraperProvider[]): RunJobCollectionUseCase {
+  function buildUseCase(
+    scrapers: StubScraperProvider[],
+    closureProviders: StubJobClosureProvider[] = [],
+  ): RunJobCollectionUseCase {
     return new RunJobCollectionUseCase(
       scrapers,
       new JobRuleEngine(),
@@ -39,8 +47,55 @@ describe('RunJobCollectionUseCase', () => {
       notifier,
       schedule,
       sourceHealth,
+      new CloseFinishedJobsUseCase(closureProviders, closures),
     );
   }
+
+  describe('encerramento de vagas', () => {
+    const ISSUE = 'https://github.com/frontendbr/vagas/issues/7';
+
+    it('encerra as vagas que a fonte declarou acabadas e informa no relatorio', async () => {
+      const github = new StubJobClosureProvider('github', [ISSUE]);
+
+      const report = await buildUseCase([new StubScraperProvider('gupy', [rawJob()])], [
+        github,
+      ]).execute(FIXED_NOW);
+
+      expect(report.totalClosed).toBe(1);
+      expect([...closures.closed.keys()]).toEqual([ISSUE]);
+    });
+
+    it('encerra depois de persistir, nao antes', async () => {
+      const github = new StubJobClosureProvider('github', [ISSUE]);
+
+      await buildUseCase([new StubScraperProvider('gupy', [rawJob()])], [github]).execute(
+        FIXED_NOW,
+      );
+
+      // A vaga nova deste ciclo entrou; o encerramento e evento independente.
+      expect(jobs.saved).toHaveLength(1);
+      expect(github.calls).toBe(1);
+    });
+
+    it('a captura segue bem quando a fonte de encerramento falha', async () => {
+      const github = new StubJobClosureProvider('github', new Error('403 rate limit'));
+
+      const report = await buildUseCase([new StubScraperProvider('gupy', [rawJob()])], [
+        github,
+      ]).execute(FIXED_NOW);
+
+      expect(report.status).toBe('SUCCESS');
+      expect(report.totalClosed).toBe(0);
+    });
+
+    it('relata zero quando nenhuma fonte declara encerramento', async () => {
+      const report = await buildUseCase([new StubScraperProvider('gupy', [rawJob()])]).execute(
+        FIXED_NOW,
+      );
+
+      expect(report.totalClosed).toBe(0);
+    });
+  });
 
   describe('execucao das fontes', () => {
     it('executa todos os coletores registrados', async () => {

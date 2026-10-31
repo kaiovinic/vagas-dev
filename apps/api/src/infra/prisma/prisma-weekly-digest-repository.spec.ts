@@ -25,13 +25,33 @@ describe('PrismaWeeklyDigestRepository', () => {
     repository = new PrismaWeeklyDigestRepository(prisma as unknown as PrismaService);
   });
 
-  function whereOf(callIndex: number): Record<string, unknown> {
+  function rawWhereOf(callIndex: number): Record<string, unknown> {
     const call = prisma.job.count.mock.calls[callIndex]?.[0] as { where: Record<string, unknown> };
 
     return call.where;
   }
 
+  /**
+   * O `where` sem o recorte de vaga aberta.
+   *
+   * `closedAt: null` entra em TODA contagem e e conferido no teste proprio
+   * logo abaixo; retirado aqui, cada expectativa segue falando so da janela
+   * que o seu caso exercita.
+   */
+  function whereOf(callIndex: number): Record<string, unknown> {
+    const { closedAt: _closedAt, ...rest } = rawWhereOf(callIndex);
+
+    return rest;
+  }
+
   describe('janelas', () => {
+    it('conta sempre e so a vaga aberta', async () => {
+      await repository.summarize(FIXED_NOW, 7, []);
+
+      expect(rawWhereOf(0)).toMatchObject({ closedAt: null });
+      expect(rawWhereOf(1)).toMatchObject({ closedAt: null });
+    });
+
     it('conta as vagas abertas na janela de 72h', async () => {
       await repository.summarize(FIXED_NOW, 7, []);
 
