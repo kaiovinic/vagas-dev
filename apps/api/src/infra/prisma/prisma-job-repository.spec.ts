@@ -146,6 +146,42 @@ describe('PrismaJobRepository', () => {
       expect(prisma.job.createMany).not.toHaveBeenCalled();
     });
 
+    it('completa a descricao da vaga que foi gravada sem nenhuma', async () => {
+      // O coletor do LinkedIn tem teto de detalhes por ciclo: a vaga aprovada
+      // quando o teto estourou entra sem texto e so o tem no ciclo seguinte.
+      const job = makeJob({ description: 'Texto que chegou no ciclo seguinte.' });
+      prisma.job.findMany.mockResolvedValue([{ fingerprint: job.fingerprint.value }]);
+
+      await repository.saveMany([persistable({ job })]);
+
+      expect(prisma.job.updateMany).toHaveBeenCalledWith({
+        // `description: ''` no where: preenche o que falta, nunca sobrescreve.
+        where: { fingerprint: job.fingerprint.value, description: '' },
+        data: { description: 'Texto que chegou no ciclo seguinte.' },
+      });
+    });
+
+    it('nao tenta completar descricao quando o coletor tambem nao trouxe', async () => {
+      const job = makeJob({ description: '' });
+      prisma.job.findMany.mockResolvedValue([{ fingerprint: job.fingerprint.value }]);
+
+      await repository.saveMany([persistable({ job })]);
+
+      expect(prisma.job.updateMany).toHaveBeenCalledTimes(1);
+      expect(prisma.job.updateMany).toHaveBeenCalledWith({
+        where: { fingerprint: { in: [job.fingerprint.value] } },
+        data: { lastSeenAt: expect.any(Date) },
+      });
+    });
+
+    it('nao tenta completar descricao de vaga nova', async () => {
+      const job = makeJob({ description: 'Vaga React remota.' });
+
+      await repository.saveMany([persistable({ job })]);
+
+      expect(prisma.job.updateMany).not.toHaveBeenCalled();
+    });
+
     it('separa novas de duplicadas no mesmo lote', async () => {
       const existing = makeJob({ company: 'Acme Corp' });
       const fresh = makeJob({ company: 'Globex' });

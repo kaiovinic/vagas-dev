@@ -21,7 +21,10 @@ import {
   SOURCE_LAST_RUN_READER,
 } from '@/domain/repositories/source-health-repository';
 import { JOB_CLOSURE_WRITER } from '@/domain/repositories/job-closure-repository';
-import { JOB_DESCRIPTION_READER } from '@/domain/repositories/job-description-repository';
+import {
+  JOB_DESCRIPTION_READER,
+  JOB_DESCRIPTION_WRITER,
+} from '@/domain/repositories/job-description-repository';
 import { JOB_QUERY_REPOSITORY } from '@/domain/repositories/job-query-repository';
 import { JOB_WRITE_REPOSITORY } from '@/domain/repositories/job-write-repository';
 import { AxiosHttpClient } from '@/infra/http/axios-http-client';
@@ -126,6 +129,7 @@ const SCRAPERS = [
     { provide: DASHBOARD_METRICS_REPOSITORY, useExisting: PrismaJobRepository },
     { provide: JOB_QUERY_REPOSITORY, useExisting: PrismaJobQueryRepository },
     { provide: JOB_DESCRIPTION_READER, useExisting: PrismaJobDescriptionRepository },
+    { provide: JOB_DESCRIPTION_WRITER, useExisting: PrismaJobDescriptionRepository },
     { provide: CAPTURE_LOG_REPOSITORY, useExisting: PrismaCaptureLogRepository },
     { provide: MARKET_INSIGHTS_REPOSITORY, useExisting: PrismaMarketInsightsRepository },
     { provide: WEEKLY_DIGEST_REPOSITORY, useExisting: PrismaWeeklyDigestRepository },
@@ -141,6 +145,7 @@ const SCRAPERS = [
     DASHBOARD_METRICS_REPOSITORY,
     JOB_QUERY_REPOSITORY,
     JOB_DESCRIPTION_READER,
+    JOB_DESCRIPTION_WRITER,
     CAPTURE_LOG_REPOSITORY,
     MARKET_INSIGHTS_REPOSITORY,
     WEEKLY_DIGEST_REPOSITORY,

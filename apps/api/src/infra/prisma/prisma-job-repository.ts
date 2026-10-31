@@ -68,6 +68,8 @@ export class PrismaJobRepository implements IJobWriteRepository, IDashboardMetri
         where: { fingerprint: { in: [...existing] } },
         data: { lastSeenAt: seenAt },
       });
+
+      await this.fillEmptyDescriptions(jobs.filter((entry) => existing.has(entry.job.fingerprint.value)));
     }
 
     if (newJobs.length === 0) {
@@ -80,6 +82,31 @@ export class PrismaJobRepository implements IJobWriteRepository, IDashboardMetri
     });
 
     return { created: count, duplicated: jobs.length - count };
+  }
+
+  /**
+   * Completa a descricao da vaga que foi gravada sem nenhuma.
+   *
+   * Acontece por projeto, e nao por acidente: o coletor do LinkedIn tem teto de
+   * detalhes por ciclo, entao a vaga aprovada no ciclo em que o teto estourou e
+   * gravada com a descricao vazia e so tem o texto no ciclo seguinte. Sem este
+   * preenchimento, a linha ficaria vazia pelo resto da vida, porque o caminho de
+   * gravacao nunca reescreve vaga existente.
+   *
+   * O `description: ''` no `where` e o que protege o texto ja gravado: aqui so
+   * se preenche o que esta faltando, nunca se sobrescreve.
+   */
+  private async fillEmptyDescriptions(entries: readonly PersistableJob[]): Promise<void> {
+    const withText = entries.filter((entry) => entry.job.description.length > 0);
+
+    await Promise.all(
+      withText.map((entry) =>
+        this.prisma.job.updateMany({
+          where: { fingerprint: entry.job.fingerprint.value, description: '' },
+          data: { description: entry.job.description },
+        }),
+      ),
+    );
   }
 
   async getOpenJobsSummary(reference: Date): Promise<OpenJobsSummary> {

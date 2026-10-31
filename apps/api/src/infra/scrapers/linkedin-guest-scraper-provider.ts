@@ -7,6 +7,8 @@ import { HTTP_CLIENT, type IHttpClient } from '@/domain/providers/http-client';
 import {
   JOB_DESCRIPTION_READER,
   type IJobDescriptionReader,
+  JOB_DESCRIPTION_WRITER,
+  type IJobDescriptionWriter,
 } from '@/domain/repositories/job-description-repository';
 import { BaseScraperProvider } from '@/infra/scrapers/support/base-scraper-provider';
 import {
@@ -61,8 +63,14 @@ export const LINKEDIN_MAX_CARDS_PER_SEARCH = 40;
  * de tudo que voltasse, de uma vez. O que ficar de fora volta sem descricao e e
  * buscado no ciclo seguinte, quando o cache ja cobre os anteriores — a captura
  * roda de 2 em 2 horas, entao a fila se esvazia sozinha.
+ *
+ * Quarenta, e nao vinte e cinco: com a paginacao a fila de um ciclo passou a ter
+ * cerca de 85 cards, e o teto antigo levava quatro ciclos (oito horas) para
+ * cobri-la. O custo sao quinze requisicoes a mais no ritmo de 1,5s, ou seja
+ * meio minuto de ciclo, e so enquanto a fila esta cheia: depois do cache de
+ * descricao, o regime normal e buscar apenas o card que apareceu agora.
  */
-export const LINKEDIN_MAX_DETAILS_PER_CYCLE = 25;
+export const LINKEDIN_MAX_DETAILS_PER_CYCLE = 40;
 
 /** `4482768114` em `.../jobs/view/desenvolvedor-front-end-junior-at-jobbol-4482768114`. */
 const JOB_ID_IN_URL = /(\d{6,})\/?$/;
@@ -117,6 +125,7 @@ export class LinkedinGuestScraperProvider extends BaseScraperProvider {
   constructor(
     @Inject(HTTP_CLIENT) private readonly http: IHttpClient,
     @Inject(JOB_DESCRIPTION_READER) private readonly descriptions: IJobDescriptionReader,
+    @Inject(JOB_DESCRIPTION_WRITER) private readonly descriptionCache: IJobDescriptionWriter,
     @Optional() private readonly searches: readonly LinkedinSearch[] = LINKEDIN_DEFAULT_SEARCHES,
     @Optional() private readonly wait: (ms: number) => Promise<void> = sleep,
     @Optional() private readonly maxDetails: number = LINKEDIN_MAX_DETAILS_PER_CYCLE,
@@ -179,7 +188,35 @@ export class LinkedinGuestScraperProvider extends BaseScraperProvider {
       }
     }
 
+    await this.cache(descriptions);
+
     return descriptions;
+  }
+
+  /**
+   * O que foi buscado vai para o cache ANTES de as regras julgarem a vaga.
+   *
+   * E o que torna verdadeira a promessa de uma requisicao por vaga na vida: a
+   * maioria dos cards e reprovada (outro estado, outra stack) e nunca chega a
+   * tabela de vagas, entao, sem este cache, o teto de detalhes por ciclo era
+   * gasto nos mesmos reprovados do topo da fila e a vaga mais abaixo ficava sem
+   * descricao para sempre.
+   *
+   * Falha de escrita nao derruba a coleta: as descricoes deste ciclo seguem na
+   * memoria e o ciclo seguinte tenta de novo.
+   */
+  private async cache(descriptions: ReadonlyMap<string, string>): Promise<void> {
+    if (descriptions.size === 0) {
+      return;
+    }
+
+    const entries = [...descriptions].map(([url, description]) => ({ url, description }));
+
+    try {
+      await this.descriptionCache.saveDescriptions(entries);
+    } catch (error: unknown) {
+      this.logger.warn(`Cache de descricoes: ${describeError(error)}`);
+    }
   }
 
   /**
@@ -201,7 +238,7 @@ export class LinkedinGuestScraperProvider extends BaseScraperProvider {
 
       return descriptionFromDetail(body);
     } catch (error: unknown) {
-      this.logger.warn(`Detalhe da vaga ${jobId}: ${error instanceof Error ? error.message : error}`);
+      this.logger.warn(`Detalhe da vaga ${jobId}: ${describeError(error)}`);
 
       return '';
     }
@@ -341,6 +378,10 @@ function descriptionFromDetail(html: string): string {
   const markup = cheerio.load(html)('.show-more-less-html__markup').first();
 
   return markup.length === 0 ? '' : htmlToText(markup.html() ?? '');
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function sleep(ms: number): Promise<void> {

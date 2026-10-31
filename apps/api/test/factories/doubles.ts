@@ -1,7 +1,11 @@
 import type { RawJobProps } from '@/domain/dtos/raw-job-props';
 import type { ICaptureSchedule } from '@/domain/providers/capture-schedule';
 import type { IJobScraperProvider } from '@/domain/providers/job-scraper-provider';
-import type { IJobDescriptionReader } from '@/domain/repositories/job-description-repository';
+import type {
+  FetchedDescription,
+  IJobDescriptionReader,
+  IJobDescriptionWriter,
+} from '@/domain/repositories/job-description-repository';
 import type {
   ISourceHealthRepository,
   ISourceHealthWriter,
@@ -329,5 +333,29 @@ export class StubJobDescriptionReader implements IJobDescriptionReader {
     (this.asked as string[][]).push([...urls]);
 
     return new Map([...this.stored].filter(([url]) => urls.includes(url)));
+  }
+}
+
+/**
+ * Cache de escrita em memoria.
+ *
+ * `saved` guarda o que o coletor mandou gravar — inclusive a descricao de vaga
+ * que as regras vao reprovar, que e justamente o ponto do cache.
+ */
+export class InMemoryJobDescriptionWriter implements IJobDescriptionWriter {
+  readonly saved = new Map<string, string>();
+  /** Erro a lancar na proxima escrita, para o teste de falha do banco. */
+  failWith?: Error;
+
+  async saveDescriptions(descriptions: readonly FetchedDescription[]): Promise<number> {
+    if (this.failWith) {
+      throw this.failWith;
+    }
+
+    for (const { url, description } of descriptions) {
+      this.saved.set(url, description);
+    }
+
+    return descriptions.length;
   }
 }

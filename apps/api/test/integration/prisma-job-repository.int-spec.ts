@@ -159,6 +159,55 @@ describe('PrismaJobRepository (integracao)', () => {
       await expect(repository.saveMany([])).resolves.toEqual({ created: 0, duplicated: 0 });
       expect(await prisma.job.count()).toBe(0);
     });
+
+    describe('descricao que chega depois', () => {
+      const semTexto = (): ReturnType<typeof makeJob> =>
+        makeJob({ source: 'linkedin', url: 'https://br.linkedin.com/jobs/view/1', description: '' });
+
+      async function descricaoGravada(): Promise<string | undefined> {
+        const [row] = await prisma.job.findMany({ select: { description: true } });
+
+        return row?.description;
+      }
+
+      it('completa a descricao da vaga gravada sem nenhuma', async () => {
+        await repository.saveMany([persistable({ job: semTexto() })]);
+
+        const comTexto = makeJob({
+          source: 'linkedin',
+          url: 'https://br.linkedin.com/jobs/view/1',
+          description: 'Vaga React remota, chegou no ciclo seguinte.',
+        });
+        await repository.saveMany([persistable({ job: comTexto })]);
+
+        expect(await descricaoGravada()).toBe('Vaga React remota, chegou no ciclo seguinte.');
+      });
+
+      it('nao sobrescreve a descricao que a vaga ja tinha', async () => {
+        const original = makeJob({
+          source: 'linkedin',
+          url: 'https://br.linkedin.com/jobs/view/1',
+          description: 'Texto da primeira captura.',
+        });
+        await repository.saveMany([persistable({ job: original })]);
+
+        const outro = makeJob({
+          source: 'linkedin',
+          url: 'https://br.linkedin.com/jobs/view/1',
+          description: 'Texto diferente, de um ciclo posterior.',
+        });
+        await repository.saveMany([persistable({ job: outro })]);
+
+        expect(await descricaoGravada()).toBe('Texto da primeira captura.');
+      });
+
+      it('deixa como esta quando o ciclo seguinte tambem nao traz texto', async () => {
+        await repository.saveMany([persistable({ job: semTexto() })]);
+        await repository.saveMany([persistable({ job: semTexto() })]);
+
+        expect(await descricaoGravada()).toBe('');
+      });
+    });
   });
 
   describe('findExistingFingerprints', () => {

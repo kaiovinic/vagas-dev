@@ -108,3 +108,18 @@ model CaptureLog {
   @@index([status, startedAt])
   @@map("capture_logs")
 }
+
+/// Descricao buscada na fonte, guardada por URL — inclusive a da vaga que as
+/// regras reprovaram e que, por isso, nao existe em `jobs`.
+///
+/// E o que faz cada card custar UMA requisicao na vida. Sem esta tabela, o teto
+/// de detalhes por ciclo do coletor do LinkedIn era consumido sempre pelos
+/// mesmos cards reprovados do topo da fila, e as vagas seguintes ficavam sem
+/// descricao indefinidamente.
+model JobDescription {
+  url         String   @id
+  description String
+  fetchedAt   DateTime @default(now())
+
+  @@map("job_descriptions")
+}

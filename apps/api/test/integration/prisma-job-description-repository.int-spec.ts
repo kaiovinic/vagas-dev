@@ -90,4 +90,57 @@ describe('PrismaJobDescriptionRepository (integracao)', () => {
 
     expect(found.size).toBe(0);
   });
+  describe('cache de descricao buscada', () => {
+    const REPROVADA = 'https://br.linkedin.com/jobs/view/reprovada-pelas-regras-4';
+
+    it('guarda a descricao de vaga que nunca sera gravada', async () => {
+      // Card reprovado pelas regras: nao existe em `jobs`, mas custou uma
+      // requisicao e nao pode custar outra no ciclo seguinte.
+      await repository.saveDescriptions([
+        { url: REPROVADA, description: 'Vaga presencial em Curitiba.' },
+      ]);
+
+      const found = await repository.findDescriptionsByUrl([REPROVADA]);
+
+      expect(found.get(REPROVADA)).toBe('Vaga presencial em Curitiba.');
+    });
+
+    it('nao guarda descricao vazia, para a vaga ser tentada de novo', async () => {
+      const gravadas = await repository.saveDescriptions([{ url: REPROVADA, description: '' }]);
+
+      expect(gravadas).toBe(0);
+      expect((await repository.findDescriptionsByUrl([REPROVADA])).size).toBe(0);
+    });
+
+    it('nao reclama quando a mesma url chega duas vezes', async () => {
+      await repository.saveDescriptions([{ url: REPROVADA, description: 'primeira' }]);
+
+      await expect(
+        repository.saveDescriptions([{ url: REPROVADA, description: 'segunda' }]),
+      ).resolves.toBe(0);
+    });
+
+    it('deduplica a url repetida dentro da mesma chamada', async () => {
+      const gravadas = await repository.saveDescriptions([
+        { url: REPROVADA, description: 'uma' },
+        { url: REPROVADA, description: 'outra' },
+      ]);
+
+      expect(gravadas).toBe(1);
+    });
+
+    it('nao consulta o banco com lista vazia', async () => {
+      await expect(repository.saveDescriptions([])).resolves.toBe(0);
+    });
+
+    it('acha a descricao tanto no cache quanto na vaga gravada', async () => {
+      await repository.saveDescriptions([
+        { url: REPROVADA, description: 'Vaga presencial em Curitiba.' },
+      ]);
+
+      const found = await repository.findDescriptionsByUrl([COM_DESCRICAO, REPROVADA]);
+
+      expect([...found.keys()].sort()).toEqual([COM_DESCRICAO, REPROVADA].sort());
+    });
+  });
 });

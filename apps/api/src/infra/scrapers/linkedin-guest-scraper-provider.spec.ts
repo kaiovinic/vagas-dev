@@ -10,7 +10,10 @@ import {
   type LinkedinSearch,
 } from '@/infra/scrapers/linkedin-guest-scraper-provider';
 import type { IHttpClient } from '@/domain/providers/http-client';
-import { StubJobDescriptionReader } from '../../../test/factories/doubles';
+import {
+  InMemoryJobDescriptionWriter,
+  StubJobDescriptionReader,
+} from '../../../test/factories/doubles';
 import {
   FakeHttpClient,
   failingHttpClient,
@@ -36,6 +39,7 @@ const SALVADOR_SEARCH = {
 describe('LinkedinGuestScraperProvider', () => {
   let http: FakeHttpClient;
   let descriptions: StubJobDescriptionReader;
+  let cache: InMemoryJobDescriptionWriter;
   let provider: LinkedinGuestScraperProvider;
   /** Quanto o coletor pediu para esperar, em vez de esperar de verdade. */
   let waits: number[];
@@ -44,7 +48,7 @@ describe('LinkedinGuestScraperProvider', () => {
     client: IHttpClient = http,
     searches: readonly LinkedinSearch[] = [SALVADOR_SEARCH],
   ): LinkedinGuestScraperProvider {
-    return new LinkedinGuestScraperProvider(client, descriptions, searches, async (ms) => {
+    return new LinkedinGuestScraperProvider(client, descriptions, cache, searches, async (ms) => {
       waits.push(ms);
     });
   }
@@ -52,6 +56,7 @@ describe('LinkedinGuestScraperProvider', () => {
   beforeEach(() => {
     http = new FakeHttpClient(respondLikeLinkedin);
     descriptions = new StubJobDescriptionReader();
+    cache = new InMemoryJobDescriptionWriter();
     waits = [];
     provider = makeProvider();
   });
@@ -289,6 +294,7 @@ describe('LinkedinGuestScraperProvider', () => {
       const provider = new LinkedinGuestScraperProvider(
         client,
         descriptions,
+        cache,
         [SALVADOR_SEARCH],
         async () => {},
         0,
@@ -397,10 +403,53 @@ describe('LinkedinGuestScraperProvider', () => {
       expect(waits).toEqual([LINKEDIN_REQUEST_DELAY_IN_MS, LINKEDIN_REQUEST_DELAY_IN_MS]);
     });
 
+    it('guarda no cache o que buscou, para nao gastar o teto de novo', async () => {
+      await provider.scrape();
+
+      // O cache e alimentado ANTES de as regras julgarem a vaga: a maioria dos
+      // cards e reprovada e nunca chega a tabela de vagas, e sem isto o teto de
+      // detalhes era gasto nos mesmos reprovados a cada ciclo.
+      expect([...cache.saved.values()].every((texto) => texto.length > 0)).toBe(true);
+      expect(cache.saved.size).toBe(detailUrls(http).length);
+    });
+
+    it('nao escreve no cache quando nenhum detalhe veio', async () => {
+      const semBloco = makeProvider(
+        new FakeHttpClient((url) => (isSearch(url) ? FIXTURE : '<html><body>oi</body></html>')),
+      );
+
+      await semBloco.scrape();
+
+      expect(cache.saved.size).toBe(0);
+    });
+
+    it('nao busca de novo o que o cache ja guardou num ciclo anterior', async () => {
+      await provider.scrape();
+      const primeiroCiclo = detailUrls(http).length;
+
+      // O ciclo seguinte ve pelo leitor o que o ciclo anterior gravou.
+      for (const [url, texto] of cache.saved) {
+        descriptions.stored.set(url, texto);
+      }
+      await makeProvider().scrape();
+
+      expect(detailUrls(http)).toHaveLength(primeiroCiclo);
+    });
+
+    it('nao derruba a coleta quando a escrita do cache falha', async () => {
+      cache.failWith = new Error('connection refused');
+
+      const jobs = await provider.scrape();
+
+      expect(jobs).toHaveLength(2);
+      expect(jobs[1]?.description).toContain('Senior React.js Developer');
+    });
+
     it('respeita o teto de detalhes por ciclo', async () => {
       const limited = new LinkedinGuestScraperProvider(
         http,
         descriptions,
+        cache,
         [SALVADOR_SEARCH],
         async () => {},
         1,
@@ -447,6 +496,7 @@ describe('LinkedinGuestScraperProvider', () => {
     const provider = new LinkedinGuestScraperProvider(
       http,
       descriptions,
+      cache,
       undefined,
       async () => {},
     );

@@ -1,16 +1,24 @@
 import { Injectable } from '@nestjs/common';
 
-import type { IJobDescriptionReader } from '@/domain/repositories/job-description-repository';
+import type {
+  FetchedDescription,
+  IJobDescriptionReader,
+  IJobDescriptionWriter,
+} from '@/domain/repositories/job-description-repository';
 import { PrismaService } from '@/infra/prisma/prisma.service';
 
 /**
- * Cache de descricao sobre a propria tabela de vagas: nao existe armazenamento
- * separado, a descricao ja capturada E o cache. Uma vaga vista num ciclo
- * anterior nunca e buscada de novo, e uma vaga nova entra com a descricao que o
- * coletor trouxe.
+ * Cache de descricao por URL.
+ *
+ * A leitura olha duas tabelas. `job_descriptions` guarda tudo que o coletor
+ * buscou, inclusive de vaga reprovada pelas regras; `jobs` e consultada junto
+ * porque ali esta a descricao das vagas gravadas antes de o cache existir — sem
+ * isso, a tabela nova faria o radar rebuscar o que ja sabia.
  */
 @Injectable()
-export class PrismaJobDescriptionRepository implements IJobDescriptionReader {
+export class PrismaJobDescriptionRepository
+  implements IJobDescriptionReader, IJobDescriptionWriter
+{
   constructor(private readonly prisma: PrismaService) {}
 
   async findDescriptionsByUrl(urls: readonly string[]): Promise<ReadonlyMap<string, string>> {
@@ -19,13 +27,46 @@ export class PrismaJobDescriptionRepository implements IJobDescriptionReader {
       return new Map();
     }
 
-    const rows = await this.prisma.job.findMany({
-      // `not: ''` deixa de fora a vaga gravada antes de a captura de descricao
-      // existir: ela aparece como desconhecida e e buscada uma vez.
-      where: { url: { in: [...urls] }, description: { not: '' } },
-      select: { url: true, description: true },
+    const wanted = [...urls];
+    const [cached, jobs] = await Promise.all([
+      this.prisma.jobDescription.findMany({
+        where: { url: { in: wanted }, description: { not: '' } },
+        select: { url: true, description: true },
+      }),
+      this.prisma.job.findMany({
+        // `not: ''` deixa de fora a vaga gravada sem descricao: ela aparece como
+        // desconhecida e e buscada uma vez.
+        where: { url: { in: wanted }, description: { not: '' } },
+        select: { url: true, description: true },
+      }),
+    ]);
+
+    return new Map([...jobs, ...cached].map((row) => [row.url, row.description]));
+  }
+
+  /**
+   * Grava so o que tem texto: descricao vazia nao e resposta, e sinal de que o
+   * detalhe falhou ou saiu do ar. Guardada, a vaga nunca seria tentada de novo.
+   */
+  async saveDescriptions(descriptions: readonly FetchedDescription[]): Promise<number> {
+    const entries = dedupeByUrl(descriptions).filter((row) => row.description.length > 0);
+
+    if (entries.length === 0) {
+      return 0;
+    }
+
+    const fetchedAt = new Date();
+    const { count } = await this.prisma.jobDescription.createMany({
+      data: entries.map((entry) => ({ ...entry, fetchedAt })),
+      // A descricao de um anuncio nao muda; quem ja esta no cache fica como
+      // esta, e o ciclo seguinte nem chega a pedir o detalhe dela.
+      skipDuplicates: true,
     });
 
-    return new Map(rows.map((row) => [row.url, row.description]));
+    return count;
   }
+}
+
+function dedupeByUrl(descriptions: readonly FetchedDescription[]): FetchedDescription[] {
+  return [...new Map(descriptions.map((row) => [row.url, row])).values()];
 }

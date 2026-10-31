@@ -22,7 +22,10 @@ import { CoodeshScraperProvider } from '@/infra/scrapers/coodesh-scraper-provide
 import { GithubIssuesScraperProvider } from '@/infra/scrapers/github-issues-scraper-provider';
 import { GupyScraperProvider } from '@/infra/scrapers/gupy-scraper-provider';
 import { LinkedinGuestScraperProvider } from '@/infra/scrapers/linkedin-guest-scraper-provider';
-import type { IJobDescriptionReader } from '@/domain/repositories/job-description-repository';
+import type {
+  IJobDescriptionReader,
+  IJobDescriptionWriter,
+} from '@/domain/repositories/job-description-repository';
 import { NextCommitScraperProvider } from '@/infra/scrapers/nextcommit-scraper-provider';
 import { ProgramathorScraperProvider } from '@/infra/scrapers/programathor-scraper-provider';
 import { RemotarScraperProvider } from '@/infra/scrapers/remotar-scraper-provider';
@@ -42,12 +45,17 @@ const semCacheDeDescricao: IJobDescriptionReader = {
   findDescriptionsByUrl: async () => new Map(),
 };
 
+/** O script nao grava nada: a descricao buscada morre no fim da execucao. */
+const semGravacaoDeDescricao: IJobDescriptionWriter = {
+  saveDescriptions: async () => 0,
+};
+
 async function main(): Promise<void> {
   const http = new AxiosHttpClient();
   const providers = [
     new GupyScraperProvider(http),
     new GithubIssuesScraperProvider(http),
-    new LinkedinGuestScraperProvider(http, semCacheDeDescricao),
+    new LinkedinGuestScraperProvider(http, semCacheDeDescricao, semGravacaoDeDescricao),
     new RemotarScraperProvider(http),
     new ProgramathorScraperProvider(http),
     new SolidesScraperProvider(http),

@@ -21,3 +21,28 @@ export interface IJobDescriptionReader {
    */
   findDescriptionsByUrl(urls: readonly string[]): Promise<ReadonlyMap<string, string>>;
 }
+
+export const JOB_DESCRIPTION_WRITER = Symbol.for('JOB_DESCRIPTION_WRITER');
+
+/** Uma descricao buscada na fonte, pronta para o cache. */
+export interface FetchedDescription {
+  readonly url: string;
+  readonly description: string;
+}
+
+/**
+ * Guarda a descricao buscada, inclusive a da vaga que nao vai ser gravada.
+ *
+ * Sem isto o cache de leitura so cobria vaga APROVADA, porque so a aprovada
+ * chega a tabela de vagas. E a maioria dos cards do LinkedIn e reprovada pelas
+ * regras — vaga de outro estado, de outra stack. Resultado: o teto de detalhes
+ * por ciclo era gasto todo ciclo nos mesmos cards reprovados do topo da fila, e
+ * a vaga que estava mais para baixo nunca chegava a ter descricao.
+ *
+ * Contrato de escrita separado do de leitura (ISP): o coletor le e escreve, o
+ * painel nem sabe que este cache existe.
+ */
+export interface IJobDescriptionWriter {
+  /** Grava ou atualiza as descricoes informadas. Devolve quantas gravou. */
+  saveDescriptions(descriptions: readonly FetchedDescription[]): Promise<number>;
+}
