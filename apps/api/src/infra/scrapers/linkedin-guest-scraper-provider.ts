@@ -12,6 +12,7 @@ import { BaseScraperProvider } from '@/infra/scrapers/support/base-scraper-provi
 import {
   collapseSpaces,
   dedupeByUrl,
+  htmlToText,
   parseDate,
   toAbsoluteUrl,
   workModelFromText,
@@ -243,35 +244,17 @@ function resolveWorkModel(title: string, location: string): JobWorkModel {
   return workModelFromText(`${title} ${location}`);
 }
 
-/** Tags que fecham um bloco: viram quebra de linha antes de o texto ser extraido. */
-const BLOCK_TAG = /<\s*(?:br|\/p|\/li|\/ul|\/ol|\/h[1-6]|\/div)\s*\/?>/gi;
-const BLANK_LINE_RUN = /\n{3,}/g;
-
 /**
  * Texto da descricao na pagina de detalhe.
  *
- * `show-more-less-html__markup` e o unico bloco da pagina com o anuncio. O
- * conteudo vem como HTML do proprio anunciante (<p>, <strong>, <ul>), entao as
- * tags de bloco viram quebra de linha ANTES da extracao: sem isso os itens da
- * lista sairiam grudados numa linha so, e a descricao tambem e exibida no
- * painel. A segunda passada pelo cheerio resolve as entidades (&amp;, &nbsp;).
+ * `show-more-less-html__markup` e o unico bloco da pagina com o anuncio; o
+ * conteudo dele e HTML do proprio anunciante, e a conversao para texto corrido
+ * e a mesma de qualquer outra fonte que devolve descricao em HTML.
  */
 function descriptionFromDetail(html: string): string {
   const markup = cheerio.load(html)('.show-more-less-html__markup').first();
 
-  if (markup.length === 0) {
-    return '';
-  }
-
-  const withBreaks = (markup.html() ?? '').replace(BLOCK_TAG, '\n');
-  const lines = cheerio
-    .load(`<div>${withBreaks}</div>`)
-    .root()
-    .text()
-    .split('\n')
-    .map((line) => collapseSpaces(line));
-
-  return lines.join('\n').replace(BLANK_LINE_RUN, '\n\n').trim();
+  return markup.length === 0 ? '' : htmlToText(markup.html() ?? '');
 }
 
 function sleep(ms: number): Promise<void> {

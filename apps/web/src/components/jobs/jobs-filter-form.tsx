@@ -14,6 +14,7 @@ export const SOURCE_OPTIONS = [
   { value: 'remotar', label: 'Remotar' },
   { value: 'programathor', label: 'ProgramaThor' },
   { value: 'nextcommit', label: 'Next Commit' },
+  { value: 'inhire', label: 'InHire' },
   { value: 'linkedin-posts', label: 'Publicação LinkedIn' },
 ] as const;
 

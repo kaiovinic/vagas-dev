@@ -1,6 +1,6 @@
 # Vagas Dev
 
-Agregador de vagas para **Desenvolvedor Frontend e Fullstack** em qualquer município da Bahia ou 100% remotas. Coleta de sete fontes a cada 2 horas, descarta o que não é vaga de verdade, deduplica entre plataformas, avisa no Telegram e apresenta tudo em um dashboard analítico.
+Agregador de vagas para **Desenvolvedor Frontend e Fullstack** em qualquer município da Bahia ou 100% remotas. Coleta de oito fontes a cada 2 horas, descarta o que não é vaga de verdade, deduplica entre plataformas, avisa no Telegram e apresenta tudo em um dashboard analítico.
 
 [![CI](https://github.com/kaiovinic/vagas-dev/actions/workflows/ci.yml/badge.svg)](https://github.com/kaiovinic/vagas-dev/actions/workflows/ci.yml)
 [![Cobertura](https://img.shields.io/badge/cobertura-97%25-brightgreen)](#qualidade)
@@ -27,7 +27,7 @@ Este projeto resolve as duas coisas: busca sozinho, e **joga fora o que não é 
 
 ### Coletor
 
-Sete fontes ativas. A coluna **lidas** é o que cada uma trouxe numa varredura real, antes de qualquer filtro:
+Oito fontes ativas. A coluna **lidas** é o que cada uma trouxe numa varredura real, antes de qualquer filtro:
 
 | fonte | como | intervalo | lidas | observação |
 |---|---|---|---|---|
@@ -37,6 +37,7 @@ Sete fontes ativas. A coluna **lidas** é o que cada uma trouxe numa varredura r
 | **Gupy** | `__NEXT_DATA__` da busca | 2h | 59 | |
 | **LinkedIn** (vagas) | endpoint guest, sem login | 2h | 49 | |
 | **ProgramaThor** | HTML | 2h | 18 | |
+| **InHire** | API publica do ATS, um tenant por empresa | 2h | 69 | 410 vagas nos 17 tenants; 69 sao cargos de desenvolvimento |
 | **LinkedIn** (publicações) | índice do Google, via [Serper](https://serper.dev) | **4h** | 5 | catálogo exclusivo; exige `SERP_API_KEY` |
 
 Volume não é qualidade: o Next Commit lidera as leituras e as publicações do LinkedIn trazem cinco por ciclo, mas são elas que acham a vaga que não está em portal nenhum.
@@ -98,7 +99,7 @@ Uma captura típica: **439 encontradas → 43 aprovadas**.
 Seis abas: `Vagas`, `Dashboard`, `Empresas`, `Recrutadores`, `Mercado` e `Regras`.
 
 - **KPIs** — vagas abertas, novas em 24h com variação contra as 24h anteriores, remotas (total e percentual) e empresas contratando.
-- **Gráficos** — rosca de vagas por fonte e barras empilhadas por dia de publicação, com seletor de período. As sete fontes têm cor fixa, a mesma nos dois gráficos e na tabela de saúde.
+- **Gráficos** — rosca de vagas por fonte e barras empilhadas por dia de publicação, com seletor de período. As oito fontes têm cor fixa, a mesma nos dois gráficos e na tabela de saúde.
 - **Filtros** — busca textual, tecnologias, modalidade, senioridade e fonte, mais um recorte temporal de `1h` a `7d`.
 - **Saúde da coleta** — uma linha por coletor: estado agora, última execução, próxima, vagas lidas e falhas nas últimas 24h.
 - **Split view** — no desktop, feed de cards à esquerda e painel da vaga selecionada à direita; no celular, o mesmo painel abre em drawer.

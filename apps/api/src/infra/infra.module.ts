@@ -30,6 +30,7 @@ import { PrismaWeeklyDigestRepository } from '@/infra/prisma/prisma-weekly-diges
 import { PrismaService } from '@/infra/prisma/prisma.service';
 import { GithubIssuesScraperProvider } from '@/infra/scrapers/github-issues-scraper-provider';
 import { GupyScraperProvider } from '@/infra/scrapers/gupy-scraper-provider';
+import { InhireScraperProvider } from '@/infra/scrapers/inhire-scraper-provider';
 import { LinkedinGuestScraperProvider } from '@/infra/scrapers/linkedin-guest-scraper-provider';
 import { LinkedinPostsScraperProvider } from '@/infra/scrapers/linkedin-posts-scraper-provider';
 import { NextCommitScraperProvider } from '@/infra/scrapers/nextcommit-scraper-provider';
@@ -46,6 +47,7 @@ const SCRAPERS = [
   LinkedinGuestScraperProvider,
   RemotarScraperProvider,
   ProgramathorScraperProvider,
+  InhireScraperProvider,
   // SolidesScraperProvider e CoodeshScraperProvider: fora do registro. Medido
   // sobre o que cada uma devolve por captura:
   //

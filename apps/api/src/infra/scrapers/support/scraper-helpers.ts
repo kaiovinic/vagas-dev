@@ -1,5 +1,6 @@
+import * as cheerio from 'cheerio';
+
 import type { JobWorkModel } from '@/domain/entities/job';
-import type { RawJobProps } from '@/domain/dtos/raw-job-props';
 import { normalizeForMatching } from '@/domain/value-objects/text-normalizer';
 
 const REMOTE_HINTS = ['remoto', 'remota', 'remote', 'home office', 'anywhere'];
@@ -102,7 +103,9 @@ export function workModelFromText(value: string): JobWorkModel {
 }
 
 /** A mesma vaga pode aparecer em varias buscas da mesma fonte. */
-export function dedupeByUrl(jobs: readonly RawJobProps[]): RawJobProps[] {
+export function dedupeByUrl<TItem extends { readonly url: string }>(
+  jobs: readonly TItem[],
+): TItem[] {
   const seen = new Set<string>();
 
   return jobs.filter((job) => {
@@ -128,4 +131,27 @@ export function uniqueStrings(values: readonly string[]): string[] {
   }
 
   return [...seen];
+}
+
+/** Tags que fecham um bloco: viram quebra de linha antes de o texto ser extraido. */
+const BLOCK_TAG = /<\s*(?:br|\/p|\/li|\/ul|\/ol|\/h[1-6]|\/div|\/tr)\s*\/?>/gi;
+const BLANK_LINE_RUN = /\n{3,}/g;
+
+/**
+ * Texto corrido a partir do HTML que o anunciante escreveu (<p>, <strong>, <ul>).
+ *
+ * As tags de bloco viram quebra de linha ANTES da extracao: sem isso os itens da
+ * lista sairiam grudados numa linha so, e a descricao tambem e exibida no painel.
+ * A segunda passada pelo cheerio resolve as entidades (&amp;, &nbsp;, &atilde;).
+ */
+export function htmlToText(html: string): string {
+  const withBreaks = html.replace(BLOCK_TAG, '\n');
+  const lines = cheerio
+    .load(`<div>${withBreaks}</div>`)
+    .root()
+    .text()
+    .split('\n')
+    .map((line) => collapseSpaces(line));
+
+  return lines.join('\n').replace(BLANK_LINE_RUN, '\n\n').trim();
 }

@@ -39,7 +39,7 @@ export const LINKEDIN_POSTS_SEARCHES: readonly LinkedinPostsSearch[] = [
     query:
       'site:linkedin.com/posts ("vaga" OR "contratando" OR "estamos buscando") ' +
       '("react" OR "frontend" OR "desenvolvedor" OR ".net") ("remoto" OR "home office")',
-    // Uma pagina: o mercado remoto nacional ja chega por outras seis fontes,
+    // Uma pagina: o mercado remoto nacional ja chega por outras sete fontes,
     // e aqui a cota vale mais guardada para a busca regional.
     pages: 1,
   },

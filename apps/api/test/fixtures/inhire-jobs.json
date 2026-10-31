@@ -1,0 +1,80 @@
+{
+  "tenantName": "Sympla",
+  "logo": "https://files.inhire.app/pages/career/logo_sympla.png",
+  "jobsPage": [
+    {
+      "careerPageId": "default",
+      "careerPageIds": [
+        "default"
+      ],
+      "displayName": " Pessoa Desenvolvedora Full Stack Sênior (Gandaya) | Remoto",
+      "jobId": "8aaac374-e518-4ec2-b3e4-959792fdb7a5",
+      "status": "published",
+      "workplaceType": "Remote",
+      "location": "BR"
+    },
+    {
+      "careerPageId": "default",
+      "careerPageIds": [
+        "default"
+      ],
+      "displayName": "Pessoa Desenvolvedora Front-end Sênior (React) | Remoto",
+      "jobId": "507573b4-3b2f-4a89-ae05-9049bca43fbf",
+      "status": "published",
+      "workplaceType": "Remote",
+      "location": "BR"
+    },
+    {
+      "careerPageId": "default",
+      "careerPageIds": [
+        "default"
+      ],
+      "displayName": "Pessoa desenvolvedora Backend Sênior (Java/Kotlin) | Remoto",
+      "jobId": "e1304000-a92e-4ab7-a61a-956d4a6eb13e",
+      "status": "published",
+      "workplaceType": "Remote",
+      "location": "BR"
+    },
+    {
+      "careerPageId": "default",
+      "careerPageIds": [
+        "default"
+      ],
+      "displayName": "Pessoa Engenheira de Dados Sênior | Remoto ",
+      "jobId": "d8b91db4-1122-4753-ac28-9626e728cf16",
+      "status": "published",
+      "workplaceType": "Remote",
+      "location": "BR"
+    },
+    {
+      "careerPageId": "default",
+      "careerPageIds": [
+        "default"
+      ],
+      "displayName": "Analista Comercial Pleno | SP",
+      "jobId": "0e9150dc-39dd-429f-bda7-3ca060aa379b",
+      "status": "published",
+      "workplaceType": "Hybrid",
+      "location": "São Paulo, SP, BR"
+    },
+    {
+      "careerPageId": "default",
+      "careerPageIds": [
+        "default"
+      ],
+      "displayName": "Analista de Serviços de TI Sênior | BH",
+      "jobId": "cdeebb7b-fc0b-4446-900b-0aa4bff4abc1",
+      "status": "published",
+      "workplaceType": "On-site",
+      "location": "Belo Horizonte, MG, BR"
+    },
+    {
+      "careerPageId": "default",
+      "displayName": "Banco de Talentos | Estágio",
+      "jobId": "9c021562-c9cb-4945-8733-4a8ed90ec692",
+      "status": "published",
+      "workplaceType": "Remote",
+      "location": ""
+    }
+  ]
+}

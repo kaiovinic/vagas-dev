@@ -44,9 +44,11 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       # Sem esta, o coletor de publicacoes do LinkedIn vira no-op silencioso e
-      # as outras seis fontes seguem normalmente.
+      # as outras sete fontes seguem normalmente.
       SERP_API_KEY: ${SERP_API_KEY:-}
       SERP_ENDPOINT: ${SERP_ENDPOINT:-}
+      # Tenants da InHire. Vazio usa a lista semente do coletor.
+      INHIRE_TENANTS: ${INHIRE_TENANTS:-}
       # Mesma origem via Nginx; so precisa de valor se a API for exposta direto.
       WEB_ORIGIN: ${WEB_ORIGIN:-*}
     depends_on:

@@ -15,6 +15,7 @@ const SOURCES: Readonly<Record<string, SourcePresentation>> = {
   coodesh: { label: 'Coodesh', color: 'var(--color-source-coodesh)' },
   'linkedin-posts': { label: 'Publicação LinkedIn', color: 'var(--color-source-linkedin-posts)' },
   nextcommit: { label: 'Next Commit', color: 'var(--color-source-nextcommit)' },
+  inhire: { label: 'InHire', color: 'var(--color-source-inhire)' },
 };
 
 const FALLBACK: SourcePresentation = {
