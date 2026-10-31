@@ -114,20 +114,54 @@ describe('LinkedinGuestScraperProvider', () => {
     expect(diaEmBrasilia).toBe('23/10');
   });
 
-  it('marca como remota toda vaga vinda da busca com f_WT=2', async () => {
-    const remote = new LinkedinGuestScraperProvider(http, [
-      { keywords: 'react', location: 'Brazil', remoteOnly: true },
-    ]);
+  describe('modalidade na busca com f_WT=2', () => {
+    /**
+     * A fixture e a resposta real dessa busca: o LinkedIn ignora o `f_WT` para
+     * visitantes e devolve vaga presencial de outro estado junto das remotas.
+     * Confirmado em 31/10/2026 comparando a mesma consulta com e sem o
+     * parametro — os ids voltaram identicos.
+     */
+    let remote: LinkedinGuestScraperProvider;
 
-    const jobs = await remote.scrape();
+    beforeEach(() => {
+      remote = new LinkedinGuestScraperProvider(
+        new FakeHttpClient(() => readFixture('linkedin-guest-jobs-remote.html')),
+        [{ keywords: 'desenvolvedor frontend', location: 'Brazil', remoteOnly: true }],
+      );
+    });
 
-    expect(jobs.map((job) => job.workModel)).toEqual(['REMOTE', 'REMOTE']);
+    it('nao marca como remota a vaga presencial de outro estado', async () => {
+      const jobs = await remote.scrape();
+      const jaguariuna = jobs.find((job) => job.location === 'Jaguariuna, SP');
+
+      // Marcada como REMOTE, ela ganharia o rotulo "Remoto" no motor de regras
+      // e pularia a regra de localidade inteira — inclusive a da Bahia.
+      expect(jaguariuna?.workModel).not.toBe('REMOTE');
+    });
+
+    it('reconhece a vaga remota anunciada no titulo', async () => {
+      const jobs = await remote.scrape();
+      const contoso = jobs.find((job) => job.company === 'Contoso');
+
+      expect(contoso?.workModel).toBe('REMOTE');
+    });
+
+    it('deixa em UNKNOWN a vaga sem sinal de modalidade', async () => {
+      const jobs = await remote.scrape();
+      const fabrikam = jobs.find((job) => job.company === 'Fabrikam');
+
+      expect(fabrikam?.workModel).toBe('UNKNOWN');
+    });
   });
 
-  it('deriva a modalidade do texto da localidade nas buscas presenciais', async () => {
+  it('deriva a modalidade do titulo e da localidade, nao do filtro da busca', async () => {
     const jobs = await provider.scrape();
 
-    expect(jobs.map((job) => job.workModel)).toEqual(['UNKNOWN', 'UNKNOWN']);
+    // A segunda vaga da fixture e "Senior Software Engineer (.NET + Vue) -
+    // Remote - Latin America": a modalidade esta no titulo, e a localidade
+    // ("Salvador, Bahia, Brazil") nao diz nada sobre ela. A primeira nao tem
+    // sinal nenhum e fica em UNKNOWN, que e o honesto.
+    expect(jobs.map((job) => job.workModel)).toEqual(['UNKNOWN', 'REMOTE']);
   });
 
   it('deduplica a mesma vaga encontrada em buscas diferentes', async () => {

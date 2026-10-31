@@ -79,18 +79,18 @@ export class LinkedinGuestScraperProvider extends BaseScraperProvider {
       },
     });
 
-    return this.parseCards(body, search);
+    return this.parseCards(body);
   }
 
-  private parseCards(html: string, search: LinkedinSearch): RawJobProps[] {
+  private parseCards(html: string): RawJobProps[] {
     const $ = cheerio.load(html);
 
     return $('div.base-card')
       .toArray()
-      .flatMap((element) => this.toRawJob($(element), search));
+      .flatMap((element) => this.toRawJob($(element)));
   }
 
-  private toRawJob(card: HtmlNodes, search: LinkedinSearch): RawJobProps[] {
+  private toRawJob(card: HtmlNodes): RawJobProps[] {
     const title = collapseSpaces(card.find('h3.base-search-card__title').first().text());
     const company = collapseSpaces(card.find('h4.base-search-card__subtitle').first().text());
     const location = collapseSpaces(card.find('.job-search-card__location').first().text());
@@ -112,7 +112,7 @@ export class LinkedinGuestScraperProvider extends BaseScraperProvider {
         publishedAtSource: 'SOURCE',
         description: '',
         location,
-        workModel: resolveWorkModel(location, search),
+        workModel: resolveWorkModel(title, location),
       },
     ];
   }
@@ -133,11 +133,21 @@ function buildSearchUrl(search: LinkedinSearch): string {
   return `${GUEST_SEARCH_URL}?${params.toString()}`;
 }
 
-/** Os cards guest nao trazem a modalidade; a busca remota ja garante `f_WT=2`. */
-function resolveWorkModel(location: string, search: LinkedinSearch): JobWorkModel {
-  if (search.remoteOnly) {
-    return 'REMOTE';
-  }
-
-  return workModelFromText(location);
+/**
+ * Os cards guest nao trazem a modalidade, e o filtro pedido na busca NAO serve
+ * para deduzi-la: o LinkedIn ignora `f_WT` para visitantes. Verificado em
+ * 31/10/2026 — a mesma consulta com e sem o parametro devolveu os mesmos ids, e
+ * entre eles vinham vagas presenciais em Jaguariuna/SP e Belo Horizonte/MG.
+ *
+ * Confiar no filtro marcava essas vagas como remotas, e `workModel === 'REMOTE'`
+ * adiciona o rotulo "Remoto" no motor de regras antes de qualquer outra
+ * verificacao: elas pulavam a regra de localidade inteira e ainda inflavam o KPI
+ * de remotas. So o texto da vaga decide.
+ *
+ * O titulo entra junto da localidade porque e onde a modalidade costuma estar
+ * ("Desenvolvedor React Frontend - Trabalho Remoto", com localidade
+ * "Salvador, BA"). Sem ele, vaga remota de verdade viraria UNKNOWN.
+ */
+function resolveWorkModel(title: string, location: string): JobWorkModel {
+  return workModelFromText(`${title} ${location}`);
 }
