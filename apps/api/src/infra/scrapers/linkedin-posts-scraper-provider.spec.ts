@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  LINKEDIN_POSTS_MIN_INTERVAL_HOURS,
   LINKEDIN_POSTS_QUERIES_PER_RUN,
   LINKEDIN_POSTS_RECENCY,
   LINKEDIN_POSTS_SEARCHES,
@@ -62,11 +63,6 @@ describe('LinkedinPostsScraperProvider', () => {
 
       expect(nacional?.query).toContain('"remoto"');
       expect(nacional?.query).toContain('"home office"');
-    });
-
-    it('gasta poucas consultas por ciclo, para nao queimar a cota', () => {
-      // Sao 12 capturas por dia; cada consulta a mais custa 12 creditos/dia.
-      expect(LINKEDIN_POSTS_QUERIES_PER_RUN).toBeLessThanOrEqual(4);
     });
 
     it('consulta cada busca em cada pagina', async () => {
@@ -155,6 +151,81 @@ describe('LinkedinPostsScraperProvider', () => {
         process.env.SERP_ENDPOINT = previousEndpoint;
         process.env.SERP_API_KEY = previousKey;
       }
+    });
+  });
+
+  describe('intervalo entre execucoes', () => {
+    /** Relogio controlado: o intervalo e medido em horas. */
+    function comRelogio(inicio: Date): { provider: LinkedinPostsScraperProvider; avancar: (horas: number) => void } {
+      let agora = inicio;
+
+      const provider = new LinkedinPostsScraperProvider(
+        http,
+        CONFIG,
+        UMA_BUSCA,
+        () => agora,
+        4,
+      );
+
+      return {
+        provider,
+        avancar: (horas) => {
+          agora = new Date(agora.getTime() + horas * 3_600_000);
+        },
+      };
+    }
+
+    it('espaca as buscas em 4 horas, para a cota durar', () => {
+      expect(LINKEDIN_POSTS_MIN_INTERVAL_HOURS).toBe(4);
+    });
+
+    it('busca na primeira execucao', async () => {
+      const { provider } = comRelogio(new Date('2026-10-31T09:00:00.000Z'));
+
+      await provider.scrape();
+
+      expect(http.requestedUrls).toHaveLength(1);
+    });
+
+    it('nao busca de novo dentro do intervalo', async () => {
+      const { provider, avancar } = comRelogio(new Date('2026-10-31T09:00:00.000Z'));
+
+      await provider.scrape();
+      avancar(2);
+      const jobs = await provider.scrape();
+
+      // A captura geral roda a cada 2h; esta e a execucao que deve ser pulada.
+      expect(http.requestedUrls).toHaveLength(1);
+      expect(jobs).toEqual([]);
+    });
+
+    it('volta a buscar depois do intervalo', async () => {
+      const { provider, avancar } = comRelogio(new Date('2026-10-31T09:00:00.000Z'));
+
+      await provider.scrape();
+      avancar(4);
+      await provider.scrape();
+
+      expect(http.requestedUrls).toHaveLength(2);
+    });
+
+    it('o intervalo so comeca a contar apos uma busca de verdade', async () => {
+      const semChave = new LinkedinPostsScraperProvider(
+        http,
+        { endpoint: SERPER_ENDPOINT, apiKey: '' },
+        UMA_BUSCA,
+      );
+
+      await semChave.scrape();
+      await semChave.scrape();
+
+      // Sem chave nao houve busca, entao nao ha intervalo a respeitar.
+      expect(http.requestedUrls).toEqual([]);
+    });
+
+    it('gasta tres creditos por execucao', () => {
+      // Uma pagina da busca nacional e duas da regional.
+      expect(LINKEDIN_POSTS_QUERIES_PER_RUN).toBe(3);
     });
   });
 

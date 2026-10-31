@@ -25,21 +25,69 @@ Este projeto resolve as duas coisas: busca sozinho, e **joga fora o que não é 
 
 ### Coletor
 
-Varre sete fontes a cada 2 horas: **Gupy**, **LinkedIn** (vagas e publicações), **Remotar**, **ProgramaThor**, **Next Commit** e repositórios de vagas no **GitHub**.
+Sete fontes ativas, varridas a cada 2 horas:
 
-> Os coletores de **Sólides** e **Coodesh** existem e são testados, mas estão fora do registro: medidos, rendiam 1 e 0 vagas aprovadas por captura, ao custo de 16 requisições. O catálogo real da Coodesh fica atrás de API autenticada, e a área de "tecnologia" da Sólides é suporte, não desenvolvimento.
+| fonte | como | observação |
+|---|---|---|
+| **LinkedIn** (vagas) | endpoint guest, sem login | maior volume |
+| **Remotar** | API JSON | maior volume |
+| **Gupy** | `__NEXT_DATA__` da busca | |
+| **ProgramaThor** | HTML | |
+| **GitHub** | issues de `frontendbr/vagas`, `react-brasil/vagas`, `backend-br/vagas` | |
+| **Next Commit** | HTML paginado por área | 44% dos cards batem com a stack |
+| **LinkedIn** (publicações) | índice do Google, via [Serper](https://serper.dev) | catálogo exclusivo; exige `SERP_API_KEY` |
 
-> O coletor de **publicações do LinkedIn** busca pelo índice do Google, via [Serper](https://serper.dev), e precisa de `SERP_API_KEY`. São duas consultas por ciclo — uma de remoto nacional, outra de Salvador e região — a 4 créditos por captura. A data de cada post sai do snowflake embutido na URL, com precisão de minutos — o resultado de busca não traz data.
+Três coletores existem, são testados e estão **fora do registro**, cada um por um motivo medido:
 
-> Existe também um coletor do **Jobbol**, implementado e testado, mas inativo na prática: o site fica atrás do Bot Management da Cloudflare, que responde `403` a qualquer cliente HTTP que não seja um navegador. O coletor continua registrado e passa a funcionar sem alteração caso o acesso seja liberado. Também dá para disparar na hora, pelo botão `Capturar agora` do dashboard.
+- **Jobbol** — o site fica atrás do Bot Management da Cloudflare, que responde `403` a qualquer cliente que não seja navegador. O bloqueio é por impressão digital de TLS: `curl` com o mesmo User-Agent recebe 200, o axios recebe 403.
+- **Sólides** — a área de "tecnologia" é suporte e infraestrutura. Das 124 vagas da Bahia, 7 citam a stack e nenhuma estava dentro da janela.
+- **Coodesh** — o catálogo real fica atrás de API autenticada; o sitemap público é dominado por vagas de vendas do Google Cloud.
 
-O que entra passa por um funil de três etapas:
+Religar qualquer um é devolver o import e uma linha ao módulo.
 
-1. **Regras de negócio** — janela estrita de 72h, match de stack (React, Next.js, TypeScript, Node.js, Angular, C#/.NET), localidade (Remoto ou Salvador + RMS), mercado nacional (vaga declaradamente internacional é descartada) e um filtro anti-ruído que elimina curso, bootcamp, lista de grupo e `#opentowork`. As regras ficam **públicas na aba `Regras`**, com um testador: você cola um texto e vê exatamente qual regra aprovou ou reprovou.
-2. **Deduplicação** — um fingerprint SHA-256 de `empresa + título` normalizados. A mesma vaga anunciada no LinkedIn e na Gupy conta uma vez só.
-3. **Classificação** — senioridade (pelo título, não pela descrição) e mercado nacional × internacional, gravados em coluna no momento da captura.
+#### A data das publicações do LinkedIn
 
-Uma captura típica: **309 encontradas → 49 aprovadas → 43 inéditas**.
+Resultado de buscador **não traz data de publicação**. Sem resolver isso, a única saída seria carimbar o instante da captura — e numa janela de 72h isso erra por horas.
+
+A URL de um post carrega a resposta:
+
+```
+linkedin.com/posts/vaz10k_vaga-remota-...-activity-7521210450005594113-7u22
+                                                  └──────── snowflake ────────┘
+```
+
+Os 22 bits baixos são sequência e nó; o resto é o instante em milissegundos. `Number(BigInt(id) >> 22n)` devolve **28/10/2026 14:05:08** — precisão de segundos, sem uma única requisição ao LinkedIn.
+
+#### Controle de cota
+
+O coletor de publicações é o único que custa dinheiro. Ele roda dentro da captura de 2h, mas se recusa em silêncio fora do seu próprio intervalo de 4 horas:
+
+```
+3 consultas por execução  ×  6 execuções/dia  =  18 créditos/dia
+2.500 créditos gratuitos  ÷  18              ≈  4 meses e meio
+```
+
+São duas buscas separadas — uma de remoto nacional (1 página), outra de Salvador e região (2 páginas). Separar importa: uma busca única e ampla é dominada pelo mercado remoto, que tem muito mais volume, e a região nunca aparece.
+
+### O funil
+
+O que entra passa por **sete regras**, todas públicas na aba `Regras` com um testador onde você cola um texto e vê qual regra aprovou ou reprovou:
+
+| regra | o que faz |
+|---|---|
+| Janela de 72h | descarta o que é velho e o que tem data no futuro |
+| Stack | exige React, Next.js, TypeScript, Node.js, Angular, C#/.NET ou cargo de desenvolvimento web |
+| Localidade | Remoto, ou Salvador e Região Metropolitana |
+| Anti-ruído | corta curso, bootcamp, lista de grupo, `#opentowork` |
+| Mercado nacional | descarta vaga declaradamente internacional |
+| Anúncio de verdade¹ | o texto precisa anunciar uma vaga, não falar sobre vagas |
+| Conta agregadora¹ | bloqueia quem republica vaga de terceiros em massa |
+
+¹ valem apenas para publicações de rede social. Um anúncio de portal não precisa dizer "candidate-se" — a página já é o anúncio.
+
+Depois do filtro vêm a **deduplicação**, por fingerprint SHA-256 de `empresa + título` normalizados, e a **classificação** de senioridade e mercado, gravadas em coluna no momento da captura.
+
+Uma captura típica: **439 encontradas → 43 aprovadas**.
 
 ### Dashboard analítico
 
@@ -199,7 +247,7 @@ Sobe PostgreSQL com volume persistente, a API (que aplica as migrations no entry
 
 ## Qualidade
 
-**1.152 testes**, rodando em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração contra um PostgreSQL real, build dos workspaces e build das duas imagens Docker.
+**1.157 testes**, rodando em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração contra um PostgreSQL real, build dos workspaces e build das duas imagens Docker.
 
 | Camada | Cobertura |
 |---|---|
@@ -209,6 +257,16 @@ Sobe PostgreSQL com volume persistente, a API (que aplica as migrations no entry
 | Frontend | 99,9% |
 
 O ESLint roda com informação de tipo e carrega só regras que pegam o que o compilador não pega — promise solta, `async` usado onde se espera função síncrona, `switch` não exaustivo, dependência faltando em hook. Formatação ficou de fora de propósito.
+
+**Todo coletor é testado contra fixture capturada da fonte real**, nunca contra HTML inventado. A única exceção está marcada no próprio arquivo: `serp-linkedin-posts.json` foi montada a partir do contrato documentado antes de haver chave de API — e depois confirmada contra a resposta de verdade.
+
+Há ainda três comandos de diagnóstico, que existem porque o contador de uma captura não responde o que importa:
+
+| comando | pergunta que responde |
+|---|---|
+| `jobs:analyze` | por que cada vaga coletada foi reprovada? |
+| `jobs:list-unknown` | quais vagas o classificador não conseguiu situar? |
+| `posts:probe` | o que a busca do LinkedIn trouxe, e o que o motor achou disso? |
 
 ---
 

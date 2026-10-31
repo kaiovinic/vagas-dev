@@ -34,7 +34,9 @@ export const LINKEDIN_POSTS_SEARCHES: readonly LinkedinPostsSearch[] = [
     query:
       'site:linkedin.com/posts ("vaga" OR "contratando" OR "estamos buscando") ' +
       '("react" OR "frontend" OR "desenvolvedor" OR ".net") ("remoto" OR "home office")',
-    pages: 2,
+    // Uma pagina: o mercado remoto nacional ja chega por outras seis fontes,
+    // e aqui a cota vale mais guardada para a busca regional.
+    pages: 1,
   },
   {
     label: 'Salvador e RMS',
@@ -57,10 +59,18 @@ export const LINKEDIN_POSTS_RECENCY = 'qdr:d3';
 export const LINKEDIN_POSTS_RESULT_LIMIT = 10;
 
 /**
- * Custo por captura: uma consulta por pagina de cada busca. Com as duas
- * buscas em 2 paginas sao 4 consultas, ou cerca de 48 por dia no cron de 2h —
- * uns 52 dias dos 2.500 creditos gratuitos do Serper.
+ * Intervalo minimo entre duas buscas.
+ *
+ * O coletor roda dentro da captura geral, que e de 2 em 2 horas, mas aqui
+ * cada execucao custa credito de verdade. Com 4 horas de intervalo ele
+ * participa de uma captura a cada duas.
+ *
+ * A conta: 3 consultas por execucao, 6 execucoes por dia, 18 creditos por
+ * dia — cerca de 4 meses e meio dos 2.500 gratuitos.
  */
+export const LINKEDIN_POSTS_MIN_INTERVAL_HOURS = 4;
+
+/** Consultas por execucao: uma por pagina de cada busca. */
 export const LINKEDIN_POSTS_QUERIES_PER_RUN = LINKEDIN_POSTS_SEARCHES.reduce(
   (total, search) => total + search.pages,
   0,
@@ -106,11 +116,17 @@ export class LinkedinPostsScraperProvider extends BaseScraperProvider {
   readonly source = 'linkedin-posts';
   readonly label = 'Publicacoes do LinkedIn';
 
+  /** Ultima execucao de verdade, para respeitar o intervalo minimo. */
+  private lastRunAt: Date | undefined;
+
   constructor(
     @Inject(HTTP_CLIENT) private readonly http: IHttpClient,
     @Optional() private readonly config: SerpConfig = readConfigFromEnv(),
     @Optional()
     private readonly searches: readonly LinkedinPostsSearch[] = LINKEDIN_POSTS_SEARCHES,
+    @Optional() private readonly now: () => Date = () => new Date(),
+    @Optional()
+    private readonly minIntervalHours: number = LINKEDIN_POSTS_MIN_INTERVAL_HOURS,
   ) {
     super();
   }
@@ -121,6 +137,17 @@ export class LinkedinPostsScraperProvider extends BaseScraperProvider {
 
       return [];
     }
+
+    // O coletor roda dentro da captura de 2h, mas cada execucao gasta credito
+    // do buscador. Fora do intervalo, ele se recusa em silencio — e por isso
+    // que a captura continua a cada 2h sem queimar a cota.
+    if (!this.isDue()) {
+      this.logger.debug('Dentro do intervalo minimo: busca de publicacoes adiada');
+
+      return [];
+    }
+
+    this.lastRunAt = this.now();
 
     const requests = this.searches.flatMap((search) =>
       Array.from({ length: search.pages }, (_unused, index) =>
@@ -187,6 +214,16 @@ export class LinkedinPostsScraperProvider extends BaseScraperProvider {
         recruiterName: authorDisplayName(post.author),
       },
     ];
+  }
+
+  private isDue(): boolean {
+    if (!this.lastRunAt) {
+      return true;
+    }
+
+    const elapsedHours = (this.now().getTime() - this.lastRunAt.getTime()) / 3_600_000;
+
+    return elapsedHours >= this.minIntervalHours;
   }
 
   private isConfigured(): boolean {
