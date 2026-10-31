@@ -182,3 +182,10 @@ jobs:
 
       - name: Validar a configuracao do compose de producao
         run: docker compose -f docker-compose.prod.yml --env-file .env.prod.example config --quiet
+
+      # O override da VPS compartilhada tambem passa pelo validador: ele mexe
+      # em `command`, redes e portas do proxy, e um erro ali so apareceria na
+      # hora da troca de borda em producao. `config` resolve a mesclagem sem
+      # exigir que a rede externa exista, o que o runner nao teria.
+      - name: Validar a configuracao do compose da VPS compartilhada
+        run: docker compose -f docker-compose.prod.yml -f docker-compose.vps.yml --env-file .env.prod.example config --quiet
