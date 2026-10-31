@@ -2,6 +2,12 @@ import type { RawJobProps } from '@/domain/dtos/raw-job-props';
 import type { ICaptureSchedule } from '@/domain/providers/capture-schedule';
 import type { IJobScraperProvider } from '@/domain/providers/job-scraper-provider';
 import type {
+  ISourceHealthRepository,
+  ISourceHealthWriter,
+  SourceHealth,
+  SourceRunRecord,
+} from '@/domain/repositories/source-health-repository';
+import type {
   ITelegramNotifier,
   JobAlert,
   WeeklyDigest,
@@ -130,6 +136,25 @@ export class InMemoryCaptureLogRepository implements ICaptureLogRepository {
 
   async findLastFinished(): Promise<LastCaptureSnapshot | null> {
     return this.last;
+  }
+}
+
+export class InMemorySourceHealthWriter implements ISourceHealthWriter {
+  readonly recorded: SourceRunRecord[] = [];
+
+  async record(entries: readonly SourceRunRecord[]): Promise<void> {
+    this.recorded.push(...entries);
+  }
+}
+
+export class StubSourceHealthRepository implements ISourceHealthRepository {
+  health: SourceHealth[] = [];
+  lastQuery: { reference: Date; windowInHours: number } | null = null;
+
+  async summarize(reference: Date, windowInHours: number): Promise<SourceHealth[]> {
+    this.lastQuery = { reference, windowInHours };
+
+    return this.health;
   }
 }
 

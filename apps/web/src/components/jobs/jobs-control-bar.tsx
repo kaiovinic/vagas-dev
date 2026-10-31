@@ -8,6 +8,9 @@ export const TIME_WINDOWS = [
   { hours: 24, label: '24h' },
   { hours: 48, label: '48h' },
   { hours: 72, label: '72h' },
+  // Alem das 72h do radar: mostra o que ja foi capturado e envelheceu desde
+  // entao. Nada mais antigo existe no banco, porque nunca foi capturado.
+  { hours: 168, label: '7d' },
 ] as const;
 
 export type TimeWindowHours = (typeof TIME_WINDOWS)[number]['hours'];

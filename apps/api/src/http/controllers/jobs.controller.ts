@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   ListJobsUseCase,
   MAX_PER_PAGE,
+  MAX_QUERY_WINDOW_IN_HOURS,
   type ListJobsOutput,
 } from '@/application/use-cases/list-jobs.use-case';
 import type { HiringEntityCount } from '@/domain/repositories/job-query-repository';
@@ -48,8 +49,8 @@ const listJobsQuerySchema = z.object({
   city: text,
   isRemote: booleanFlag,
   includeExpired: booleanFlag,
-  /** Recorte temporal da barra de controle: 1, 6, 24, 48 ou 72 horas. */
-  withinHours: z.coerce.number().int().min(1).max(72).optional(),
+  /** Recorte temporal da barra de controle: de 1 hora a 7 dias. */
+  withinHours: z.coerce.number().int().min(1).max(MAX_QUERY_WINDOW_IN_HOURS).optional(),
   page: z.coerce.number().int().min(1).optional(),
   perPage: z.coerce.number().int().min(1).max(MAX_PER_PAGE).optional(),
   scope: z.enum(JOB_SCOPES).optional(),

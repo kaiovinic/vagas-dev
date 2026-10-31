@@ -25,20 +25,52 @@ function charts(days: number): unknown {
   return {
     days,
     windowInHours: 72,
-    sources: ['gupy', 'linkedin'],
+    sources: ['gupy', 'linkedin', 'nextcommit', 'linkedin-posts'],
     openJobsBySource: [
-      { source: 'linkedin', total: 6, percentage: 60 },
-      { source: 'gupy', total: 4, percentage: 40 },
+      { source: 'linkedin', total: 6, percentage: 40 },
+      { source: 'gupy', total: 4, percentage: 26.7 },
+      { source: 'nextcommit', total: 3, percentage: 20 },
+      { source: 'linkedin-posts', total: 2, percentage: 13.3 },
     ],
     newJobsByDay: [
       {
         day: '2026-10-25',
-        total: 4,
-        sources: [{ source: 'gupy', total: 4, percentage: 100 }],
+        total: 9,
+        sources: [
+          { source: 'gupy', total: 4, percentage: 44.4 },
+          { source: 'nextcommit', total: 3, percentage: 33.3 },
+          { source: 'linkedin-posts', total: 2, percentage: 22.2 },
+        ],
       },
     ],
   };
 }
+
+const SOURCES_HEALTH = {
+  windowInHours: 24,
+  sources: [
+    {
+      source: 'nextcommit',
+      status: 'OK',
+      lastRunAt: '2026-10-26T11:53:00.000Z',
+      nextRunAt: '2026-10-26T13:53:00.000Z',
+      intervalInHours: 2,
+      runs: 12,
+      failures: 0,
+      totalFound: 131,
+    },
+    {
+      source: 'linkedin-posts',
+      status: 'OK',
+      lastRunAt: '2026-10-26T11:53:00.000Z',
+      nextRunAt: '2026-10-26T15:53:00.000Z',
+      intervalInHours: 4,
+      runs: 6,
+      failures: 0,
+      totalFound: 5,
+    },
+  ],
+};
 
 const JOB = {
   id: 'job-1',
@@ -70,6 +102,10 @@ function stubApi(): ReturnType<typeof vi.fn> {
 
     if (url.startsWith('/api/jobs/')) {
       return Promise.resolve(jsonResponse([]));
+    }
+
+    if (url.startsWith('/api/dashboard/sources-health')) {
+      return Promise.resolve(jsonResponse(SOURCES_HEALTH));
     }
 
     if (url.startsWith('/api/dashboard/charts')) {
@@ -104,6 +140,29 @@ describe('DashboardPage', () => {
     expect(screen.getByText('75% das vagas abertas')).toBeInTheDocument();
     expect(screen.getByTestId('donut-legend')).toHaveTextContent('LinkedIn');
     expect(screen.getByTestId('stacked-bar-chart')).toBeInTheDocument();
+  });
+
+  it('inclui as fontes novas na rosca, com rotulo proprio', async () => {
+    stubApi();
+
+    renderWithProviders(<DashboardPage />);
+
+    const legend = await screen.findByTestId('donut-legend');
+
+    expect(legend).toHaveTextContent('Next Commit');
+    expect(legend).toHaveTextContent('Publicação LinkedIn');
+  });
+
+  it('mostra a saude da coleta com as duas fontes novas', async () => {
+    stubApi();
+
+    renderWithProviders(<DashboardPage />);
+
+    await screen.findByTestId('source-health');
+
+    expect(screen.getByRole('rowheader', { name: /Next Commit/ })).toBeInTheDocument();
+    expect(screen.getByRole('rowheader', { name: /Publicação LinkedIn/ })).toBeInTheDocument();
+    expect(screen.getByText('131')).toBeInTheDocument();
   });
 
   it('recarrega o grafico ao trocar o periodo, sem derrubar a tela', async () => {

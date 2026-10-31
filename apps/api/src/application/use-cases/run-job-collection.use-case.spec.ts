@@ -11,6 +11,7 @@ import {
   InMemoryJobWriteRepository,
   StubScraperProvider,
   rawJob,
+  InMemorySourceHealthWriter,
 } from '../../../test/factories/doubles';
 import { FIXED_NOW, hoursAgo } from '../../../test/factories/make-job';
 
@@ -19,12 +20,14 @@ describe('RunJobCollectionUseCase', () => {
   let captureLogs: InMemoryCaptureLogRepository;
   let notifier: FakeTelegramNotifier;
   let schedule: FakeCaptureSchedule;
+  let sourceHealth: InMemorySourceHealthWriter;
 
   beforeEach(() => {
     jobs = new InMemoryJobWriteRepository();
     captureLogs = new InMemoryCaptureLogRepository();
     notifier = new FakeTelegramNotifier();
     schedule = new FakeCaptureSchedule();
+    sourceHealth = new InMemorySourceHealthWriter();
   });
 
   function buildUseCase(scrapers: StubScraperProvider[]): RunJobCollectionUseCase {
@@ -35,6 +38,7 @@ describe('RunJobCollectionUseCase', () => {
       captureLogs,
       notifier,
       schedule,
+      sourceHealth,
     );
   }
 

@@ -65,6 +65,26 @@ model Job {
   @@map("jobs")
 }
 
+/// Resultado de UMA fonte dentro de uma captura.
+///
+/// O `CaptureLog` guarda so o agregado e a lista de fontes que falharam, o que
+/// nao responde "quanto cada fonte trouxe" nem "ha quanto tempo esta sem
+/// trazer nada". Esta tabela responde, e e o que alimenta a Saude da Coleta.
+model CaptureSourceLog {
+  id           String   @id @default(uuid())
+  captureId    String
+  source       String
+  ranAt        DateTime @default(now())
+  /// Vagas lidas da fonte, antes de qualquer filtro.
+  totalFound   Int      @default(0)
+  failed       Boolean  @default(false)
+  errorMessage String?
+
+  @@index([source, ranAt])
+  @@index([ranAt])
+  @@map("capture_source_logs")
+}
+
 model CaptureLog {
   id              String        @id @default(uuid())
   startedAt       DateTime      @default(now())

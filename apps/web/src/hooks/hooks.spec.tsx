@@ -16,6 +16,7 @@ import {
   useDashboardSummary,
 } from '@/hooks/use-dashboard-summary';
 import { JOBS_STALE_TIME_MS, jobsListQueryKey, useJobsList } from '@/hooks/use-jobs-list';
+import { sourceHealthQueryKey, useSourceHealth } from '@/hooks/use-source-health';
 import { createTestQueryClient, jsonResponse } from '../../test/render';
 
 const SUMMARY_PAYLOAD = {
@@ -243,5 +244,46 @@ describe('useJobsList', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.items[0]?.title).toBe('Dev React');
+  });
+});
+
+const SOURCE_HEALTH_PAYLOAD = {
+  windowInHours: 24,
+  sources: [
+    {
+      source: 'linkedin-posts',
+      status: 'OK',
+      lastRunAt: '2026-10-26T12:00:00.000Z',
+      nextRunAt: '2026-10-26T16:00:00.000Z',
+      intervalInHours: 4,
+      runs: 6,
+      failures: 0,
+      totalFound: 5,
+    },
+  ],
+};
+
+describe('useSourceHealth', () => {
+  it('consome /api/dashboard/sources-health', async () => {
+    const spy = stubFetch(() => SOURCE_HEALTH_PAYLOAD);
+
+    const { result } = renderHook(() => useSourceHealth(), { wrapper: wrapper() });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(spy.mock.calls[0]?.[0]).toBe('/api/dashboard/sources-health');
+    expect(result.current.data?.sources[0]?.intervalInHours).toBe(4);
+  });
+
+  it('tem chave propria no cache', () => {
+    expect(sourceHealthQueryKey()).toEqual(['dashboard', 'sources-health']);
+  });
+
+  it('rejeita resposta fora do contrato', async () => {
+    stubFetch(() => ({ windowInHours: 24, sources: [{ source: 'gupy' }] }));
+
+    const { result } = renderHook(() => useSourceHealth(), { wrapper: wrapper() });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
   });
 });

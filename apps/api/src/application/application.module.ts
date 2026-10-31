@@ -7,6 +7,7 @@ import { CaptureCoordinator } from '@/application/services/capture-coordinator.s
 import { JobCronScheduler } from '@/application/schedulers/job-cron.scheduler';
 import { WeeklyDigestScheduler } from '@/application/schedulers/weekly-digest.scheduler';
 import { GetMarketInsightsUseCase } from '@/application/use-cases/get-market-insights.use-case';
+import { GetSourceHealthUseCase } from '@/application/use-cases/get-source-health.use-case';
 import { GetDashboardChartsUseCase } from '@/application/use-cases/get-dashboard-charts.use-case';
 import { GetDashboardSummaryUseCase } from '@/application/use-cases/get-dashboard-summary.use-case';
 import { ListJobsUseCase } from '@/application/use-cases/list-jobs.use-case';
@@ -23,6 +24,7 @@ const USE_CASES = [
   TestJobRulesUseCase,
   GetMarketInsightsUseCase,
   SendWeeklyDigestUseCase,
+  GetSourceHealthUseCase,
 ];
 
 @Module({

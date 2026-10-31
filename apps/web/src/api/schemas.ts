@@ -156,3 +156,25 @@ export type MarketInsights = z.infer<typeof marketInsightsSchema>;
 export type PublicRule = PublicRules['rules'][number];
 export type RejectionReason = z.infer<typeof rejectionReasonSchema>;
 export type RulesTestResult = z.infer<typeof rulesTestResultSchema>;
+
+export const sourceStatusSchema = z.enum(['OK', 'FAILING', 'IDLE']);
+
+export const sourceHealthRowSchema = z.object({
+  source: z.string(),
+  status: sourceStatusSchema,
+  lastRunAt: z.string().datetime().nullable(),
+  nextRunAt: z.string().datetime().nullable(),
+  intervalInHours: z.number(),
+  runs: z.number(),
+  failures: z.number(),
+  totalFound: z.number(),
+});
+
+export const sourceHealthSchema = z.object({
+  windowInHours: z.number(),
+  sources: z.array(sourceHealthRowSchema),
+});
+
+export type SourceStatus = z.infer<typeof sourceStatusSchema>;
+export type SourceHealthRow = z.infer<typeof sourceHealthRowSchema>;
+export type SourceHealth = z.infer<typeof sourceHealthSchema>;

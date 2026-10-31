@@ -73,6 +73,61 @@ describe('Dashboard (E2E)', () => {
     });
   });
 
+  describe('GET /api/dashboard/sources-health', () => {
+    it('devolve uma linha por fonte com status, intervalo e proxima execucao', async () => {
+      context.sourceHealth.health = [
+        {
+          source: 'nextcommit',
+          lastRunAt: new Date('2026-10-30T11:50:00.000Z'),
+          ok: true,
+          runsInWindow: 12,
+          failuresInWindow: 0,
+          totalFoundInWindow: 131,
+        },
+        {
+          source: 'linkedin-posts',
+          lastRunAt: new Date('2026-10-30T11:50:00.000Z'),
+          ok: true,
+          runsInWindow: 6,
+          failuresInWindow: 0,
+          totalFoundInWindow: 5,
+        },
+      ];
+
+      const response = await http().get('/api/dashboard/sources-health').expect(200);
+
+      expect(response.body.windowInHours).toBe(24);
+      expect(response.body.sources).toEqual([
+        {
+          source: 'nextcommit',
+          status: 'OK',
+          lastRunAt: '2026-10-30T11:50:00.000Z',
+          nextRunAt: '2026-10-30T13:50:00.000Z',
+          intervalInHours: 2,
+          runs: 12,
+          failures: 0,
+          totalFound: 131,
+        },
+        {
+          source: 'linkedin-posts',
+          status: 'OK',
+          lastRunAt: '2026-10-30T11:50:00.000Z',
+          nextRunAt: '2026-10-30T15:50:00.000Z',
+          intervalInHours: 4,
+          runs: 6,
+          failures: 0,
+          totalFound: 5,
+        },
+      ]);
+    });
+
+    it('devolve a lista vazia quando nenhum coletor rodou ainda', async () => {
+      const response = await http().get('/api/dashboard/sources-health').expect(200);
+
+      expect(response.body).toEqual({ windowInHours: 24, sources: [] });
+    });
+  });
+
   describe('GET /api/dashboard/charts', () => {
     beforeEach(() => {
       context.metrics.bySource = [

@@ -119,11 +119,18 @@ function normalizeTechnologies(
 }
 
 /**
- * Inicio da janela consultada. Sem `withinHours`, usa as 72h do radar; com,
- * usa o menor dos dois — pedir 200h nao pode revelar vaga ja expirada.
+ * Teto da consulta: 7 dias.
+ *
+ * Maior que a janela de 72h do radar de proposito. As 72h decidem o que e
+ * CAPTURADO — vaga mais velha que isso nunca entra no banco. Este teto decide
+ * o que e MOSTRADO: as vagas que ja estao la e envelheceram desde entao.
+ * Alem de 7 dias nao ha o que revelar, porque nada mais antigo foi capturado.
  */
+export const MAX_QUERY_WINDOW_IN_HOURS = 168;
+
+/** Sem `withinHours`, a aba abre nas 72h do radar. */
 function windowStart(withinHours: number | undefined, reference: Date): Date {
-  const hours = Math.min(withinHours ?? PUBLICATION_WINDOW_IN_HOURS, PUBLICATION_WINDOW_IN_HOURS);
+  const hours = Math.min(withinHours ?? PUBLICATION_WINDOW_IN_HOURS, MAX_QUERY_WINDOW_IN_HOURS);
 
   return new Date(reference.getTime() - hours * 60 * 60 * 1000);
 }

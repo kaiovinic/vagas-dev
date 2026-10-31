@@ -10,6 +10,10 @@ import { CAPTURE_LOG_REPOSITORY } from '@/domain/repositories/capture-log-reposi
 import { DASHBOARD_METRICS_REPOSITORY } from '@/domain/repositories/dashboard-metrics-repository';
 import { MARKET_INSIGHTS_REPOSITORY } from '@/domain/repositories/market-insights-repository';
 import { WEEKLY_DIGEST_REPOSITORY } from '@/domain/repositories/weekly-digest-repository';
+import {
+  SOURCE_HEALTH_REPOSITORY,
+  SOURCE_HEALTH_WRITER,
+} from '@/domain/repositories/source-health-repository';
 import { JOB_QUERY_REPOSITORY } from '@/domain/repositories/job-query-repository';
 import { JOB_WRITE_REPOSITORY } from '@/domain/repositories/job-write-repository';
 import { AxiosHttpClient } from '@/infra/http/axios-http-client';
@@ -18,6 +22,7 @@ import { PrismaCaptureLogRepository } from '@/infra/prisma/prisma-capture-log-re
 import { PrismaJobQueryRepository } from '@/infra/prisma/prisma-job-query-repository';
 import { PrismaMarketInsightsRepository } from '@/infra/prisma/prisma-market-insights-repository';
 import { PrismaJobRepository } from '@/infra/prisma/prisma-job-repository';
+import { PrismaSourceHealthRepository } from '@/infra/prisma/prisma-source-health-repository';
 import { PrismaWeeklyDigestRepository } from '@/infra/prisma/prisma-weekly-digest-repository';
 import { PrismaService } from '@/infra/prisma/prisma.service';
 import { GithubIssuesScraperProvider } from '@/infra/scrapers/github-issues-scraper-provider';
@@ -70,6 +75,7 @@ const SCRAPERS = [
     PrismaCaptureLogRepository,
     PrismaMarketInsightsRepository,
     PrismaWeeklyDigestRepository,
+    PrismaSourceHealthRepository,
     { provide: HTTP_CLIENT, useClass: AxiosHttpClient },
     { provide: TELEGRAM_NOTIFIER, useClass: TelegramHttpNotifier },
     ...SCRAPERS,
@@ -84,6 +90,8 @@ const SCRAPERS = [
     { provide: CAPTURE_LOG_REPOSITORY, useExisting: PrismaCaptureLogRepository },
     { provide: MARKET_INSIGHTS_REPOSITORY, useExisting: PrismaMarketInsightsRepository },
     { provide: WEEKLY_DIGEST_REPOSITORY, useExisting: PrismaWeeklyDigestRepository },
+    { provide: SOURCE_HEALTH_WRITER, useExisting: PrismaSourceHealthRepository },
+    { provide: SOURCE_HEALTH_REPOSITORY, useExisting: PrismaSourceHealthRepository },
   ],
   exports: [
     JOB_SCRAPERS,
@@ -93,6 +101,8 @@ const SCRAPERS = [
     CAPTURE_LOG_REPOSITORY,
     MARKET_INSIGHTS_REPOSITORY,
     WEEKLY_DIGEST_REPOSITORY,
+    SOURCE_HEALTH_WRITER,
+    SOURCE_HEALTH_REPOSITORY,
     TELEGRAM_NOTIFIER,
     PrismaService,
   ],

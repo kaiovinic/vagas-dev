@@ -4,6 +4,7 @@ import {
   DEFAULT_PER_PAGE,
   ListJobsUseCase,
   MAX_PER_PAGE,
+  MAX_QUERY_WINDOW_IN_HOURS,
 } from '@/application/use-cases/list-jobs.use-case';
 import { StubJobQueryRepository, jobListItem } from '../../../test/factories/doubles';
 import { FIXED_NOW, hoursAgo } from '../../../test/factories/make-job';
@@ -61,7 +62,7 @@ describe('ListJobsUseCase', () => {
   });
 
   describe('recorte temporal da barra de controle', () => {
-    it.each([1, 6, 24, 48])('consulta so as ultimas %s hora(s)', async (hours) => {
+    it.each([1, 6, 24, 48, 168])('consulta so as ultimas %s hora(s)', async (hours) => {
       await useCase.execute({ withinHours: hours }, FIXED_NOW);
 
       expect(jobs.lastFilters?.publishedAfter).toEqual(hoursAgo(hours));
@@ -73,10 +74,19 @@ describe('ListJobsUseCase', () => {
       expect(jobs.lastFilters?.publishedAfter).toEqual(hoursAgo(72));
     });
 
-    it('nunca amplia a janela publica, mesmo pedindo mais', async () => {
+    // O chip `7d` mostra o que ja foi capturado e envelheceu; nada mais antigo
+    // existe no banco, porque nunca foi capturado.
+    it('aceita a janela de 7 dias sem recortar em 72h', async () => {
+      await useCase.execute({ withinHours: MAX_QUERY_WINDOW_IN_HOURS }, FIXED_NOW);
+
+      expect(MAX_QUERY_WINDOW_IN_HOURS).toBe(168);
+      expect(jobs.lastFilters?.publishedAfter).toEqual(hoursAgo(168));
+    });
+
+    it('nunca amplia a janela publica alem dos 7 dias', async () => {
       await useCase.execute({ withinHours: 500 }, FIXED_NOW);
 
-      expect(jobs.lastFilters?.publishedAfter).toEqual(hoursAgo(72));
+      expect(jobs.lastFilters?.publishedAfter).toEqual(hoursAgo(168));
     });
 
     it('includeExpired continua vencendo o recorte', async () => {

@@ -87,7 +87,15 @@ describe('JobsFilterForm', () => {
   it('lista as fontes de captura', () => {
     setup();
 
-    for (const source of ['LinkedIn', 'Gupy', 'GitHub', 'Remotar', 'ProgramaThor']) {
+    for (const source of [
+      'LinkedIn',
+      'Gupy',
+      'GitHub',
+      'Remotar',
+      'ProgramaThor',
+      'Next Commit',
+      'Publicação LinkedIn',
+    ]) {
       expect(screen.getByRole('option', { name: source })).toBeInTheDocument();
     }
     expect(screen.getByRole('option', { name: 'Todas as fontes' })).toBeInTheDocument();
@@ -238,5 +246,11 @@ describe('toJobsListFilters', () => {
 
   it('repassa a fonte selecionada', () => {
     expect(toJobsListFilters({ ...EMPTY_JOBS_FILTER, source: 'gupy' }).source).toBe('gupy');
+    expect(toJobsListFilters({ ...EMPTY_JOBS_FILTER, source: 'nextcommit' }).source).toBe(
+      'nextcommit',
+    );
+    expect(toJobsListFilters({ ...EMPTY_JOBS_FILTER, source: 'linkedin-posts' }).source).toBe(
+      'linkedin-posts',
+    );
   });
 });

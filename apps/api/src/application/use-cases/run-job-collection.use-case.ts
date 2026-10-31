@@ -15,6 +15,10 @@ import {
   type ITelegramNotifier,
 } from '@/domain/providers/telegram-notifier';
 import {
+  SOURCE_HEALTH_WRITER,
+  type ISourceHealthWriter,
+} from '@/domain/repositories/source-health-repository';
+import {
   CAPTURE_LOG_REPOSITORY,
   type CaptureStatus,
   type FinishCaptureInput,
@@ -32,9 +36,17 @@ export type CaptureReport = FinishCaptureInput & {
   readonly nextRunAt: Date;
 };
 
+interface SourceOutcome {
+  readonly source: string;
+  readonly totalFound: number;
+  readonly failed: boolean;
+  readonly errorMessage?: string | undefined;
+}
+
 interface CollectedJobs {
   readonly raw: RawJobProps[];
   readonly failedSources: string[];
+  readonly outcomes: SourceOutcome[];
 }
 
 /**
@@ -57,6 +69,7 @@ export class RunJobCollectionUseCase {
     @Inject(CAPTURE_LOG_REPOSITORY) private readonly captureLogs: ICaptureLogRepository,
     @Inject(TELEGRAM_NOTIFIER) private readonly notifier: ITelegramNotifier,
     @Inject(CAPTURE_SCHEDULE) private readonly schedule: ICaptureSchedule,
+    @Inject(SOURCE_HEALTH_WRITER) private readonly sourceHealth: ISourceHealthWriter,
   ) {}
 
   async execute(reference: Date = new Date()): Promise<CaptureReport> {
@@ -64,7 +77,11 @@ export class RunJobCollectionUseCase {
     const nextRunAt = this.schedule.nextRunAt(reference);
     const captureId = await this.captureLogs.start({ startedAt: reference, nextRunAt });
 
-    const { raw, failedSources } = await this.collectFromSources();
+    const { raw, failedSources, outcomes } = await this.collectFromSources();
+
+    // Registrado antes do filtro: a tabela de saude pergunta se a fonte
+    // RESPONDEU, nao se o que ela trouxe foi aprovado.
+    await this.sourceHealth.record(outcomes.map((o) => ({ ...o, captureId })));
     const approved = this.selectApproved(raw, reference);
     const fresh = await this.selectUnpublished(approved);
     const { created } = await this.jobs.saveMany(fresh);
@@ -103,7 +120,7 @@ export class RunJobCollectionUseCase {
     );
 
     const raw: RawJobProps[] = [];
-    const succeeded = new Set<string>();
+    const found = new Map<string, number>();
 
     for (const result of settled) {
       if (result.status === 'rejected') {
@@ -112,15 +129,21 @@ export class RunJobCollectionUseCase {
         continue;
       }
 
-      succeeded.add(result.value.source);
+      found.set(result.value.source, result.value.jobs.length);
       raw.push(...result.value.jobs);
     }
 
-    const failedSources = this.scrapers
-      .map((scraper) => scraper.source)
-      .filter((source) => !succeeded.has(source));
+    const outcomes = this.scrapers.map((scraper) => ({
+      source: scraper.source,
+      totalFound: found.get(scraper.source) ?? 0,
+      failed: !found.has(scraper.source),
+    }));
 
-    return { raw, failedSources };
+    return {
+      raw,
+      failedSources: outcomes.filter((o) => o.failed).map((o) => o.source),
+      outcomes,
+    };
   }
 
   /** Converte para entidade e mantem apenas o que passa pelo motor de regras. */

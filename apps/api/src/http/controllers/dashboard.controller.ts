@@ -1,3 +1,7 @@
+import {
+  GetSourceHealthUseCase,
+  type SourceHealthOutput,
+} from '@/application/use-cases/get-source-health.use-case';
 import { Controller, Get, Query } from '@nestjs/common';
 import { z } from 'zod';
 
@@ -22,6 +26,7 @@ export class DashboardController {
   constructor(
     private readonly summary: GetDashboardSummaryUseCase,
     private readonly charts: GetDashboardChartsUseCase,
+    private readonly sourceHealth: GetSourceHealthUseCase,
   ) {}
 
   /** KPIs das ultimas 72h + horarios da ultima e da proxima captura. */
@@ -36,5 +41,11 @@ export class DashboardController {
     const { days } = parseWithSchema(chartsQuerySchema, query);
 
     return this.charts.execute(days);
+  }
+
+  /** Aba `Dashboard`: estado de cada coletor nas ultimas 24h. */
+  @Get('sources-health')
+  async getSourceHealth(): Promise<SourceHealthOutput> {
+    return this.sourceHealth.execute();
   }
 }

@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import type { JobListItem } from '@/api/schemas';
 import { JobDetail } from '@/components/jobs/job-detail';
 import { JobDetailDrawer } from '@/components/jobs/job-detail-drawer';
-import { JobFeedCard } from '@/components/jobs/job-feed-card';
+import { AgeBadge, JobFeedCard } from '@/components/jobs/job-feed-card';
 import {
   DEFAULT_TIME_WINDOW,
   JobsControlBar,
@@ -51,10 +51,17 @@ describe('JobsControlBar', () => {
     return { onWindowChange, onLiveChange };
   }
 
-  it('oferece os cinco recortes de tempo', () => {
+  it('oferece os seis recortes de tempo, incluindo os 7 dias', () => {
     setup();
 
-    expect(TIME_WINDOWS.map((option) => option.label)).toEqual(['1h', '6h', '24h', '48h', '72h']);
+    expect(TIME_WINDOWS.map((option) => option.label)).toEqual([
+      '1h',
+      '6h',
+      '24h',
+      '48h',
+      '72h',
+      '7d',
+    ]);
 
     for (const option of TIME_WINDOWS) {
       expect(screen.getByRole('radio', { name: option.label })).toBeInTheDocument();
@@ -74,6 +81,15 @@ describe('JobsControlBar', () => {
     await userEvent.click(screen.getByRole('radio', { name: '24h' }));
 
     expect(onWindowChange).toHaveBeenCalledWith(24);
+  });
+
+  // 7 dias passa das 72h do radar: mostra o que ja foi capturado e envelheceu.
+  it('pede as 168h ao escolher 7 dias', async () => {
+    const { onWindowChange } = setup();
+
+    await userEvent.click(screen.getByRole('radio', { name: '7d' }));
+
+    expect(onWindowChange).toHaveBeenCalledWith(168);
   });
 
   it('mostra o total dentro do recorte', () => {
@@ -272,5 +288,35 @@ describe('JobDetailDrawer', () => {
     await userEvent.keyboard('{Escape}');
 
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe('AgeBadge', () => {
+  function hoursAgo(hours: number): string {
+    return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  }
+
+  it.each([
+    [2, 'nova'],
+    [12, 'recente'],
+    [48, '1 a 3 dias'],
+    // Faixa que o recorte de 7 dias tornou alcancavel.
+    [100, '3 a 7 dias'],
+  ])('classifica uma vaga de %s h como "%s"', (hours, label) => {
+    render(<AgeBadge publishedAt={hoursAgo(hours)} />);
+
+    expect(screen.getByTestId('age-tier')).toHaveTextContent(label);
+  });
+
+  it('mostra tambem o tempo decorrido ao lado da faixa', () => {
+    render(<AgeBadge publishedAt={hoursAgo(5)} />);
+
+    expect(screen.getByText('ha 5 h')).toBeInTheDocument();
+  });
+
+  it('nao deixa a faixa vazia nos limites exatos', () => {
+    render(<AgeBadge publishedAt={hoursAgo(72)} />);
+
+    expect(screen.getByTestId('age-tier')).toHaveTextContent('3 a 7 dias');
   });
 });

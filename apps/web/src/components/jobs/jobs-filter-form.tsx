@@ -13,6 +13,8 @@ export const SOURCE_OPTIONS = [
   { value: 'github', label: 'GitHub' },
   { value: 'remotar', label: 'Remotar' },
   { value: 'programathor', label: 'ProgramaThor' },
+  { value: 'nextcommit', label: 'Next Commit' },
+  { value: 'linkedin-posts', label: 'Publicação LinkedIn' },
 ] as const;
 
 /** Niveis de senioridade, iguais ao enum da API. */

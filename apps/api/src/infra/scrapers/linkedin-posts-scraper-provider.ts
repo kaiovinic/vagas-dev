@@ -2,6 +2,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 
 import type { RawJobProps } from '@/domain/dtos/raw-job-props';
 import { HTTP_CLIENT, type IHttpClient } from '@/domain/providers/http-client';
+import { SOCIAL_POSTS_INTERVAL_IN_HOURS } from '@/domain/services/source-cadence';
 import { BaseScraperProvider } from '@/infra/scrapers/support/base-scraper-provider';
 import {
   authorDisplayName,
@@ -68,7 +69,7 @@ export const LINKEDIN_POSTS_RESULT_LIMIT = 10;
  * A conta: 3 consultas por execucao, 6 execucoes por dia, 18 creditos por
  * dia — cerca de 4 meses e meio dos 2.500 gratuitos.
  */
-export const LINKEDIN_POSTS_MIN_INTERVAL_HOURS = 4;
+export const LINKEDIN_POSTS_MIN_INTERVAL_HOURS = SOCIAL_POSTS_INTERVAL_IN_HOURS;
 
 /** Consultas por execucao: uma por pagina de cada busca. */
 export const LINKEDIN_POSTS_QUERIES_PER_RUN = LINKEDIN_POSTS_SEARCHES.reduce(
