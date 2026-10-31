@@ -82,7 +82,6 @@ export const LOCATION_KEYWORDS: readonly KeywordGroup[] = [
   { label: 'Lauro de Freitas/BA', aliases: ['lauro de freitas'] },
   { label: 'Camacari/BA', aliases: ['camacari'] },
   { label: 'Simoes Filho/BA', aliases: ['simoes filho'] },
-  { label: 'Candeias/BA', aliases: ['candeias'] },
   { label: "Dias d'Avila/BA", aliases: ["dias d'avila"] },
   { label: 'Madre de Deus/BA', aliases: ['madre de deus'] },
   { label: 'Sao Francisco do Conde/BA', aliases: ['sao francisco do conde'] },
@@ -90,7 +89,6 @@ export const LOCATION_KEYWORDS: readonly KeywordGroup[] = [
   { label: 'Pojuca/BA', aliases: ['pojuca'] },
   { label: 'Sao Sebastiao do Passe/BA', aliases: ['sao sebastiao do passe'] },
   { label: 'Itaparica/BA', aliases: ['itaparica'] },
-  { label: 'Vera Cruz/BA', aliases: ['vera cruz'] },
   // Interior: polos de tecnologia e as maiores cidades fora da RMS.
   { label: 'Feira de Santana/BA', aliases: ['feira de santana'] },
   { label: 'Vitoria da Conquista/BA', aliases: ['vitoria da conquista'] },
@@ -98,12 +96,9 @@ export const LOCATION_KEYWORDS: readonly KeywordGroup[] = [
   { label: 'Ilheus/BA', aliases: ['ilheus'] },
   { label: 'Juazeiro/BA', aliases: ['juazeiro'] },
   { label: 'Alagoinhas/BA', aliases: ['alagoinhas'] },
-  { label: 'Barreiras/BA', aliases: ['barreiras'] },
   { label: 'Luis Eduardo Magalhaes/BA', aliases: ['luis eduardo magalhaes'] },
   { label: 'Teixeira de Freitas/BA', aliases: ['teixeira de freitas'] },
-  { label: 'Porto Seguro/BA', aliases: ['porto seguro'] },
   { label: 'Jequie/BA', aliases: ['jequie'] },
-  { label: 'Paulo Afonso/BA', aliases: ['paulo afonso'] },
   { label: 'Eunapolis/BA', aliases: ['eunapolis'] },
   { label: 'Santo Antonio de Jesus/BA', aliases: ['santo antonio de jesus'] },
   { label: 'Guanambi/BA', aliases: ['guanambi'] },
@@ -119,6 +114,28 @@ export const LOCATION_KEYWORDS: readonly KeywordGroup[] = [
  * Termos que indicam que a publicacao NAO e uma vaga real: cursos, bootcamps,
  * listas de grupos, propaganda de curriculo e candidatos em recolocacao.
  */
+/**
+ * Municipios da Bahia cujo nome tambem e palavra comum, marca ou nome de
+ * pessoa. Sao aceitos apenas no CAMPO de localidade, nunca no corpo do anuncio.
+ *
+ * Entrou depois de uma vaga presencial em Santos/SP ser aprovada em producao
+ * (31/10/2026): a lista de beneficios dizia "Seguro de Vida (Porto Seguro, sem
+ * custos)" e a seguradora casou com o municipio. "Barreiras" e pior ainda —
+ * "quebrar barreiras" aparece em anuncio atras de anuncio — e "Paulo Afonso"
+ * tambem e nome de recrutador.
+ *
+ * A vaga de verdade desses municipios continua entrando: a fonte escreve
+ * "Porto Seguro, BA" ou "Barreiras - BA" no campo de localidade, que e
+ * exatamente onde estes termos valem.
+ */
+export const AMBIGUOUS_LOCATION_KEYWORDS: readonly KeywordGroup[] = [
+  { label: 'Candeias/BA', aliases: ['candeias'] },
+  { label: 'Vera Cruz/BA', aliases: ['vera cruz'] },
+  { label: 'Barreiras/BA', aliases: ['barreiras'] },
+  { label: 'Porto Seguro/BA', aliases: ['porto seguro'] },
+  { label: 'Paulo Afonso/BA', aliases: ['paulo afonso'] },
+];
+
 export const SPAM_KEYWORDS: readonly KeywordGroup[] = [
   {
     label: 'Curso',

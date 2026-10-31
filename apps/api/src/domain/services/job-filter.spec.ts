@@ -268,6 +268,46 @@ describe('JobRuleEngine (domain service)', () => {
       expect(result.rejectionReasons).toContain(JobRejectionReason.LocationNotAllowed);
     });
 
+    /**
+     * Municipio de nome ambiguo citado no corpo do anuncio.
+     *
+     * O primeiro caso e real: uma vaga presencial em Santos/SP foi aprovada em
+     * producao em 31/10/2026 porque a lista de beneficios dizia "Seguro de Vida
+     * (Porto Seguro, sem custos)".
+     */
+    it.each([
+      ['a seguradora Porto Seguro', 'Oferecemos Seguro de Vida (Porto Seguro, sem custos).'],
+      ['barreiras como palavra comum', 'Buscamos quem gosta de quebrar barreiras e aprender.'],
+      ['Paulo Afonso como nome de pessoa', 'Processo conduzido por Paulo Afonso, do time de RH.'],
+    ])('nao aceita %s na descricao como localidade', (_caso, frase) => {
+      const job = makeJob({
+        location: 'Santos, SP',
+        description: `Vaga React presencial. ${frase}`,
+        workModel: 'ONSITE',
+      });
+
+      const result = engine.evaluate(job, FIXED_NOW);
+
+      expect(result.approved).toBe(false);
+      expect(result.rejectionReasons).toContain(JobRejectionReason.LocationNotAllowed);
+      expect(result.matchedLocations).toEqual([]);
+    });
+
+    it.each([
+      ['Porto Seguro/BA', 'Porto Seguro, BA'],
+      ['Barreiras/BA', 'Barreiras - BA'],
+      ['Paulo Afonso/BA', 'Paulo Afonso/BA'],
+      ['Candeias/BA', 'Candeias, Bahia'],
+      ['Vera Cruz/BA', 'Vera Cruz - BA'],
+    ])('aprova %s quando esta no campo de localidade', (label, location) => {
+      const job = makeJob({ location, description: 'Vaga React presencial', workModel: 'ONSITE' });
+
+      const result = engine.evaluate(job, FIXED_NOW);
+
+      expect(result.matchedLocations).toContain(label);
+      expect(result.rejectionReasons).not.toContain(JobRejectionReason.LocationNotAllowed);
+    });
+
     it.each([
       ['Vitoria/ES', 'Vitória/ES'],
       ['Juazeiro do Norte/CE', 'Juazeiro do Norte - CE'],
