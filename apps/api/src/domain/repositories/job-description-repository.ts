@@ -46,3 +46,26 @@ export interface IJobDescriptionWriter {
   /** Grava ou atualiza as descricoes informadas. Devolve quantas gravou. */
   saveDescriptions(descriptions: readonly FetchedDescription[]): Promise<number>;
 }
+
+export const MISSING_DESCRIPTION_REPOSITORY = Symbol.for('MISSING_DESCRIPTION_REPOSITORY');
+
+/**
+ * As vagas gravadas que ficaram sem descricao, e o conserto delas.
+ *
+ * Uma vaga aprovada antes de o detalhe ser buscado entra no banco com a
+ * descricao vazia, e nada no caminho de gravacao reescreve vaga existente: a
+ * linha ficaria vazia pelos tres dias em que aparece no feed. Este contrato e o
+ * que permite voltar nela pela url, sem depender de o card reaparecer na busca.
+ */
+export interface IMissingDescriptionRepository {
+  /** Urls de vagas abertas daquela fonte que estao sem descricao, as mais recentes primeiro. */
+  findUrlsMissingDescription(source: string, limit: number): Promise<readonly string[]>;
+
+  /**
+   * Grava a descricao da vaga daquela url, se ela ainda estiver vazia.
+   *
+   * Devolve quantas linhas mudaram: zero significa que outra captura chegou
+   * antes, e nao erro.
+   */
+  fillDescriptionByUrl(url: string, description: string): Promise<number>;
+}

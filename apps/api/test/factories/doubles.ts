@@ -1,10 +1,12 @@
 import type { RawJobProps } from '@/domain/dtos/raw-job-props';
 import type { ICaptureSchedule } from '@/domain/providers/capture-schedule';
 import type { IJobScraperProvider } from '@/domain/providers/job-scraper-provider';
+import type { IJobDescriptionFetcher } from '@/domain/providers/job-description-fetcher';
 import type {
   FetchedDescription,
   IJobDescriptionReader,
   IJobDescriptionWriter,
+  IMissingDescriptionRepository,
 } from '@/domain/repositories/job-description-repository';
 import type {
   ISourceHealthRepository,
@@ -357,5 +359,61 @@ export class InMemoryJobDescriptionWriter implements IJobDescriptionWriter {
     }
 
     return descriptions.length;
+  }
+}
+
+/** Busca de descricao avulsa: responde o que estiver em `descriptions`, vazio para o resto. */
+export class StubJobDescriptionFetcher implements IJobDescriptionFetcher {
+  readonly asked: string[] = [];
+
+  constructor(
+    readonly source: string,
+    private readonly descriptions: Record<string, string> = {},
+    private readonly failWith?: Error,
+  ) {}
+
+  async fetchDescriptionFor(url: string): Promise<string> {
+    this.asked.push(url);
+
+    if (this.failWith) {
+      throw this.failWith;
+    }
+
+    return this.descriptions[url] ?? '';
+  }
+}
+
+/**
+ * As vagas abertas sem descricao, em memoria.
+ *
+ * `missing` e url -> fonte; o preenchimento tira de `missing` e poe em `filled`,
+ * como o `updateMany` com `description: ''` faz no banco.
+ */
+export class InMemoryMissingDescriptionRepository implements IMissingDescriptionRepository {
+  readonly missing = new Map<string, string>();
+  readonly filled = new Map<string, string>();
+  /** Urls que outra captura preencheu entre a leitura e a escrita. */
+  readonly raced = new Set<string>();
+  failWith?: unknown;
+
+  async findUrlsMissingDescription(source: string, limit: number): Promise<readonly string[]> {
+    if (this.failWith) {
+      throw this.failWith;
+    }
+
+    return [...this.missing]
+      .filter(([, fonte]) => fonte === source)
+      .map(([url]) => url)
+      .slice(0, limit);
+  }
+
+  async fillDescriptionByUrl(url: string, description: string): Promise<number> {
+    if (this.raced.has(url) || !this.missing.delete(url)) {
+      return 0;
+    }
+
+    this.filled.set(url, description);
+
+    return 1;
   }
 }

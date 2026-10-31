@@ -143,4 +143,73 @@ describe('PrismaJobDescriptionRepository (integracao)', () => {
       expect([...found.keys()].sort()).toEqual([COM_DESCRICAO, REPROVADA].sort());
     });
   });
+  describe('vagas gravadas sem descricao', () => {
+    const OUTRA_FONTE = 'https://www.gupy.io/job/sem-descricao-5';
+
+    it('devolve a url da vaga aberta que esta sem descricao', async () => {
+      const urls = await repository.findUrlsMissingDescription('linkedin', 10);
+
+      expect(urls).toEqual([SEM_DESCRICAO]);
+    });
+
+    it('nao devolve vaga de outra fonte', async () => {
+      await writer.saveMany([
+        entry({
+          job: makeJob({
+            title: 'Dev Node sem descricao',
+            company: 'Gupy Co',
+            source: 'gupy',
+            url: OUTRA_FONTE,
+            description: '',
+          }),
+        }),
+      ]);
+
+      expect(await repository.findUrlsMissingDescription('linkedin', 10)).toEqual([SEM_DESCRICAO]);
+      expect(await repository.findUrlsMissingDescription('gupy', 10)).toEqual([OUTRA_FONTE]);
+    });
+
+    it('nao devolve vaga encerrada: consertar o texto dela nao muda nada', async () => {
+      await prisma.job.updateMany({ where: { url: SEM_DESCRICAO }, data: { closedAt: new Date() } });
+
+      expect(await repository.findUrlsMissingDescription('linkedin', 10)).toEqual([]);
+    });
+
+    it('respeita o limite e comeca pelas mais recentes', async () => {
+      await writer.saveMany([
+        entry({
+          job: makeJob({
+            title: 'Dev React recem publicada',
+            company: 'Recente',
+            source: 'linkedin',
+            url: 'https://br.linkedin.com/jobs/view/recente-6',
+            description: '',
+            publishedAt: new Date(),
+          }),
+        }),
+      ]);
+
+      const urls = await repository.findUrlsMissingDescription('linkedin', 1);
+
+      expect(urls).toEqual(['https://br.linkedin.com/jobs/view/recente-6']);
+    });
+
+    it('grava a descricao buscada pela url', async () => {
+      const mudadas = await repository.fillDescriptionByUrl(SEM_DESCRICAO, 'Vaga Node remota.');
+
+      expect(mudadas).toBe(1);
+      expect(await repository.findDescriptionsByUrl([SEM_DESCRICAO])).toEqual(
+        new Map([[SEM_DESCRICAO, 'Vaga Node remota.']]),
+      );
+    });
+
+    it('nao sobrescreve a descricao de quem ja tem uma', async () => {
+      const mudadas = await repository.fillDescriptionByUrl(COM_DESCRICAO, 'texto novo');
+
+      expect(mudadas).toBe(0);
+      expect((await repository.findDescriptionsByUrl([COM_DESCRICAO])).get(COM_DESCRICAO)).toBe(
+        'Vaga React em Feira de Santana.',
+      );
+    });
+  });
 });

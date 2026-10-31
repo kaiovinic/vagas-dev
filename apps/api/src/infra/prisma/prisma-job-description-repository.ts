@@ -4,7 +4,9 @@ import type {
   FetchedDescription,
   IJobDescriptionReader,
   IJobDescriptionWriter,
+  IMissingDescriptionRepository,
 } from '@/domain/repositories/job-description-repository';
+import { OPEN_JOBS } from '@/infra/prisma/support/open-jobs';
 import { PrismaService } from '@/infra/prisma/prisma.service';
 
 /**
@@ -17,7 +19,7 @@ import { PrismaService } from '@/infra/prisma/prisma.service';
  */
 @Injectable()
 export class PrismaJobDescriptionRepository
-  implements IJobDescriptionReader, IJobDescriptionWriter
+  implements IJobDescriptionReader, IJobDescriptionWriter, IMissingDescriptionRepository
 {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -61,6 +63,31 @@ export class PrismaJobDescriptionRepository
       // A descricao de um anuncio nao muda; quem ja esta no cache fica como
       // esta, e o ciclo seguinte nem chega a pedir o detalhe dela.
       skipDuplicates: true,
+    });
+
+    return count;
+  }
+
+  /**
+   * So vaga ABERTA e dentro do feed: consertar a descricao de uma vaga
+   * encerrada ou fora da janela nao muda nada que alguem va ler.
+   */
+  async findUrlsMissingDescription(source: string, limit: number): Promise<readonly string[]> {
+    const rows = await this.prisma.job.findMany({
+      where: { ...OPEN_JOBS, source, description: '' },
+      select: { url: true },
+      orderBy: { publishedAt: 'desc' },
+      take: limit,
+    });
+
+    return rows.map((row) => row.url);
+  }
+
+  async fillDescriptionByUrl(url: string, description: string): Promise<number> {
+    const { count } = await this.prisma.job.updateMany({
+      // `description: ''` aqui tambem: preenche o que falta, nunca sobrescreve.
+      where: { url, description: '' },
+      data: { description },
     });
 
     return count;

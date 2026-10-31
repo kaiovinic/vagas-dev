@@ -7,6 +7,7 @@ import { CaptureCoordinator } from '@/application/services/capture-coordinator.s
 import { JobCronScheduler } from '@/application/schedulers/job-cron.scheduler';
 import { WeeklyDigestScheduler } from '@/application/schedulers/weekly-digest.scheduler';
 import { CloseFinishedJobsUseCase } from '@/application/use-cases/close-finished-jobs.use-case';
+import { FillMissingDescriptionsUseCase } from '@/application/use-cases/fill-missing-descriptions.use-case';
 import { GetMarketInsightsUseCase } from '@/application/use-cases/get-market-insights.use-case';
 import { GetSourceHealthUseCase } from '@/application/use-cases/get-source-health.use-case';
 import { GetDashboardChartsUseCase } from '@/application/use-cases/get-dashboard-charts.use-case';
@@ -20,6 +21,7 @@ import { InfraModule } from '@/infra/infra.module';
 const USE_CASES = [
   RunJobCollectionUseCase,
   CloseFinishedJobsUseCase,
+  FillMissingDescriptionsUseCase,
   GetDashboardSummaryUseCase,
   GetDashboardChartsUseCase,
   ListJobsUseCase,

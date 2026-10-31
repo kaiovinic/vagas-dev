@@ -4,6 +4,7 @@ import * as cheerio from 'cheerio';
 import type { RawJobProps } from '@/domain/dtos/raw-job-props';
 import type { JobWorkModel } from '@/domain/entities/job';
 import { HTTP_CLIENT, type IHttpClient } from '@/domain/providers/http-client';
+import type { IJobDescriptionFetcher } from '@/domain/providers/job-description-fetcher';
 import {
   JOB_DESCRIPTION_READER,
   type IJobDescriptionReader,
@@ -118,7 +119,10 @@ export const LINKEDIN_DEFAULT_SEARCHES: readonly LinkedinSearch[] = KEYWORDS.fla
  * a propria fonte ja limita o resultado as ultimas 72 horas.
  */
 @Injectable()
-export class LinkedinGuestScraperProvider extends BaseScraperProvider {
+export class LinkedinGuestScraperProvider
+  extends BaseScraperProvider
+  implements IJobDescriptionFetcher
+{
   readonly source = 'linkedin';
   readonly label = 'LinkedIn';
 
@@ -217,6 +221,21 @@ export class LinkedinGuestScraperProvider extends BaseScraperProvider {
     } catch (error: unknown) {
       this.logger.warn(`Cache de descricoes: ${describeError(error)}`);
     }
+  }
+
+  /**
+   * Descricao de uma vaga avulsa, fora do ciclo de coleta.
+   *
+   * E por aqui que uma vaga gravada sem descricao e consertada: a fila da busca
+   * cobre os primeiros cards de cada consulta, e o conjunto gira, entao esperar
+   * o card reaparecer no teto de detalhes nao e garantia nenhuma.
+   *
+   * Espera antes de pedir, como qualquer outra requisicao desta fonte.
+   */
+  async fetchDescriptionFor(url: string): Promise<string> {
+    await this.wait(LINKEDIN_REQUEST_DELAY_IN_MS);
+
+    return this.fetchDescription(url);
   }
 
   /**

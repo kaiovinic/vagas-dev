@@ -542,4 +542,32 @@ describe('LinkedinGuestScraperProvider', () => {
       LINKEDIN_DEFAULT_SEARCHES.length * 2,
     );
   });
+  describe('descricao de uma vaga avulsa', () => {
+    const VAGA = 'https://br.linkedin.com/jobs/view/dev-react-4482768114';
+
+    it('busca o detalhe pela url, para consertar vaga gravada sem descricao', async () => {
+      const texto = await provider.fetchDescriptionFor(VAGA);
+
+      expect(texto).toContain('Senior React.js Developer');
+      expect(http.requestedUrls).toEqual([
+        'https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/4482768114',
+      ]);
+    });
+
+    it('espera antes de pedir, como qualquer outra requisicao da fonte', async () => {
+      await provider.fetchDescriptionFor(VAGA);
+
+      expect(waits).toEqual([LINKEDIN_REQUEST_DELAY_IN_MS]);
+    });
+
+    it('devolve vazio sem lancar quando o detalhe falha', async () => {
+      const quebrado = makeProvider(
+        new FakeHttpClient(() => {
+          throw new Error('429 Too Many Requests');
+        }),
+      );
+
+      await expect(quebrado.fetchDescriptionFor(VAGA)).resolves.toBe('');
+    });
+  });
 });

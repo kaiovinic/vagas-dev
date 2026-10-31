@@ -31,6 +31,7 @@ import {
 } from '@/domain/repositories/job-write-repository';
 import { JobRuleEngine } from '@/domain/services/job-rule-engine';
 import { CloseFinishedJobsUseCase } from '@/application/use-cases/close-finished-jobs.use-case';
+import { FillMissingDescriptionsUseCase } from '@/application/use-cases/fill-missing-descriptions.use-case';
 
 export type CaptureReport = FinishCaptureInput & {
   readonly startedAt: Date;
@@ -41,6 +42,8 @@ export type CaptureReport = FinishCaptureInput & {
    * vale uma coluna nova na tabela.
    */
   readonly totalClosed: number;
+  /** Vagas que estavam gravadas sem descricao e passaram a ter, neste ciclo. */
+  readonly totalFilled: number;
 };
 
 interface SourceOutcome {
@@ -80,6 +83,7 @@ export class RunJobCollectionUseCase {
     @Inject(CAPTURE_SCHEDULE) private readonly schedule: ICaptureSchedule,
     @Inject(SOURCE_HEALTH_WRITER) private readonly sourceHealth: ISourceHealthWriter,
     private readonly closeFinishedJobs: CloseFinishedJobsUseCase,
+    private readonly fillMissingDescriptions: FillMissingDescriptionsUseCase,
   ) {}
 
   async execute(reference: Date = new Date()): Promise<CaptureReport> {
@@ -103,6 +107,10 @@ export class RunJobCollectionUseCase {
     // o feed mostrando por duas horas algo que a fonte ja tirou do ar.
     const { totalClosed } = await this.closeFinishedJobs.execute(reference);
 
+    // Por ultimo, com o banco ja atualizado: as vagas que entraram agora sem
+    // descricao sao justamente candidatas a este conserto.
+    const { totalFilled } = await this.fillMissingDescriptions.execute();
+
     const outcome: FinishCaptureInput = {
       captureId,
       finishedAt: new Date(),
@@ -118,7 +126,7 @@ export class RunJobCollectionUseCase {
 
     await this.captureLogs.finish(outcome);
 
-    return { ...outcome, startedAt: reference, nextRunAt, totalClosed };
+    return { ...outcome, startedAt: reference, nextRunAt, totalClosed, totalFilled };
   }
 
   /**

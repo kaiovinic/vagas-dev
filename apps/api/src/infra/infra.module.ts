@@ -6,6 +6,10 @@ import {
   type IJobClosureProvider,
 } from '@/domain/providers/job-closure-provider';
 import {
+  JOB_DESCRIPTION_FETCHERS,
+  type IJobDescriptionFetcher,
+} from '@/domain/providers/job-description-fetcher';
+import {
   JOB_SCRAPERS,
   type IJobScraperProvider,
 } from '@/domain/providers/job-scraper-provider';
@@ -24,6 +28,7 @@ import { JOB_CLOSURE_WRITER } from '@/domain/repositories/job-closure-repository
 import {
   JOB_DESCRIPTION_READER,
   JOB_DESCRIPTION_WRITER,
+  MISSING_DESCRIPTION_REPOSITORY,
 } from '@/domain/repositories/job-description-repository';
 import { JOB_QUERY_REPOSITORY } from '@/domain/repositories/job-query-repository';
 import { JOB_WRITE_REPOSITORY } from '@/domain/repositories/job-write-repository';
@@ -130,6 +135,15 @@ const SCRAPERS = [
     { provide: JOB_QUERY_REPOSITORY, useExisting: PrismaJobQueryRepository },
     { provide: JOB_DESCRIPTION_READER, useExisting: PrismaJobDescriptionRepository },
     { provide: JOB_DESCRIPTION_WRITER, useExisting: PrismaJobDescriptionRepository },
+    { provide: MISSING_DESCRIPTION_REPOSITORY, useExisting: PrismaJobDescriptionRepository },
+    // So o LinkedIn guarda a descricao atras de uma segunda pagina, entao so
+    // ele sabe buscar a de uma vaga avulsa; a lista existe para a segunda fonte
+    // com esse formato entrar aqui, e nao no caso de uso (OCP).
+    {
+      provide: JOB_DESCRIPTION_FETCHERS,
+      useFactory: (linkedin: LinkedinGuestScraperProvider): IJobDescriptionFetcher[] => [linkedin],
+      inject: [LinkedinGuestScraperProvider],
+    },
     { provide: CAPTURE_LOG_REPOSITORY, useExisting: PrismaCaptureLogRepository },
     { provide: MARKET_INSIGHTS_REPOSITORY, useExisting: PrismaMarketInsightsRepository },
     { provide: WEEKLY_DIGEST_REPOSITORY, useExisting: PrismaWeeklyDigestRepository },
@@ -146,6 +160,8 @@ const SCRAPERS = [
     JOB_QUERY_REPOSITORY,
     JOB_DESCRIPTION_READER,
     JOB_DESCRIPTION_WRITER,
+    MISSING_DESCRIPTION_REPOSITORY,
+    JOB_DESCRIPTION_FETCHERS,
     CAPTURE_LOG_REPOSITORY,
     MARKET_INSIGHTS_REPOSITORY,
     WEEKLY_DIGEST_REPOSITORY,

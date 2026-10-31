@@ -14,8 +14,12 @@ import {
   InMemorySourceHealthWriter,
   InMemoryJobClosureWriter,
   StubJobClosureProvider,
+  StubJobDescriptionFetcher,
+  InMemoryMissingDescriptionRepository,
+  InMemoryJobDescriptionWriter,
 } from '../../../test/factories/doubles';
 import { CloseFinishedJobsUseCase } from '@/application/use-cases/close-finished-jobs.use-case';
+import { FillMissingDescriptionsUseCase } from '@/application/use-cases/fill-missing-descriptions.use-case';
 import { FIXED_NOW, hoursAgo } from '../../../test/factories/make-job';
 
 describe('RunJobCollectionUseCase', () => {
@@ -25,6 +29,7 @@ describe('RunJobCollectionUseCase', () => {
   let schedule: FakeCaptureSchedule;
   let sourceHealth: InMemorySourceHealthWriter;
   let closures: InMemoryJobClosureWriter;
+  let semDescricao: InMemoryMissingDescriptionRepository;
 
   beforeEach(() => {
     jobs = new InMemoryJobWriteRepository();
@@ -33,11 +38,13 @@ describe('RunJobCollectionUseCase', () => {
     schedule = new FakeCaptureSchedule();
     sourceHealth = new InMemorySourceHealthWriter();
     closures = new InMemoryJobClosureWriter();
+    semDescricao = new InMemoryMissingDescriptionRepository();
   });
 
   function buildUseCase(
     scrapers: StubScraperProvider[],
     closureProviders: StubJobClosureProvider[] = [],
+    fetchers: StubJobDescriptionFetcher[] = [],
   ): RunJobCollectionUseCase {
     return new RunJobCollectionUseCase(
       scrapers,
@@ -48,6 +55,11 @@ describe('RunJobCollectionUseCase', () => {
       schedule,
       sourceHealth,
       new CloseFinishedJobsUseCase(closureProviders, closures),
+      new FillMissingDescriptionsUseCase(
+        fetchers,
+        semDescricao,
+        new InMemoryJobDescriptionWriter(),
+      ),
     );
   }
 
@@ -460,6 +472,46 @@ describe('RunJobCollectionUseCase', () => {
       expect(report.status).toBe('SUCCESS');
       expect(report.totalPersisted).toBe(1);
       expect(jobs.saved).toHaveLength(1);
+    });
+  });
+
+  describe('conserto das descricoes faltantes', () => {
+    const VAGA = 'https://www.linkedin.com/jobs/view/4321';
+
+    it('completa a vaga aberta que estava sem descricao e informa no relatorio', async () => {
+      semDescricao.missing.set(VAGA, 'linkedin');
+      const linkedin = new StubJobDescriptionFetcher('linkedin', { [VAGA]: 'Vaga React em Salvador' });
+
+      const report = await buildUseCase([], [], [linkedin]).execute(FIXED_NOW);
+
+      expect(report.totalFilled).toBe(1);
+      expect(semDescricao.filled.get(VAGA)).toBe('Vaga React em Salvador');
+    });
+
+    it('conserta depois de gravar, para alcancar a vaga que entrou neste ciclo', async () => {
+      const linkedin = new StubJobDescriptionFetcher('linkedin');
+      let gravadasQuandoPerguntou = -1;
+      vi.spyOn(semDescricao, 'findUrlsMissingDescription').mockImplementation(async () => {
+        gravadasQuandoPerguntou = jobs.saved.length;
+
+        return [];
+      });
+
+      await buildUseCase([new StubScraperProvider('gupy', [rawJob()])], [], [linkedin]).execute(
+        FIXED_NOW,
+      );
+
+      expect(gravadasQuandoPerguntou).toBe(1);
+    });
+
+    it('a captura segue bem quando a busca da descricao falha', async () => {
+      semDescricao.missing.set(VAGA, 'linkedin');
+      const linkedin = new StubJobDescriptionFetcher('linkedin', {}, new Error('429'));
+
+      const report = await buildUseCase([], [], [linkedin]).execute(FIXED_NOW);
+
+      expect(report.status).toBe('SUCCESS');
+      expect(report.totalFilled).toBe(0);
     });
   });
 
