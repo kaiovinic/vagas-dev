@@ -250,3 +250,97 @@ Caddy nem no PrintGest:
 ```bash
 cd /root/DevRadar && docker compose -f docker-compose.prod.yml -f docker-compose.vps.yml --env-file .env.prod up -d --build api web
 ```
+
+Depois da primeira subida manual, o [deploy automático](#deploy-automático-via-github-actions) assume esse comando.
+
+## Deploy automático via GitHub Actions
+
+`.github/workflows/deploy.yml` atualiza a VPS sozinho. Ele **só roda depois do
+CI da `main` fechar em verde** — não no push direto. Um push deploya antes de
+saber se o código passa, e aqui o `--build` custa minutos de CPU em 2 vCPUs:
+um commit que quebra o typecheck tiraria o radar do ar e só apareceria depois.
+O cabeçalho do arquivo traz as três linhas para voltar ao gatilho de `push`, se
+você preferir.
+
+Também é possível disparar à mão, sem commit novo, em **Actions > Deploy > Run
+workflow**.
+
+O que ele faz na VPS: `git fetch` + `git reset --hard origin/main`, sobe os
+containers com os dois arquivos de compose, espera a API responder no
+`/api/health` (até 60s, porque o entrypoint roda `prisma migrate deploy` antes
+de servir) e, só então, `docker image prune -f`.
+
+Dois detalhes que valem saber antes do primeiro deploy automático:
+
+- **`git reset --hard` descarta alteração local na VPS.** É de propósito: um
+  `git pull` com arquivo editado no servidor falha e deixa o deploy pela
+  metade. O `.env.prod` **não** é afetado — ele não é versionado, e o `reset`
+  só mexe no que o git rastreia. Mas se você editar um arquivo versionado
+  direto na VPS, o próximo deploy apaga a edição.
+- **O prune é só de imagens órfãs.** Sem `-a`, de propósito: `docker image
+  prune -a` apagaria também imagens do PrintGest que estejam sem container de
+  pé naquele instante.
+
+### Secrets a cadastrar
+
+Em **Settings > Secrets and variables > Actions > New repository secret**:
+
+| Secret | Valor | Obrigatório |
+| --- | --- | --- |
+| `VPS_HOST` | IP ou hostname da VPS | sim |
+| `VPS_USERNAME` | usuário do SSH (`root`, se seguiu este guia) | sim |
+| `VPS_SSH_KEY` | **chave privada** inteira, com as linhas `-----BEGIN...` e `-----END...` | sim |
+| `VPS_PORT` | porta do SSH; deixe de fora se for a 22 | não |
+
+Prefira chave a senha. Se você realmente precisar de senha, cadastre
+`VPS_SSH_PASSWORD` e troque, em `deploy.yml`, a linha `key: ${{
+secrets.VPS_SSH_KEY }}` por `password: ${{ secrets.VPS_SSH_PASSWORD }}` —
+lembrando que isso exige `PasswordAuthentication yes` no `sshd`, que é
+justamente o que leva força bruta na porta 22.
+
+### Gerar a chave do deploy
+
+Na VPS, uma chave dedicada só para o GitHub Actions — não reaproveite a sua
+chave pessoal, para poder revogar uma sem perder a outra:
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions-devradar" -f ~/.ssh/github_actions_devradar -N ""
+```
+
+```bash
+cat ~/.ssh/github_actions_devradar.pub >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && chmod 700 ~/.ssh
+```
+
+A saída do comando abaixo é o conteúdo do `VPS_SSH_KEY`. Copie tudo, inclusive
+a primeira e a última linha:
+
+```bash
+cat ~/.ssh/github_actions_devradar
+```
+
+Apague a cópia da chave privada de onde você colou no caminho (histórico de
+terminal, área de transferência) depois de cadastrar o secret.
+
+### O `git pull` precisa funcionar na VPS
+
+O workflow não envia código: ele manda a VPS buscar do GitHub. Se o
+repositório for privado, o `git fetch` na VPS precisa de credencial própria —
+a do Actions não chega lá. O jeito limpo é uma **deploy key** de leitura:
+
+```bash
+ssh-keygen -t ed25519 -C "devradar-deploy-key" -f ~/.ssh/devradar_deploy -N "" && cat ~/.ssh/devradar_deploy.pub
+```
+
+Cadastre essa pública em **Settings > Deploy keys > Add deploy key** (sem
+marcar "Allow write access"), aponte o remote para SSH e diga ao git qual
+chave usar:
+
+```bash
+cd /root/DevRadar && git remote set-url origin git@github.com:kaiovinic/vagas-dev.git && git config core.sshCommand "ssh -i ~/.ssh/devradar_deploy -o IdentitiesOnly=yes"
+```
+
+Confirme antes de confiar no automático:
+
+```bash
+cd /root/DevRadar && git fetch --prune origin main && echo "fetch ok"
+```

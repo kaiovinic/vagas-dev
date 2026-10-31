@@ -1,0 +1,97 @@
+name: Deploy
+
+# Dispara quando o CI da `main` termina, e nao no push direto.
+#
+# A diferenca importa: `push` deploya antes de saber se o codigo passa, e o
+# `docker compose up --build` na VPS leva minutos de CPU em 2 vCPUs. Um commit
+# que quebra o typecheck tiraria o radar do ar e so apareceria depois. Com
+# `workflow_run`, o deploy roda com o CI ja verde.
+#
+# Para voltar ao gatilho de push, troque o bloco `on:` por:
+#
+#   on:
+#     push:
+#       branches: [main]
+#
+# e remova o `if:` do job.
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [main]
+  # Permite disparar o deploy a mao, sem commit novo, em Actions > Deploy.
+  workflow_dispatch:
+
+# Dois deploys ao mesmo tempo disputariam o `git pull` e o build na mesma
+# pasta da VPS. `cancel-in-progress: false` porque interromper um deploy no
+# meio do `up -d` deixa os containers em estado misto: melhor enfileirar.
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Atualizar a VPS
+    runs-on: ubuntu-latest
+    # No `workflow_dispatch` nao existe `workflow_run`, e a comparacao com
+    # undefined e falsa: por isso o primeiro termo do OR.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - name: Deploy por SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          # Sem o secret, o default da action e 22.
+          port: ${{ secrets.VPS_PORT }}
+          # 20 minutos: o build do Vite e do Nest na VPS passa de 5 minutos com
+          # cache frio, e o default da action (10s de comando) derrubaria tudo.
+          command_timeout: 20m
+          # `set -e` nao vem por padrao no shell da action: sem ele, um `git
+          # pull` que falha deixaria o `up -d` seguir com o codigo antigo e o
+          # job terminaria verde, mentindo que deployou.
+          script: |
+            set -euo pipefail
+
+            cd /root/DevRadar
+
+            echo "== Codigo"
+            git fetch --prune origin main
+            git reset --hard origin/main
+            git rev-parse --short HEAD
+
+            echo "== Containers"
+            docker compose \
+              -f docker-compose.prod.yml \
+              -f docker-compose.vps.yml \
+              --env-file .env.prod \
+              up -d --build
+
+            echo "== Saude da API"
+            # O entrypoint roda `prisma migrate deploy` antes de servir, e o
+            # healthcheck do container consulta o banco. Trinta tentativas de
+            # 2s cobrem a migration mais a subida do Nest.
+            for i in $(seq 1 30); do
+              if curl -fsS -H 'Host: vagas.printimpressoes.com.br' \
+                   http://127.0.0.1:8080/api/health >/dev/null; then
+                echo "API respondendo (tentativa $i)"
+                break
+              fi
+              if [ "$i" -eq 30 ]; then
+                echo "API nao respondeu em 60s; ultimos logs:" >&2
+                docker compose -f docker-compose.prod.yml -f docker-compose.vps.yml \
+                  --env-file .env.prod logs --tail 50 api >&2
+                exit 1
+              fi
+              sleep 2
+            done
+
+            echo "== Limpeza"
+            # So imagens orfas (`dangling`), que o `--build` acabou de deixar
+            # para tras. Sem `-a`: ele apagaria tambem as imagens do PrintGest
+            # que estiverem sem container de pe no momento.
+            docker image prune -f
