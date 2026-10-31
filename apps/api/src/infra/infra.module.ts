@@ -15,11 +15,13 @@ import {
   SOURCE_HEALTH_WRITER,
   SOURCE_LAST_RUN_READER,
 } from '@/domain/repositories/source-health-repository';
+import { JOB_DESCRIPTION_READER } from '@/domain/repositories/job-description-repository';
 import { JOB_QUERY_REPOSITORY } from '@/domain/repositories/job-query-repository';
 import { JOB_WRITE_REPOSITORY } from '@/domain/repositories/job-write-repository';
 import { AxiosHttpClient } from '@/infra/http/axios-http-client';
 import { TelegramHttpNotifier } from '@/infra/notifications/telegram-http-notifier';
 import { PrismaCaptureLogRepository } from '@/infra/prisma/prisma-capture-log-repository';
+import { PrismaJobDescriptionRepository } from '@/infra/prisma/prisma-job-description-repository';
 import { PrismaJobQueryRepository } from '@/infra/prisma/prisma-job-query-repository';
 import { PrismaMarketInsightsRepository } from '@/infra/prisma/prisma-market-insights-repository';
 import { PrismaJobRepository } from '@/infra/prisma/prisma-job-repository';
@@ -73,6 +75,7 @@ const SCRAPERS = [
     PrismaService,
     PrismaJobRepository,
     PrismaJobQueryRepository,
+    PrismaJobDescriptionRepository,
     PrismaCaptureLogRepository,
     PrismaMarketInsightsRepository,
     PrismaWeeklyDigestRepository,
@@ -88,6 +91,7 @@ const SCRAPERS = [
     { provide: JOB_WRITE_REPOSITORY, useExisting: PrismaJobRepository },
     { provide: DASHBOARD_METRICS_REPOSITORY, useExisting: PrismaJobRepository },
     { provide: JOB_QUERY_REPOSITORY, useExisting: PrismaJobQueryRepository },
+    { provide: JOB_DESCRIPTION_READER, useExisting: PrismaJobDescriptionRepository },
     { provide: CAPTURE_LOG_REPOSITORY, useExisting: PrismaCaptureLogRepository },
     { provide: MARKET_INSIGHTS_REPOSITORY, useExisting: PrismaMarketInsightsRepository },
     { provide: WEEKLY_DIGEST_REPOSITORY, useExisting: PrismaWeeklyDigestRepository },
@@ -100,6 +104,7 @@ const SCRAPERS = [
     JOB_WRITE_REPOSITORY,
     DASHBOARD_METRICS_REPOSITORY,
     JOB_QUERY_REPOSITORY,
+    JOB_DESCRIPTION_READER,
     CAPTURE_LOG_REPOSITORY,
     MARKET_INSIGHTS_REPOSITORY,
     WEEKLY_DIGEST_REPOSITORY,

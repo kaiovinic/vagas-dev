@@ -4,6 +4,10 @@ import * as cheerio from 'cheerio';
 import type { RawJobProps } from '@/domain/dtos/raw-job-props';
 import type { JobWorkModel } from '@/domain/entities/job';
 import { HTTP_CLIENT, type IHttpClient } from '@/domain/providers/http-client';
+import {
+  JOB_DESCRIPTION_READER,
+  type IJobDescriptionReader,
+} from '@/domain/repositories/job-description-repository';
 import { BaseScraperProvider } from '@/infra/scrapers/support/base-scraper-provider';
 import {
   collapseSpaces,
@@ -15,7 +19,32 @@ import {
 
 const GUEST_SEARCH_URL =
   'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search';
+/** Descricao completa de uma vaga, tambem sem login. */
+const GUEST_DETAIL_URL = 'https://www.linkedin.com/jobs-guest/jobs/api/jobPosting';
 const LINKEDIN_ORIGIN = 'https://www.linkedin.com';
+
+/**
+ * Intervalo entre duas requisicoes de detalhe.
+ *
+ * O endpoint e publico e sem autenticacao, entao o que esta em jogo nao e conta
+ * banida, e sim o IP da VPS levar 429 — e o IP e compartilhado com outro
+ * projeto. Um segundo e meio e o ritmo que outros coletores publicos usam
+ * contra o mesmo endpoint sem apanhar.
+ */
+export const LINKEDIN_DETAIL_DELAY_IN_MS = 1_500;
+
+/**
+ * Teto de detalhes por ciclo.
+ *
+ * Sem teto, o primeiro ciclo depois de uma mudanca de busca pediria o detalhe
+ * de tudo que voltasse, de uma vez. O que ficar de fora volta sem descricao e e
+ * buscado no ciclo seguinte, quando o cache ja cobre os anteriores — a captura
+ * roda de 2 em 2 horas, entao a fila se esvazia sozinha.
+ */
+export const LINKEDIN_MAX_DETAILS_PER_CYCLE = 25;
+
+/** `4482768114` em `.../jobs/view/desenvolvedor-front-end-junior-at-jobbol-4482768114`. */
+const JOB_ID_IN_URL = /(\d{6,})\/?$/;
 
 /** Vagas publicadas nas ultimas 72h: 259200 segundos. */
 export const LINKEDIN_LAST_72H_FILTER = 'r259200';
@@ -60,7 +89,10 @@ export class LinkedinGuestScraperProvider extends BaseScraperProvider {
 
   constructor(
     @Inject(HTTP_CLIENT) private readonly http: IHttpClient,
+    @Inject(JOB_DESCRIPTION_READER) private readonly descriptions: IJobDescriptionReader,
     @Optional() private readonly searches: readonly LinkedinSearch[] = LINKEDIN_DEFAULT_SEARCHES,
+    @Optional() private readonly wait: (ms: number) => Promise<void> = sleep,
+    @Optional() private readonly maxDetails: number = LINKEDIN_MAX_DETAILS_PER_CYCLE,
   ) {
     super();
   }
@@ -68,7 +100,66 @@ export class LinkedinGuestScraperProvider extends BaseScraperProvider {
   protected async collect(): Promise<RawJobProps[]> {
     const pages = await Promise.all(this.searches.map((search) => this.fetchSearch(search)));
 
-    return dedupeByUrl(pages.flat());
+    return this.withDescriptions(dedupeByUrl(pages.flat()));
+  }
+
+  /**
+   * O card da busca nao traz a descricao, e e ela que decide stack e municipio
+   * citado no corpo do anuncio. Cada vaga e buscada UMA vez na vida: o que ja
+   * esta no banco volta do cache, o resto vai a rede em fila, com espera.
+   */
+  private async withDescriptions(jobs: readonly RawJobProps[]): Promise<RawJobProps[]> {
+    const cached = await this.descriptions.findDescriptionsByUrl(jobs.map((job) => job.url));
+    const pending = jobs.filter((job) => !cached.has(job.url)).slice(0, this.maxDetails);
+    const fetched = await this.fetchDescriptions(pending);
+
+    return jobs.map((job) => ({
+      ...job,
+      description: cached.get(job.url) ?? fetched.get(job.url) ?? '',
+    }));
+  }
+
+  private async fetchDescriptions(jobs: readonly RawJobProps[]): Promise<Map<string, string>> {
+    const descriptions = new Map<string, string>();
+
+    for (const [index, job] of jobs.entries()) {
+      if (index > 0) {
+        await this.wait(LINKEDIN_DETAIL_DELAY_IN_MS);
+      }
+
+      const description = await this.fetchDescription(job.url);
+
+      if (description.length > 0) {
+        descriptions.set(job.url, description);
+      }
+    }
+
+    return descriptions;
+  }
+
+  /**
+   * Uma vaga sem detalhe nao derruba o ciclo: ela volta sem descricao, nao
+   * entra no cache e e tentada de novo na proxima captura. E o caso de 429 e de
+   * vaga retirada do ar entre a busca e o detalhe.
+   */
+  private async fetchDescription(jobUrl: string): Promise<string> {
+    const jobId = JOB_ID_IN_URL.exec(jobUrl)?.[1];
+
+    if (!jobId) {
+      return '';
+    }
+
+    try {
+      const { body } = await this.http.get<string>(`${GUEST_DETAIL_URL}/${jobId}`, {
+        headers: { Accept: 'text/html', 'Accept-Language': 'pt-BR,pt;q=0.9' },
+      });
+
+      return descriptionFromDetail(body);
+    } catch (error: unknown) {
+      this.logger.warn(`Detalhe da vaga ${jobId}: ${error instanceof Error ? error.message : error}`);
+
+      return '';
+    }
   }
 
   private async fetchSearch(search: LinkedinSearch): Promise<RawJobProps[]> {
@@ -150,4 +241,41 @@ function buildSearchUrl(search: LinkedinSearch): string {
  */
 function resolveWorkModel(title: string, location: string): JobWorkModel {
   return workModelFromText(`${title} ${location}`);
+}
+
+/** Tags que fecham um bloco: viram quebra de linha antes de o texto ser extraido. */
+const BLOCK_TAG = /<\s*(?:br|\/p|\/li|\/ul|\/ol|\/h[1-6]|\/div)\s*\/?>/gi;
+const BLANK_LINE_RUN = /\n{3,}/g;
+
+/**
+ * Texto da descricao na pagina de detalhe.
+ *
+ * `show-more-less-html__markup` e o unico bloco da pagina com o anuncio. O
+ * conteudo vem como HTML do proprio anunciante (<p>, <strong>, <ul>), entao as
+ * tags de bloco viram quebra de linha ANTES da extracao: sem isso os itens da
+ * lista sairiam grudados numa linha so, e a descricao tambem e exibida no
+ * painel. A segunda passada pelo cheerio resolve as entidades (&amp;, &nbsp;).
+ */
+function descriptionFromDetail(html: string): string {
+  const markup = cheerio.load(html)('.show-more-less-html__markup').first();
+
+  if (markup.length === 0) {
+    return '';
+  }
+
+  const withBreaks = (markup.html() ?? '').replace(BLOCK_TAG, '\n');
+  const lines = cheerio
+    .load(`<div>${withBreaks}</div>`)
+    .root()
+    .text()
+    .split('\n')
+    .map((line) => collapseSpaces(line));
+
+  return lines.join('\n').replace(BLANK_LINE_RUN, '\n\n').trim();
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }

@@ -2,9 +2,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   LINKEDIN_DEFAULT_SEARCHES,
+  LINKEDIN_DETAIL_DELAY_IN_MS,
   LINKEDIN_LAST_72H_FILTER,
   LinkedinGuestScraperProvider,
+  type LinkedinSearch,
 } from '@/infra/scrapers/linkedin-guest-scraper-provider';
+import type { IHttpClient } from '@/domain/providers/http-client';
+import { StubJobDescriptionReader } from '../../../test/factories/doubles';
 import {
   FakeHttpClient,
   failingHttpClient,
@@ -12,6 +16,14 @@ import {
 } from '../../../test/factories/fake-http-client';
 
 const FIXTURE = readFixture('linkedin-guest-jobs.html');
+const DETAIL_FIXTURE = readFixture('linkedin-guest-job-detail.html');
+
+/** Roteia como o LinkedIn: a busca devolve cards, o detalhe devolve a descricao. */
+function respondLikeLinkedin(url: string): string {
+  return url.includes('/jobPosting/') ? DETAIL_FIXTURE : FIXTURE;
+}
+
+const isSearch = (url: string): boolean => url.includes('seeMoreJobPostings');
 
 const SALVADOR_SEARCH = {
   keywords: 'desenvolvedor frontend',
@@ -21,11 +33,25 @@ const SALVADOR_SEARCH = {
 
 describe('LinkedinGuestScraperProvider', () => {
   let http: FakeHttpClient;
+  let descriptions: StubJobDescriptionReader;
   let provider: LinkedinGuestScraperProvider;
+  /** Quanto o coletor pediu para esperar, em vez de esperar de verdade. */
+  let waits: number[];
+
+  function makeProvider(
+    client: IHttpClient = http,
+    searches: readonly LinkedinSearch[] = [SALVADOR_SEARCH],
+  ): LinkedinGuestScraperProvider {
+    return new LinkedinGuestScraperProvider(client, descriptions, searches, async (ms) => {
+      waits.push(ms);
+    });
+  }
 
   beforeEach(() => {
-    http = new FakeHttpClient(() => FIXTURE);
-    provider = new LinkedinGuestScraperProvider(http, [SALVADOR_SEARCH]);
+    http = new FakeHttpClient(respondLikeLinkedin);
+    descriptions = new StubJobDescriptionReader();
+    waits = [];
+    provider = makeProvider();
   });
 
   it('identifica a fonte', () => {
@@ -51,9 +77,7 @@ describe('LinkedinGuestScraperProvider', () => {
   });
 
   it('aplica f_WT=2 nas buscas de vagas remotas', async () => {
-    const remote = new LinkedinGuestScraperProvider(http, [
-      { keywords: 'react', location: 'Brazil', remoteOnly: true },
-    ]);
+    const remote = makeProvider(http, [{ keywords: 'react', location: 'Brazil', remoteOnly: true }]);
 
     await remote.scrape();
 
@@ -124,8 +148,12 @@ describe('LinkedinGuestScraperProvider', () => {
     let remote: LinkedinGuestScraperProvider;
 
     beforeEach(() => {
-      remote = new LinkedinGuestScraperProvider(
-        new FakeHttpClient(() => readFixture('linkedin-guest-jobs-remote.html')),
+      remote = makeProvider(
+        new FakeHttpClient((url) =>
+          url.includes('/jobPosting/')
+            ? DETAIL_FIXTURE
+            : readFixture('linkedin-guest-jobs-remote.html'),
+        ),
         [{ keywords: 'desenvolvedor frontend', location: 'Brazil', remoteOnly: true }],
       );
     });
@@ -165,10 +193,7 @@ describe('LinkedinGuestScraperProvider', () => {
   });
 
   it('deduplica a mesma vaga encontrada em buscas diferentes', async () => {
-    const twice = new LinkedinGuestScraperProvider(http, [
-      SALVADOR_SEARCH,
-      { ...SALVADOR_SEARCH, keywords: 'react' },
-    ]);
+    const twice = makeProvider(http, [SALVADOR_SEARCH, { ...SALVADOR_SEARCH, keywords: 'react' }]);
 
     await expect(twice.scrape()).resolves.toHaveLength(2);
   });
@@ -192,33 +217,125 @@ describe('LinkedinGuestScraperProvider', () => {
         '<a class="base-card__full-link" href="https://br.linkedin.com/jobs/view/1"></a></div>',
     ],
   ])('descarta card %s', async (_label, html) => {
-    const provider = new LinkedinGuestScraperProvider(new FakeHttpClient(() => html), [
-      SALVADOR_SEARCH,
-    ]);
+    const provider = makeProvider(new FakeHttpClient(() => html));
 
     await expect(provider.scrape()).resolves.toEqual([]);
   });
 
   it('devolve lista vazia quando o html nao tem cards', async () => {
-    const provider = new LinkedinGuestScraperProvider(
-      new FakeHttpClient(() => '<html><body></body></html>'),
-      [SALVADOR_SEARCH],
-    );
+    const provider = makeProvider(new FakeHttpClient(() => '<html><body></body></html>'));
 
     await expect(provider.scrape()).resolves.toEqual([]);
   });
 
   it('devolve lista vazia quando a fonte falha, sem propagar excecao', async () => {
-    const provider = new LinkedinGuestScraperProvider(failingHttpClient(), [SALVADOR_SEARCH]);
+    const provider = makeProvider(failingHttpClient());
 
     await expect(provider.scrape()).resolves.toEqual([]);
   });
 
+  describe('descricao completa', () => {
+    const detailUrls = (client: FakeHttpClient): string[] =>
+      client.requestedUrls.filter((url) => url.includes('/jobPosting/'));
+
+    it('busca o detalhe de cada vaga e usa o texto como descricao', async () => {
+      const jobs = await provider.scrape();
+
+      expect(detailUrls(http)).toEqual([
+        'https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/4482768114',
+        'https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/4466397472',
+      ]);
+      expect(jobs[0]?.description).toContain('Senior React.js Developer');
+      expect(jobs[0]?.description).toContain('Feira de Santana');
+    });
+
+    it('preserva as quebras de linha das listas do anuncio', async () => {
+      const [job] = await provider.scrape();
+
+      // O corpo vira texto, nao uma linha so: a descricao tambem e exibida no
+      // painel, e sem as quebras os itens da lista grudam uns nos outros.
+      expect(job?.description).toContain('\nDesenvolver aplicações com React.js e TypeScript.');
+    });
+
+    it('nao busca o detalhe de vaga cuja descricao ja esta no banco', async () => {
+      descriptions.stored.set(
+        'https://br.linkedin.com/jobs/view/desenvolvedor-front-end-j%C3%BAnior-at-jobbol-4482768114',
+        'descricao ja capturada em um ciclo anterior',
+      );
+
+      const jobs = await provider.scrape();
+
+      expect(detailUrls(http)).toEqual([
+        'https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/4466397472',
+      ]);
+      expect(jobs[0]?.description).toBe('descricao ja capturada em um ciclo anterior');
+    });
+
+    it('pergunta ao cache pelas urls das vagas encontradas', async () => {
+      await provider.scrape();
+
+      expect(descriptions.asked).toHaveLength(1);
+      expect(descriptions.asked[0]).toHaveLength(2);
+    });
+
+    it('espera entre um detalhe e o seguinte', async () => {
+      await provider.scrape();
+
+      // Duas vagas, uma espera: a primeira requisicao nao precisa esperar nada.
+      expect(waits).toEqual([LINKEDIN_DETAIL_DELAY_IN_MS]);
+    });
+
+    it('respeita o teto de detalhes por ciclo', async () => {
+      const limited = new LinkedinGuestScraperProvider(
+        http,
+        descriptions,
+        [SALVADOR_SEARCH],
+        async () => {},
+        1,
+      );
+
+      const jobs = await limited.scrape();
+
+      // A vaga que ficou de fora volta sem descricao e e tentada no proximo
+      // ciclo, quando o cache ja tiver a primeira.
+      expect(detailUrls(http)).toHaveLength(1);
+      expect(jobs[1]?.description).toBe('');
+    });
+
+    it('segue com as demais vagas quando um detalhe falha', async () => {
+      const flaky = makeProvider(
+        new FakeHttpClient((url) => {
+          if (!isSearch(url)) {
+            return url.endsWith('4482768114') ? new Error('HTTP 429') : DETAIL_FIXTURE;
+          }
+
+          return FIXTURE;
+        }),
+      );
+
+      const jobs = await flaky.scrape();
+
+      expect(jobs).toHaveLength(2);
+      expect(jobs[0]?.description).toBe('');
+      expect(jobs[1]?.description).toContain('Senior React.js Developer');
+    });
+
+    it('deixa a descricao vazia quando a pagina de detalhe nao tem o bloco', async () => {
+      const semBloco = makeProvider(
+        new FakeHttpClient((url) => (isSearch(url) ? FIXTURE : '<html><body>oi</body></html>')),
+      );
+
+      const [job] = await semBloco.scrape();
+
+      expect(job?.description).toBe('');
+    });
+  });
+
   it('usa as buscas padrao quando nenhuma e informada', async () => {
-    const provider = new LinkedinGuestScraperProvider(http);
+    const provider = new LinkedinGuestScraperProvider(http, descriptions);
 
     await provider.scrape();
 
-    expect(http.requestedUrls).toHaveLength(LINKEDIN_DEFAULT_SEARCHES.length);
+    expect(http.requestedUrls.filter(isSearch)).toHaveLength(LINKEDIN_DEFAULT_SEARCHES.length);
   });
 });

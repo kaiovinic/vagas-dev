@@ -22,22 +22,32 @@ import { CoodeshScraperProvider } from '@/infra/scrapers/coodesh-scraper-provide
 import { GithubIssuesScraperProvider } from '@/infra/scrapers/github-issues-scraper-provider';
 import { GupyScraperProvider } from '@/infra/scrapers/gupy-scraper-provider';
 import { LinkedinGuestScraperProvider } from '@/infra/scrapers/linkedin-guest-scraper-provider';
+import type { IJobDescriptionReader } from '@/domain/repositories/job-description-repository';
 import { NextCommitScraperProvider } from '@/infra/scrapers/nextcommit-scraper-provider';
 import { ProgramathorScraperProvider } from '@/infra/scrapers/programathor-scraper-provider';
 import { RemotarScraperProvider } from '@/infra/scrapers/remotar-scraper-provider';
 import { SolidesScraperProvider } from '@/infra/scrapers/solides-scraper-provider';
 
-/** Municipios de Salvador e Regiao Metropolitana, sem o rotulo de remoto. */
+/** Municipios baianos do catalogo, sem o rotulo de remoto. */
 const LOCAL_LABELS = LOCATION_KEYWORDS.filter(
   (group) => group.label !== REMOTE_LOCATION_LABEL,
 ).flatMap((group) => group.aliases.map((alias) => normalizeForMatching(alias)));
+
+/**
+ * O script nao fala com o banco: sem cache, o coletor do LinkedIn busca o
+ * detalhe de todas as vagas do ciclo. E o que se quer aqui — a analise julga as
+ * vagas pelo mesmo texto que a captura de producao enxerga.
+ */
+const semCacheDeDescricao: IJobDescriptionReader = {
+  findDescriptionsByUrl: async () => new Map(),
+};
 
 async function main(): Promise<void> {
   const http = new AxiosHttpClient();
   const providers = [
     new GupyScraperProvider(http),
     new GithubIssuesScraperProvider(http),
-    new LinkedinGuestScraperProvider(http),
+    new LinkedinGuestScraperProvider(http, semCacheDeDescricao),
     new RemotarScraperProvider(http),
     new ProgramathorScraperProvider(http),
     new SolidesScraperProvider(http),

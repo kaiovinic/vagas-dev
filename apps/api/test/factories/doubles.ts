@@ -1,6 +1,7 @@
 import type { RawJobProps } from '@/domain/dtos/raw-job-props';
 import type { ICaptureSchedule } from '@/domain/providers/capture-schedule';
 import type { IJobScraperProvider } from '@/domain/providers/job-scraper-provider';
+import type { IJobDescriptionReader } from '@/domain/repositories/job-description-repository';
 import type {
   ISourceHealthRepository,
   ISourceHealthWriter,
@@ -279,4 +280,17 @@ export function jobListItem(overrides: Partial<JobListItem> = {}): JobListItem {
     publishedAtSource: 'SOURCE',
     ...overrides,
   };
+}
+
+/** Cache de descricao em memoria: o que ele "ja conhece" e o mapa `stored`. */
+export class StubJobDescriptionReader implements IJobDescriptionReader {
+  readonly stored = new Map<string, string>();
+  /** Cada consulta recebida, para conferir que o coletor pergunta antes de ir a rede. */
+  readonly asked: readonly string[][] = [];
+
+  async findDescriptionsByUrl(urls: readonly string[]): Promise<ReadonlyMap<string, string>> {
+    (this.asked as string[][]).push([...urls]);
+
+    return new Map([...this.stored].filter(([url]) => urls.includes(url)));
+  }
 }
