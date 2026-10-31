@@ -270,6 +270,8 @@ Sobe PostgreSQL com volume persistente, a API (que aplica as migrations no entry
 
 Para subir numa VPS do zero — Docker, DNS, firewall, TLS e backup — o passo a passo está em [`docs/deploy-vps.md`](docs/deploy-vps.md).
 
+Se a VPS já roda outro projeto nas portas 80 e 443, o Caddy do DevRadar vira a borda compartilhada dos dois: [`docs/deploy-vps-compartilhada.md`](docs/deploy-vps-compartilhada.md).
+
 ---
 
 ## Comandos úteis

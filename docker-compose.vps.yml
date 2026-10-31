@@ -1,0 +1,39 @@
+# Override para a VPS compartilhada com o PrintGest. Sobe com:
+#
+#   docker compose -f docker-compose.prod.yml -f docker-compose.vps.yml \
+#     --env-file .env.prod up -d --build
+#
+# O que ele muda em relacao ao docker-compose.prod.yml:
+#
+#   1. O Caddy passa a usar o `Caddyfile.edge`, que atende os dois projetos.
+#   2. O Caddy entra tambem na rede do PrintGest, para alcancar
+#      `printgest-frontend` por nome.
+#   3. O `web` ganha uma porta em loopback, para conferir a pilha do DevRadar
+#      antes de o Caddy assumir as portas 80/443 do host.
+services:
+  proxy:
+    # O arquivo da borda e montado em um caminho novo em vez de substituir o
+    # mount do compose de producao: a mesclagem de `volumes` entre dois
+    # arquivos de compose depende de versao, e dois mounts no mesmo destino
+    # falham. Com caminho proprio e `command` explicito, o resultado nao
+    # depende dessa semantica.
+    volumes:
+      - ./infra/caddy/Caddyfile.edge:/etc/caddy/Caddyfile.edge:ro
+    command: ['caddy', 'run', '--config', '/etc/caddy/Caddyfile.edge', '--adapter', 'caddyfile']
+    networks:
+      - edge
+      - printgest
+
+  web:
+    ports:
+      # Loopback: inacessivel de fora, mesmo sem regra de firewall. Serve para
+      # `curl -H "Host: vagas.printimpressoes.com.br" http://127.0.0.1:8080/`
+      # com o PrintGest ainda dono das portas 80 e 443.
+      - '127.0.0.1:8080:80'
+
+networks:
+  # Criada pelo compose do PrintGest; aqui ela e apenas referenciada. Se o
+  # nome mudar, `docker network ls` mostra o atual.
+  printgest:
+    name: printgest_frontend-network
+    external: true

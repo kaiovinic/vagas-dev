@@ -1,0 +1,64 @@
+# Borda COMPARTILHADA: este Caddy atende o DevRadar e o PrintGest na mesma VPS.
+#
+# Use com `docker-compose.vps.yml` (que aponta o Caddy para este arquivo). O
+# `infra/caddy/Caddyfile` original continua valendo para uma VPS dedicada, onde
+# o DevRadar e o unico projeto.
+#
+# Desenho:
+#   :80/:443 -> este Caddy -> vagas.*            -> web:80 (SPA + /api)
+#                          -> printgest.*/apex   -> printgest-frontend:80
+#
+# O PrintGest para de publicar portas no host e de terminar TLS: quem emite e
+# renova certificado para TODOS os dominios passa a ser este Caddy.
+{
+	email {$ACME_EMAIL}
+}
+
+# Headers aplicados somente ao DevRadar. Nao impomos politica nova nas
+# respostas do PrintGest: `X-Frame-Options` ou `Referrer-Policy` mudariam o
+# comportamento de uma aplicacao que nao e desta base de codigo.
+(devradar-hardening) {
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options SAMEORIGIN
+		Referrer-Policy strict-origin-when-cross-origin
+		# Agora existe dominio proprio, e nao mais `localhost`: o HSTS so
+		# prende este host, nunca os dominios do PrintGest.
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+}
+
+{$DEVRADAR_DOMAIN} {
+	encode zstd gzip
+	import devradar-hardening
+
+	# Todo o trafego vai para o Nginx do DevRadar, que serve o SPA e repassa
+	# /api para a API. Uma rota so na borda evita divergencia entre proxies.
+	reverse_proxy web:80
+
+	log {
+		output stdout
+		format console
+	}
+}
+
+# Dominios do PrintGest. Edite aqui se a lista mudar; o Caddy pede um
+# certificado novo sozinho no primeiro acesso ao nome acrescentado.
+printgest.printimpressoes.com.br, printimpressoes.com.br, www.printimpressoes.com.br {
+	encode zstd gzip
+
+	# O container do PrintGest nao anuncia versao de servidor; so removemos o
+	# header do proprio Caddy.
+	header -Server
+
+	# Porta 80 em HTTP puro: o TLS termina aqui. O `nginx.conf` do PrintGest
+	# precisa ter perdido o `return 301 https://` da porta 80, senao o
+	# navegador entra em loop de redirecionamento.
+	reverse_proxy printgest-frontend:80
+
+	log {
+		output stdout
+		format console
+	}
+}

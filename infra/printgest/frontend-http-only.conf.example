@@ -1,0 +1,46 @@
+# ESQUELETO de referencia para o nginx do `printgest-frontend` atras da borda
+# compartilhada. NAO e para copiar por cima do arquivo original: a config do
+# PrintGest esta embutida na imagem dele e tem `location` que este repositorio
+# nao conhece (o `proxy_pass http://backend:8080` e os caminhos em volta dele).
+#
+# Use como gabarito para conferir a estrutura do arquivo editado. O caminho e a
+# receita da edicao estao em `docs/deploy-vps-compartilhada.md`.
+#
+# A mudanca e de uma ideia so: o TLS deixa de terminar aqui e passa a terminar
+# no Caddy. Logo este nginx escuta apenas a porta 80, em HTTP puro, dentro da
+# rede do Docker, e o `return 301 https://` precisa desaparecer -- atras de um
+# proxy que fala HTTP com a origem, ele redireciona para sempre.
+
+# --- Aplicacao ------------------------------------------------------------
+server {
+    # Era `listen 443 ssl;`
+    listen 80;
+    server_name printgest.printimpressoes.com.br;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # As diretivas `ssl_certificate`, `ssl_certificate_key` e qualquer
+    # `include .../options-ssl-nginx.conf` saem: nao ha mais TLS aqui.
+
+    # >>> Daqui para baixo, mantenha IDENTICOS todos os `location` do bloco
+    # >>> 443 original -- inclusive o que faz `proxy_pass http://backend:8080`.
+    # >>> Nenhum deles muda: o que mudou foi so a terminacao do TLS.
+}
+
+# --- Landing page ---------------------------------------------------------
+server {
+    # Era `listen 443 ssl;`
+    listen 80;
+    server_name printimpressoes.com.br www.printimpressoes.com.br;
+
+    root /usr/share/nginx/landing;
+    index index.html;
+
+    # >>> Mantenha os `location` do bloco 443 original da landing.
+}
+
+# O terceiro bloco do arquivo original -- o `listen 80` com
+# `return 301 https://$host$request_uri` -- precisa ser APAGADO, nao apenas
+# esvaziado. Um `server` sem `root` casando os mesmos `server_name` venceria a
+# correspondencia por vir antes e devolveria 404 para o site inteiro.
