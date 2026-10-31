@@ -20,6 +20,8 @@ export function readJsonFixture<TBody>(fileName: string): TBody {
 export interface RecordedRequest {
   readonly url: string;
   readonly options: HttpRequestOptions | undefined;
+  /** Corpo enviado, quando a chamada foi um POST. */
+  readonly body?: unknown;
 }
 
 /**
@@ -45,6 +47,22 @@ export class FakeHttpClient implements IHttpClient {
     }
 
     return { status: 200, body: body as TBody };
+  }
+
+  async post<TBody>(
+    url: string,
+    body: unknown,
+    options?: HttpRequestOptions,
+  ): Promise<HttpResponse<TBody>> {
+    this.requests.push({ url, options, body });
+
+    const responseBody = this.respond(url);
+
+    if (responseBody instanceof Error) {
+      throw responseBody;
+    }
+
+    return { status: 200, body: responseBody as TBody };
   }
 }
 

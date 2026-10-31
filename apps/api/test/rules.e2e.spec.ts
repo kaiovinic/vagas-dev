@@ -19,7 +19,7 @@ describe('Rules (E2E)', () => {
   }
 
   describe('GET /api/rules', () => {
-    it('publica as seis regras de transparencia', async () => {
+    it('publica as sete regras de transparencia', async () => {
       const response = await http().get('/api/rules').expect(200);
 
       expect(response.body.publicationWindowInHours).toBe(72);
@@ -31,6 +31,7 @@ describe('Rules (E2E)', () => {
         'spam-filter',
         'national-scope',
         'post-hiring-signal',
+        'post-aggregator-account',
       ]);
     });
 

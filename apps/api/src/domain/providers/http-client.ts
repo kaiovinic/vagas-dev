@@ -16,4 +16,14 @@ export interface HttpResponse<TBody> {
  */
 export interface IHttpClient {
   get<TBody>(url: string, options?: HttpRequestOptions): Promise<HttpResponse<TBody>>;
+  /**
+   * Existe por causa de uma unica fonte: a API do Serper so aceita POST, com a
+   * consulta no corpo. Nenhum portal de vagas precisa disso — todos servem
+   * HTML ou JSON por GET.
+   */
+  post<TBody>(
+    url: string,
+    body: unknown,
+    options?: HttpRequestOptions,
+  ): Promise<HttpResponse<TBody>>;
 }

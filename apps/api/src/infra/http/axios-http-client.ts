@@ -30,4 +30,21 @@ export class AxiosHttpClient implements IHttpClient {
 
     return { status: response.status, body: response.data };
   }
+
+  async post<TBody>(
+    url: string,
+    body: unknown,
+    options?: HttpRequestOptions,
+  ): Promise<HttpResponse<TBody>> {
+    const response = await this.client.post<TBody>(url, body, {
+      timeout: options?.timeoutInMs ?? DEFAULT_TIMEOUT_IN_MS,
+      headers: {
+        'User-Agent': DEFAULT_USER_AGENT,
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    });
+
+    return { status: response.status, body: response.data };
+  }
 }

@@ -24,6 +24,7 @@ describe('TestJobRulesUseCase', () => {
         'spam-filter',
         'national-scope',
         'post-hiring-signal',
+        'post-aggregator-account',
       ]);
     });
   });

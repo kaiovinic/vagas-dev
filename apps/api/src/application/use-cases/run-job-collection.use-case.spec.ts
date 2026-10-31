@@ -190,8 +190,10 @@ describe('RunJobCollectionUseCase', () => {
           // Publicacao social sem marcador de anuncio: so passa se a origem
           // NAO chegar ao motor, que e justamente o que este caso protege.
           rawJob({
+            // "trabalho remoto", nao "vaga remota": o segundo e cabecalho de
+            // anuncio e salvaria o post da regra que este caso exercita.
             title: 'O mercado de React no Brasil',
-            description: 'Reflexao sobre a stack. Vaga remota CLT.',
+            description: 'Reflexao sobre a stack. Trabalho remoto, CLT.',
             origin: 'SOCIAL_POST',
             url: 'https://www.linkedin.com/posts/acme_react-share-7521262024920764416-91vX',
           }),

@@ -114,6 +114,38 @@ export const SPAM_KEYWORDS: readonly KeywordGroup[] = [
 ];
 
 /**
+ * Contas que republicam vaga de terceiros em massa.
+ *
+ * O bloqueio e pelo NOME de quem publicou, nao pelo texto: o anuncio delas e
+ * indistinguivel de um anuncio legitimo — tem "vaga", tem stack, tem
+ * "candidate-se". O que as separa e nao serem quem contrata, e as vagas
+ * chegarem velhas, ja republicadas de outro lugar.
+ *
+ * A primeira busca real de publicacoes trouxe nove posts; o unico aprovado
+ * era da Netvagas, justamente uma dessas contas.
+ */
+export const JOB_AGGREGATOR_ACCOUNTS: readonly KeywordGroup[] = [
+  {
+    label: 'Conta agregadora de vagas',
+    aliases: [
+      'netvagas',
+      'caderno nacional',
+      'vagas de ti',
+      'vagas remotas',
+      'vagas tech',
+      'devagas',
+      'jobs brasil',
+      'empregos br',
+      'nerdin',
+      'recrutei empregos',
+      'home office vagas',
+      'divulga vagas',
+      'repasso vagas',
+    ],
+  },
+];
+
+/**
  * Marcadores de que o texto ANUNCIA uma vaga, e nao apenas fala sobre vagas.
  *
  * Exigidos so em publicacao de rede social. Um anuncio de portal nao precisa
@@ -137,7 +169,22 @@ export const HIRING_SIGNAL_KEYWORDS: readonly KeywordGroup[] = [
   },
   {
     label: 'Vaga aberta',
-    aliases: ['vaga para', 'vaga aberta', 'vagas abertas', 'nova vaga', 'oportunidade aberta'],
+    aliases: [
+      'vaga para',
+      'vaga aberta',
+      'vagas abertas',
+      'nova vaga',
+      'oportunidade aberta',
+      // "VAGA:" e "VAGA REMOTA:" abrem metade dos anuncios de recrutador no
+      // LinkedIn. Note que e sempre o cabecalho, com dois pontos ou com a
+      // modalidade junto: "vaga" solta aparece em qualquer texto sobre o tema.
+      'vaga:',
+      'vagas:',
+      'vaga remota',
+      'vaga clt',
+      'vaga pj',
+      '#vaga',
+    ],
   },
   {
     label: 'Chamada para candidatura',

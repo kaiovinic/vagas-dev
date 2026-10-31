@@ -22,7 +22,8 @@
     "jobs:purge-international": "dotenv -e .env -- tsx scripts/purge-international-jobs.ts",
     "jobs:list-unknown": "dotenv -e .env -- tsx scripts/list-unknown-scope-jobs.ts",
     "jobs:reclassify": "dotenv -e .env -- tsx scripts/reclassify-job-scope.ts",
-    "jobs:analyze": "dotenv -e .env -- tsx scripts/analyze-rejections.ts"
+    "jobs:analyze": "dotenv -e .env -- tsx scripts/analyze-rejections.ts",
+    "posts:probe": "dotenv -e .env -- tsx scripts/probe-linkedin-posts.ts"
   },
   "dependencies": {
     "@nestjs/common": "11.1.6",

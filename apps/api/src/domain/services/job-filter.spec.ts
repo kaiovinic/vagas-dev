@@ -305,8 +305,10 @@ describe('JobRuleEngine (domain service)', () => {
 
     it('reprova post que so fala sobre o mercado, sem anunciar', () => {
       const job = makeJob({
+        // "trabalho remoto" e nao "vaga remota": o segundo e cabecalho de
+        // anuncio, e este caso precisa de um texto que SO fala sobre o tema.
         title: 'O mercado de React no Brasil em 2026',
-        description: 'Reflexao sobre a stack e as tendencias, vaga remota CLT.',
+        description: 'Reflexao sobre a stack e as tendencias. Trabalho remoto, CLT.',
       });
 
       const result = engine.evaluate(job, FIXED_NOW, POST);
@@ -376,6 +378,73 @@ describe('JobRuleEngine (domain service)', () => {
         JobRejectionReason.LocationNotAllowed,
         JobRejectionReason.HiringSignalMissing,
       ]);
+    });
+  });
+
+  describe('regra 7: conta agregadora de vagas', () => {
+    const POST = { origin: 'SOCIAL_POST' } as const;
+
+    it.each(['Netvagas Com Br', 'Caderno Nacional', 'Nerdin', 'Vagas Remotas'])(
+      'reprova publicacao de "%s"',
+      (company) => {
+        const job = makeJob({
+          title: 'VAGA: Desenvolvedor React, 100% remoto',
+          company,
+          description: 'Candidate-se pelo link. CLT.',
+        });
+
+        const result = engine.evaluate(job, FIXED_NOW, POST);
+
+        expect(result.approved).toBe(false);
+        expect(result.rejectionReasons).toContain(JobRejectionReason.AggregatorAccount);
+      },
+    );
+
+    it('bloqueia pelo nome de quem publicou, nao pelo texto do anuncio', () => {
+      // Uma vaga legitima que CITA um agregador no texto continua passando.
+      const job = makeJob({
+        title: 'VAGA: Desenvolvedor React, 100% remoto',
+        company: 'Acme Corp',
+        description: 'Tambem divulgamos no Netvagas. Candidate-se. CLT.',
+      });
+
+      expect(engine.evaluate(job, FIXED_NOW, POST).approved).toBe(true);
+    });
+
+    it('nao vale para vaga de portal, onde a empresa e a contratante', () => {
+      const job = makeJob({
+        title: 'Desenvolvedor React',
+        company: 'Nerdin',
+        description: 'Vaga remota CLT',
+      });
+
+      expect(engine.evaluate(job, FIXED_NOW).approved).toBe(true);
+    });
+  });
+
+  describe('cabecalho "VAGA:" como marcador de anuncio', () => {
+    const POST = { origin: 'SOCIAL_POST' } as const;
+
+    it.each([
+      'VAGA: Desenvolvedor React',
+      'VAGA REMOTA: Desenvolvedor Front-end',
+      '#vaga Desenvolvedor React',
+      'VAGA CLT: Pessoa Desenvolvedora React',
+    ])('reconhece "%s" como anuncio', (title) => {
+      const job = makeJob({ title, description: 'Remoto, CLT' });
+
+      expect(engine.evaluate(job, FIXED_NOW, POST).approved).toBe(true);
+    });
+
+    it('a palavra "vaga" solta nao basta', () => {
+      const job = makeJob({
+        title: 'Como se preparar para uma vaga de React',
+        description: 'Dicas de carreira. Remoto, CLT.',
+      });
+
+      expect(engine.evaluate(job, FIXED_NOW, POST).rejectionReasons).toContain(
+        JobRejectionReason.HiringSignalMissing,
+      );
     });
   });
 
@@ -534,7 +603,7 @@ describe('JobRuleEngine (domain service)', () => {
       expect(publicRules.version).toMatch(/^\d+\.\d+\.\d+$/);
     });
 
-    it('expoe as seis regras na ordem de avaliacao', () => {
+    it('expoe as sete regras na ordem de avaliacao', () => {
       const ids = engine.getPublicRules().rules.map((rule) => rule.id);
 
       expect(ids).toEqual([
@@ -544,6 +613,7 @@ describe('JobRuleEngine (domain service)', () => {
         'spam-filter',
         'national-scope',
         'post-hiring-signal',
+        'post-aggregator-account',
       ]);
     });
 

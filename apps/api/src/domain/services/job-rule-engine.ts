@@ -1,6 +1,7 @@
 import type { Job } from '@/domain/entities/job';
 import {
   HIRING_SIGNAL_KEYWORDS,
+  JOB_AGGREGATOR_ACCOUNTS,
   LOCATION_FALSE_POSITIVES,
   LOCATION_KEYWORDS,
   REMOTE_LOCATION_LABEL,
@@ -29,6 +30,7 @@ export const JobRejectionReason = {
   SpamDetected: 'SPAM_DETECTED',
   InternationalScope: 'INTERNATIONAL_SCOPE',
   HiringSignalMissing: 'HIRING_SIGNAL_MISSING',
+  AggregatorAccount: 'AGGREGATOR_ACCOUNT',
 } as const;
 
 /**
@@ -79,7 +81,8 @@ export interface PublicJobRule {
     | 'location-match'
     | 'spam-filter'
     | 'national-scope'
-    | 'post-hiring-signal';
+    | 'post-hiring-signal'
+    | 'post-aggregator-account';
   readonly name: string;
   readonly description: string;
   readonly kind: PublicRuleKind;
@@ -109,6 +112,9 @@ export class JobRuleEngine {
 
   private readonly hiringSignalGroups: readonly CompiledKeywordGroup[] =
     compileKeywordGroups(HIRING_SIGNAL_KEYWORDS);
+
+  private readonly aggregatorGroups: readonly CompiledKeywordGroup[] =
+    compileKeywordGroups(JOB_AGGREGATOR_ACCOUNTS);
 
   private readonly publicRules: PublicJobRules = buildPublicRules();
 
@@ -165,6 +171,12 @@ export class JobRuleEngine {
       rejectionReasons.push(JobRejectionReason.HiringSignalMissing);
     }
 
+    // O nome de quem publicou, e nao o texto: o anuncio de uma conta
+    // agregadora e indistinguivel de um anuncio de verdade.
+    if (origin === 'SOCIAL_POST' && this.isAggregator(job.company)) {
+      rejectionReasons.push(JobRejectionReason.AggregatorAccount);
+    }
+
     return {
       approved: rejectionReasons.length === 0,
       rejectionReasons,
@@ -174,6 +186,10 @@ export class JobRuleEngine {
       matchedHiringSignals,
       scope,
     };
+  }
+
+  private isAggregator(company: string): boolean {
+    return matchKeywordLabels(normalizeForMatching(company), this.aggregatorGroups).length > 0;
   }
 
   isApproved(job: Job, reference?: Date, context?: EvaluationContext): boolean {
@@ -276,6 +292,15 @@ function buildPublicRules(): PublicJobRules {
       kind: 'POST_REQUIREMENT',
       criteria: HIRING_SIGNAL_KEYWORDS.map((group) => group.label),
       rejectionReason: JobRejectionReason.HiringSignalMissing,
+    },
+    {
+      id: 'post-aggregator-account',
+      name: 'Publicacao de conta agregadora',
+      description:
+        'Vale apenas para publicacoes de rede social. Contas que republicam vaga de terceiros em massa sao descartadas pelo NOME de quem publicou, nao pelo texto: o anuncio delas e indistinguivel de um anuncio legitimo, mas elas nao sao quem contrata e as vagas chegam ja republicadas de outro lugar.',
+      kind: 'POST_REQUIREMENT',
+      criteria: JOB_AGGREGATOR_ACCOUNTS.flatMap((group) => group.aliases),
+      rejectionReason: JobRejectionReason.AggregatorAccount,
     },
   ];
 
