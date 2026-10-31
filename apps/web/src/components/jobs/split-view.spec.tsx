@@ -153,12 +153,12 @@ describe('JobFeedCard', () => {
     expect(screen.getByText('Remoto BR')).toBeInTheDocument();
   });
 
-  it('cai para Salvador/RMS quando a cidade nao veio', () => {
+  it('cai para Bahia quando a cidade nao veio', () => {
     render(
       <JobFeedCard job={job({ isRemote: false, city: null })} isActive={false} onSelect={vi.fn()} />,
     );
 
-    expect(screen.getByText('Salvador/RMS')).toBeInTheDocument();
+    expect(screen.getByText('Bahia')).toBeInTheDocument();
   });
 
   it('corta as etiquetas e conta o resto', () => {

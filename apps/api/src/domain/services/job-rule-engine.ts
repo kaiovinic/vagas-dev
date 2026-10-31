@@ -2,6 +2,7 @@ import type { Job } from '@/domain/entities/job';
 import {
   HIRING_SIGNAL_KEYWORDS,
   JOB_AGGREGATOR_ACCOUNTS,
+  BAHIA_STATE_KEYWORDS,
   LOCATION_FALSE_POSITIVES,
   LOCATION_KEYWORDS,
   REMOTE_LOCATION_LABEL,
@@ -106,6 +107,9 @@ export class JobRuleEngine {
 
   private readonly locationGroups: readonly CompiledKeywordGroup[] =
     compileKeywordGroups(LOCATION_KEYWORDS);
+
+  private readonly stateGroups: readonly CompiledKeywordGroup[] =
+    compileKeywordGroups(BAHIA_STATE_KEYWORDS);
 
   private readonly spamGroups: readonly CompiledKeywordGroup[] =
     compileKeywordGroups(SPAM_KEYWORDS);
@@ -225,6 +229,15 @@ export class JobRuleEngine {
       labels.add(label);
     }
 
+    // A UF vale so no campo de localidade. No texto inteiro, "BA" casaria com
+    // Business Analyst e "Bahia" com empresa de outro estado que atende o
+    // mercado baiano — as duas coisas aparecem em anuncio de verdade.
+    const normalizedLocation = withoutFalsePositives(normalizeForMatching(job.location));
+
+    for (const label of matchKeywordLabels(normalizedLocation, this.stateGroups)) {
+      labels.add(label);
+    }
+
     return [...labels];
   }
 }
@@ -285,11 +298,11 @@ function buildPublicRules(): PublicJobRules {
     },
     {
       id: 'location-match',
-      name: 'Remoto ou Salvador e Regiao Metropolitana',
+      name: 'Remoto ou qualquer municipio da Bahia',
       description:
-        'Aceitamos vagas 100% remotas ou presenciais/hibridas em Salvador e nos municipios da Regiao Metropolitana.',
+        'Aceitamos vagas 100% remotas, de qualquer lugar, ou presenciais/hibridas em qualquer municipio da Bahia. A UF ("BA", "Bahia") e reconhecida no campo de localidade da vaga; os municipios abaixo valem tambem quando citados no texto do anuncio.',
       kind: 'LOCATION_ALLOW_LIST',
-      criteria: LOCATION_KEYWORDS.map((group) => group.label),
+      criteria: [...LOCATION_KEYWORDS, ...BAHIA_STATE_KEYWORDS].map((group) => group.label),
       rejectionReason: JobRejectionReason.LocationNotAllowed,
     },
     {

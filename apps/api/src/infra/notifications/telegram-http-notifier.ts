@@ -187,7 +187,7 @@ export function buildDigestMessage(digest: WeeklyDigest): string {
     `💼 <b>${digest.openJobs}</b> vagas abertas no radar`,
     `🆕 <b>${digest.newInPeriod}</b> publicadas nos ultimos 7 dias`,
     `🏠 <b>${digest.remoteJobs}</b> remotas (${percentageOf(digest.remoteJobs, digest.openJobs)})`,
-    `📍 <b>${digest.localJobs}</b> em Salvador e regiao`,
+    `📍 <b>${digest.localJobs}</b> na Bahia`,
   ];
 
   if (digest.topTechnologies.length > 0) {

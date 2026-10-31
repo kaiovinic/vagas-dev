@@ -279,7 +279,7 @@ describe('TelegramHttpNotifier', () => {
       expect(message).toContain('<b>88</b> vagas abertas');
       expect(message).toContain('<b>134</b> publicadas');
       expect(message).toContain('<b>74</b> remotas');
-      expect(message).toContain('<b>14</b> em Salvador');
+      expect(message).toContain('<b>14</b> na Bahia');
     });
 
     it('mostra o percentual de remotas sobre as abertas', () => {

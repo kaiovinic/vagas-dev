@@ -43,12 +43,19 @@ describe('JobbolScraperProvider', () => {
       ]);
     });
 
-    it('cobre Salvador e a regiao metropolitana por padrao', () => {
+    it('cobre a regiao metropolitana e os polos do interior por padrao', () => {
       expect(JOBBOL_DEFAULT_CITIES).toEqual([
         'salvador-ba',
         'lauro-de-freitas-ba',
         'camacari-ba',
         'simoes-filho-ba',
+        'feira-de-santana-ba',
+        'vitoria-da-conquista-ba',
+        'itabuna-ba',
+        'ilheus-ba',
+        'juazeiro-ba',
+        'alagoinhas-ba',
+        'barreiras-ba',
       ]);
     });
 

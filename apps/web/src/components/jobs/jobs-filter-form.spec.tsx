@@ -80,7 +80,7 @@ describe('JobsFilterForm', () => {
     expect(screen.getByRole('radio', { name: 'Todas' })).toBeChecked();
     expect(screen.getByRole('radio', { name: 'Apenas Remoto' })).not.toBeChecked();
     expect(
-      screen.getByRole('radio', { name: 'Apenas Salvador/Presencial/Hibrido' }),
+      screen.getByRole('radio', { name: 'Apenas Bahia/Presencial/Hibrido' }),
     ).toBeInTheDocument();
   });
 

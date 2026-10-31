@@ -2,7 +2,7 @@
 
 ## 1. Visão Geral do Produto
 
-Sistema automatizado que coleta, filtra, deduplica e notifica vagas para Desenvolvedor Frontend e Fullstack (foco em React, Next.js, TypeScript, Node.js, Angular, C#/.NET) localizadas em Salvador/BA (e Região Metropolitana) ou 100% Remotas.
+Sistema automatizado que coleta, filtra, deduplica e notifica vagas para Desenvolvedor Frontend e Fullstack (foco em React, Next.js, TypeScript, Node.js, Angular, C#/.NET) localizadas em qualquer município da Bahia ou 100% Remotas.
 
 - Janela de tempo estrita: contam apenas vagas publicadas nas últimas 72 horas.
 - Fontes previstas: LinkedIn (vagas e publicações), Gupy, GitHub (repositórios de vagas), Remotar, Programathor, Coodesh, InHire, Catho, Sólides, Nerdin, Recrutei e UpVagas.

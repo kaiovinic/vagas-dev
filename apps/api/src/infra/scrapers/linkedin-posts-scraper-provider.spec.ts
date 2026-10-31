@@ -49,16 +49,17 @@ describe('LinkedinPostsScraperProvider', () => {
     it('separa a busca nacional da regional', () => {
       expect(LINKEDIN_POSTS_SEARCHES.map((search) => search.label)).toEqual([
         'Remoto nacional',
-        'Salvador e RMS',
+        'Bahia',
       ]);
     });
 
-    it('a busca regional cita Salvador e a regiao metropolitana', () => {
-      const regional = LINKEDIN_POSTS_SEARCHES.find((s) => s.label === 'Salvador e RMS');
+    it('a busca regional cobre o estado, nao so a capital', () => {
+      const regional = LINKEDIN_POSTS_SEARCHES.find((s) => s.label === 'Bahia');
 
+      expect(regional?.query).toContain('"bahia"');
       expect(regional?.query).toContain('"salvador"');
-      expect(regional?.query).toContain('"lauro de freitas"');
-      expect(regional?.query).toContain('"camaçari"');
+      expect(regional?.query).toContain('"feira de santana"');
+      expect(regional?.query).toContain('"vitória da conquista"');
     });
 
     it('a busca nacional exige modalidade remota', () => {

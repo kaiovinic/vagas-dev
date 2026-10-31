@@ -26,7 +26,7 @@ export function AppHeader({ capture }: AppHeaderProps): ReactNode {
               <img src={logoUrl} alt="Vagas Dev BA/Remoto" className="h-11 w-auto shrink-0" />
             </h1>
             <p className="hidden max-w-44 text-xs leading-tight text-content-muted lg:block">
-              Frontend e Fullstack em Salvador/BA e 100% remotas
+              Frontend e Fullstack na Bahia e 100% remotas
             </p>
           </div>
 

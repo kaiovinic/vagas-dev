@@ -156,7 +156,7 @@ describe('JobRuleEngine (domain service)', () => {
     });
   });
 
-  describe('regra 3: localidade Remoto ou Salvador/BA', () => {
+  describe('regra 3: localidade Remoto ou qualquer municipio da Bahia', () => {
     it('aprova quando a modalidade da vaga e remota', () => {
       const job = makeJob({ location: 'Sao Paulo/SP', workModel: 'REMOTE' });
 
@@ -195,7 +195,7 @@ describe('JobRuleEngine (domain service)', () => {
       ['Sao Sebastiao do Passe/BA', 'Sao Sebastiao do Passe/BA'],
       ['Itaparica/BA', 'Itaparica/BA'],
       ['Vera Cruz/BA', 'Vera Cruz/BA'],
-    ])('aprova %s da regiao metropolitana', (expectedLabel, location) => {
+    ])('aprova %s da regiao metropolitana de Salvador', (expectedLabel, location) => {
       const job = makeJob({ location, workModel: 'ONSITE' });
 
       const result = engine.evaluate(job, FIXED_NOW);
@@ -217,10 +217,84 @@ describe('JobRuleEngine (domain service)', () => {
     });
 
     it.each([
+      ['Feira de Santana/BA', 'Feira de Santana/BA'],
+      ['Vitoria da Conquista/BA', 'Vitória da Conquista - BA'],
+      ['Alagoinhas/BA', 'Alagoinhas/BA'],
+      ['Itabuna/BA', 'Itabuna - Bahia'],
+      ['Ilheus/BA', 'Ilhéus/BA'],
+      ['Barreiras/BA', 'Barreiras/BA'],
+      ['Juazeiro/BA', 'Juazeiro - BA'],
+      ['Teixeira de Freitas/BA', 'Teixeira de Freitas/BA'],
+      ['Porto Seguro/BA', 'Porto Seguro/BA'],
+      ['Luis Eduardo Magalhaes/BA', 'Luís Eduardo Magalhães - BA'],
+    ])('aprova %s, no interior do estado', (expectedLabel, location) => {
+      const job = makeJob({ location, workModel: 'ONSITE' });
+
+      const result = engine.evaluate(job, FIXED_NOW);
+
+      expect(result.matchedLocations).toContain(expectedLabel);
+      expect(result.rejectionReasons).not.toContain(JobRejectionReason.LocationNotAllowed);
+    });
+
+    // Municipio que o catalogo nao lista pelo nome: quem aprova e a UF no campo
+    // de localidade. E o caso da maioria dos 417 municipios baianos.
+    it.each([
+      'Mucuge - BA',
+      'Wenceslau Guimaraes/BA',
+      'Bahia, Brasil',
+      'BA - Brasil',
+      'Presencial (BA)',
+    ])('aprova pela UF da Bahia na localidade: "%s"', (location) => {
+      const job = makeJob({ location, workModel: 'ONSITE' });
+
+      const result = engine.evaluate(job, FIXED_NOW);
+
+      expect(result.matchedLocations).toContain('Bahia/BA');
+      expect(result.rejectionReasons).not.toContain(JobRejectionReason.LocationNotAllowed);
+    });
+
+    it('nao aceita a UF citada apenas na descricao', () => {
+      const job = makeJob({
+        location: 'Sao Paulo/SP',
+        // "BA" solto em texto livre e abreviacao de Business Analyst, e uma
+        // empresa paulista pode dizer que atende a Bahia sem contratar la.
+        description: 'Vaga React presencial. Atendemos clientes na Bahia e somos parceiros de BA.',
+        workModel: 'ONSITE',
+      });
+
+      const result = engine.evaluate(job, FIXED_NOW);
+
+      expect(result.approved).toBe(false);
+      expect(result.rejectionReasons).toContain(JobRejectionReason.LocationNotAllowed);
+    });
+
+    it.each([
+      ['Vitoria/ES', 'Vitória/ES'],
+      ['Juazeiro do Norte/CE', 'Juazeiro do Norte - CE'],
+      ['Bahia Blanca, Argentina', 'Bahía Blanca, Argentina'],
+    ])('nao confunde %s com municipio baiano', (_caso, location) => {
+      const job = makeJob({ location, description: 'Vaga React presencial', workModel: 'ONSITE' });
+
+      const result = engine.evaluate(job, FIXED_NOW);
+
+      expect(result.approved).toBe(false);
+      expect(result.rejectionReasons).toContain(JobRejectionReason.LocationNotAllowed);
+      expect(result.matchedLocations).toEqual([]);
+    });
+
+    it('aprova vaga remota ainda que a localidade seja de outro estado', () => {
+      const job = makeJob({ location: 'Curitiba/PR', workModel: 'REMOTE' });
+
+      const result = engine.evaluate(job, FIXED_NOW);
+
+      expect(result.approved).toBe(true);
+      expect(result.matchedLocations).toContain('Remoto');
+    });
+
+    it.each([
       'Sao Paulo/SP',
       'Rio de Janeiro/RJ',
       'Belo Horizonte/MG',
-      'Feira de Santana/BA',
     ])('rejeita localidade presencial fora da area: %s', (location) => {
       const job = makeJob({ location, description: 'Vaga React presencial', workModel: 'ONSITE' });
 
@@ -713,15 +787,25 @@ describe('JobRuleEngine (domain service)', () => {
       );
     });
 
-    it('lista Remoto e Salvador entre os criterios de localidade', () => {
+    it('lista Remoto, a UF e municipios baianos entre os criterios de localidade', () => {
       const locationRule = engine
         .getPublicRules()
         .rules.find((rule) => rule.id === 'location-match');
 
       expect(locationRule?.kind).toBe('LOCATION_ALLOW_LIST');
       expect(locationRule?.criteria).toEqual(
-        expect.arrayContaining(['Remoto', 'Salvador/BA', 'Lauro de Freitas/BA']),
+        expect.arrayContaining([
+          'Remoto',
+          'Bahia/BA',
+          'Salvador/BA',
+          'Lauro de Freitas/BA',
+          'Feira de Santana/BA',
+        ]),
       );
+      // O nome da regra e publico: a aba de Regras o exibe como titulo, e ele
+      // nao pode continuar prometendo apenas a Regiao Metropolitana.
+      expect(locationRule?.name).toContain('Bahia');
+      expect(locationRule?.name).not.toContain('Regiao Metropolitana');
     });
 
     it('lista os termos bloqueados da higienizacao', () => {

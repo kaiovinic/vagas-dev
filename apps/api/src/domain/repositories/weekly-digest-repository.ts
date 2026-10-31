@@ -9,7 +9,7 @@ export interface WeeklyDigestSnapshot {
   readonly newInPeriod: number;
   /** Recorte das abertas: 100% remotas. */
   readonly remoteJobs: number;
-  /** Recorte das abertas: presenciais ou hibridas em Salvador e RMS. */
+  /** Recorte das abertas: presenciais ou hibridas em qualquer municipio da Bahia. */
   readonly localJobs: number;
   /** Uma contagem por grupo de stack, na janela de 7 dias. */
   readonly technologies: readonly BucketCount[];

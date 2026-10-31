@@ -420,7 +420,7 @@ describe('JobsPage', () => {
     );
 
     await userEvent.click(
-      screen.getByRole('radio', { name: 'Apenas Salvador/Presencial/Hibrido' }),
+      screen.getByRole('radio', { name: 'Apenas Bahia/Presencial/Hibrido' }),
     );
 
     await waitFor(() =>

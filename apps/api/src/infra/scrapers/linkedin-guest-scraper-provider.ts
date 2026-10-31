@@ -40,7 +40,10 @@ export interface LinkedinSearch {
 
 export const LINKEDIN_DEFAULT_SEARCHES: readonly LinkedinSearch[] = KEYWORDS.flatMap(
   (keywords) => [
-    { keywords, location: 'Salvador, Bahia, Brazil', remoteOnly: false },
+    // O estado inteiro, e nao a capital: o LinkedIn aceita a localidade no
+    // nivel de UF e passa a trazer tambem Feira de Santana, Vitoria da
+    // Conquista e o resto do interior, sem custar uma requisicao a mais.
+    { keywords, location: 'Bahia, Brazil', remoteOnly: false },
     { keywords, location: 'Brazil', remoteOnly: true },
   ],
 );

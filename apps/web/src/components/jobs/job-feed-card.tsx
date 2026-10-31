@@ -116,7 +116,7 @@ export function PlaceBadge({ job }: { readonly job: JobListItem }): ReactNode {
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-surface-overlay px-2 py-0.5 text-xs text-content-secondary">
       <MapPin aria-hidden="true" className="size-3" />
-      {job.city ?? 'Salvador/RMS'}
+      {job.city ?? 'Bahia'}
     </span>
   );
 }

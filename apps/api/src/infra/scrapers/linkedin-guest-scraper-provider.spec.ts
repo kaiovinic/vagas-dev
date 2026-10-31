@@ -15,7 +15,7 @@ const FIXTURE = readFixture('linkedin-guest-jobs.html');
 
 const SALVADOR_SEARCH = {
   keywords: 'desenvolvedor frontend',
-  location: 'Salvador, Bahia, Brazil',
+  location: 'Bahia, Brazil',
   remoteOnly: false,
 };
 
@@ -45,7 +45,7 @@ describe('LinkedinGuestScraperProvider', () => {
       'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?',
     );
     expect(url).toContain('keywords=desenvolvedor+frontend');
-    expect(url).toContain('location=Salvador%2C+Bahia%2C+Brazil');
+    expect(url).toContain('location=Bahia%2C+Brazil');
     expect(url).toContain('f_TPR=r259200');
     expect(url).not.toContain('f_WT');
   });
@@ -60,13 +60,13 @@ describe('LinkedinGuestScraperProvider', () => {
     expect(http.requestedUrls[0]).toContain('f_WT=2');
   });
 
-  it('cobre Salvador e Remoto para cada palavra-chave padrao', () => {
+  it('cobre a Bahia e Remoto para cada palavra-chave padrao', () => {
     expect(LINKEDIN_DEFAULT_SEARCHES.filter((search) => search.remoteOnly)).toHaveLength(
       LINKEDIN_DEFAULT_SEARCHES.length / 2,
     );
     expect(
       LINKEDIN_DEFAULT_SEARCHES.some(
-        (search) => search.location === 'Salvador, Bahia, Brazil' && !search.remoteOnly,
+        (search) => search.location === 'Bahia, Brazil' && !search.remoteOnly,
       ),
     ).toBe(true);
   });
@@ -78,6 +78,7 @@ describe('LinkedinGuestScraperProvider', () => {
     expect(jobs[0]).toMatchObject({
       title: 'Desenvolvedor Front-end Júnior',
       company: 'Jobbol',
+      // Vem do HTML da fixture, e nao da busca: e o que a vaga anuncia.
       location: 'Salvador, Bahia, Brazil',
       source: 'linkedin',
       publishedAtSource: 'SOURCE',

@@ -44,11 +44,15 @@ export const LINKEDIN_POSTS_SEARCHES: readonly LinkedinPostsSearch[] = [
     pages: 1,
   },
   {
-    label: 'Salvador e RMS',
+    label: 'Bahia',
     query:
       'site:linkedin.com/posts ("vaga" OR "contratando") ' +
       '("desenvolvedor" OR "programador" OR "ti" OR "frontend") ' +
-      '("salvador" OR "lauro de freitas" OR "camaçari" OR "bahia")',
+      // "bahia" primeiro: e o termo que o recrutador do interior usa quando
+      // nao cita a cidade. Os municipios vem depois porque o anuncio da
+      // capital e dos polos raramente escreve o estado.
+      '("bahia" OR "salvador" OR "feira de santana" OR "vitória da conquista" ' +
+      'OR "itabuna" OR "ilhéus")',
     pages: 2,
   },
 ];

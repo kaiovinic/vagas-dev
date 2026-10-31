@@ -87,6 +87,12 @@ describe('AppHeader', () => {
     expect(screen.getByRole('img', { name: 'Vagas Dev BA/Remoto' })).toBeInTheDocument();
   });
 
+  it('anuncia a cobertura do estado inteiro, nao so da capital', () => {
+    renderWithProviders(<AppHeader capture={capture()} />);
+
+    expect(screen.getByText('Frontend e Fullstack na Bahia e 100% remotas')).toBeInTheDocument();
+  });
+
   it('mostra as seis abas em pilulas, na ordem do painel', () => {
     renderWithProviders(<AppHeader capture={capture()} />);
 

@@ -31,7 +31,7 @@ export class PrismaWeeklyDigestRepository implements IWeeklyDigestRepository {
       this.prisma.job.count({ where: open }),
       this.prisma.job.count({ where: period }),
       this.prisma.job.count({ where: { ...open, isRemote: true } }),
-      // O motor so aprova remoto OU Salvador e RMS, entao o que nao e remoto
+      // O motor so aprova remoto OU Bahia, entao o que nao e remoto
       // dentro da janela e, por construcao, vaga da regiao.
       this.prisma.job.count({ where: { ...open, isRemote: false } }),
       this.countBuckets(period, buckets),

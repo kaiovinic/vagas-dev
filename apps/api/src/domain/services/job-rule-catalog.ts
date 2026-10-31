@@ -43,9 +43,36 @@ export const LOCATION_FALSE_POSITIVES: readonly string[] = [
   'san salvador',
   'salvador de bahia',
   'el salvador',
+  // "Bahia Blanca" e cidade argentina; sem isto, a UF "bahia" a aprovaria.
+  'bahia blanca',
+  // Juazeiro do Norte e no Ceara, e o nome contem o municipio baiano Juazeiro.
+  'juazeiro do norte',
 ];
 
-/** Localidades aceitas: 100% remoto ou Salvador e Regiao Metropolitana (RMS). */
+/**
+ * Marcadores da UF da Bahia. Sao o que estende o radar aos 417 municipios do
+ * estado sem enumerar nenhum: a maioria das fontes escreve a localidade como
+ * "Cidade - BA", "Cidade/BA" ou "Cidade, Bahia".
+ *
+ * Casam SO no campo de localidade, e e proposital: "BA" solto em texto livre e
+ * abreviacao de Business Analyst, e "Bahia" na descricao costuma ser empresa
+ * dizendo que atende o estado, nao que contrata nele. E a mesma restricao que
+ * `job-scope.ts` aplica as siglas de estado.
+ */
+export const BAHIA_STATE_KEYWORDS: readonly KeywordGroup[] = [
+  { label: 'Bahia/BA', aliases: ['ba', 'bahia'] },
+];
+
+/**
+ * Municipios baianos reconhecidos pelo NOME, sem a UF ao lado — o que cobre a
+ * vaga cuja localidade vem so como "Feira de Santana" e a citada no meio da
+ * descricao ("escritorio em Ilheus").
+ *
+ * A lista nao tenta ser os 417 municipios: isso e trabalho da UF acima. Ela
+ * reune a Regiao Metropolitana de Salvador e os maiores polos do interior, e
+ * de proposito deixa de fora nome ambiguo com outro estado (Valenca/RJ,
+ * Serrinha/RN), que so entra quando a UF aparece na localidade.
+ */
 export const LOCATION_KEYWORDS: readonly KeywordGroup[] = [
   {
     label: REMOTE_LOCATION_LABEL,
@@ -64,6 +91,28 @@ export const LOCATION_KEYWORDS: readonly KeywordGroup[] = [
   { label: 'Sao Sebastiao do Passe/BA', aliases: ['sao sebastiao do passe'] },
   { label: 'Itaparica/BA', aliases: ['itaparica'] },
   { label: 'Vera Cruz/BA', aliases: ['vera cruz'] },
+  // Interior: polos de tecnologia e as maiores cidades fora da RMS.
+  { label: 'Feira de Santana/BA', aliases: ['feira de santana'] },
+  { label: 'Vitoria da Conquista/BA', aliases: ['vitoria da conquista'] },
+  { label: 'Itabuna/BA', aliases: ['itabuna'] },
+  { label: 'Ilheus/BA', aliases: ['ilheus'] },
+  { label: 'Juazeiro/BA', aliases: ['juazeiro'] },
+  { label: 'Alagoinhas/BA', aliases: ['alagoinhas'] },
+  { label: 'Barreiras/BA', aliases: ['barreiras'] },
+  { label: 'Luis Eduardo Magalhaes/BA', aliases: ['luis eduardo magalhaes'] },
+  { label: 'Teixeira de Freitas/BA', aliases: ['teixeira de freitas'] },
+  { label: 'Porto Seguro/BA', aliases: ['porto seguro'] },
+  { label: 'Jequie/BA', aliases: ['jequie'] },
+  { label: 'Paulo Afonso/BA', aliases: ['paulo afonso'] },
+  { label: 'Eunapolis/BA', aliases: ['eunapolis'] },
+  { label: 'Santo Antonio de Jesus/BA', aliases: ['santo antonio de jesus'] },
+  { label: 'Guanambi/BA', aliases: ['guanambi'] },
+  { label: 'Jacobina/BA', aliases: ['jacobina'] },
+  { label: 'Senhor do Bonfim/BA', aliases: ['senhor do bonfim'] },
+  { label: 'Irece/BA', aliases: ['irece'] },
+  { label: 'Brumado/BA', aliases: ['brumado'] },
+  { label: 'Bom Jesus da Lapa/BA', aliases: ['bom jesus da lapa'] },
+  { label: 'Itapetinga/BA', aliases: ['itapetinga'] },
 ];
 
 /**

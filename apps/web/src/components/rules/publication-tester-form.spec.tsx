@@ -140,7 +140,7 @@ describe('PublicationTesterForm', () => {
       'Bloqueada pelo filtro anti-spam',
     );
     expect(screen.getByTestId('rejection-reasons')).toHaveTextContent(
-      'Nao e remota nem de Salvador/RMS',
+      'Nao e remota nem da Bahia',
     );
   });
 

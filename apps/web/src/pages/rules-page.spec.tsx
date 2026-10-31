@@ -27,10 +27,10 @@ const RULES = {
     },
     {
       id: 'location-match',
-      name: 'Remoto ou Salvador e Regiao Metropolitana',
-      description: 'Aceitamos remotas ou de Salvador e RMS.',
+      name: 'Remoto ou qualquer municipio da Bahia',
+      description: 'Aceitamos remotas ou de qualquer municipio da Bahia.',
       kind: 'LOCATION_ALLOW_LIST',
-      criteria: ['Remoto', 'Salvador/BA'],
+      criteria: ['Remoto', 'Bahia/BA', 'Salvador/BA'],
       rejectionReason: 'LOCATION_NOT_ALLOWED',
     },
     {

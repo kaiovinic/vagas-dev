@@ -24,12 +24,26 @@ const TECH_AREA = 'informatica-ti';
 const BROWSER_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
-/** Salvador e os municipios da Regiao Metropolitana com vaga de TI no site. */
+/**
+ * Municipios baianos com vaga de TI no site: a Regiao Metropolitana e os polos
+ * do interior.
+ *
+ * Aqui a lista e inevitavel — o Jobbol nao tem pagina de area por estado, so
+ * por cidade. Cada entrada e uma requisicao, por isso a lista para nos polos
+ * que de fato publicam vaga de tecnologia, em vez de varrer os 417 municipios.
+ */
 export const JOBBOL_DEFAULT_CITIES: readonly string[] = [
   'salvador-ba',
   'lauro-de-freitas-ba',
   'camacari-ba',
   'simoes-filho-ba',
+  'feira-de-santana-ba',
+  'vitoria-da-conquista-ba',
+  'itabuna-ba',
+  'ilheus-ba',
+  'juazeiro-ba',
+  'alagoinhas-ba',
+  'barreiras-ba',
 ];
 
 type HtmlNodes = ReturnType<cheerio.CheerioAPI>;

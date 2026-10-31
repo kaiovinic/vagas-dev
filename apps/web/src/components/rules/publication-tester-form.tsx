@@ -30,7 +30,7 @@ export type PublicationTesterValues = z.infer<typeof testerSchema>;
 const REJECTION_LABELS: Readonly<Record<RejectionReason, string>> = {
   EXPIRED_PUBLICATION: 'Fora da janela de 72h',
   STACK_NOT_MATCHED: 'Nao cita a stack monitorada',
-  LOCATION_NOT_ALLOWED: 'Nao e remota nem de Salvador/RMS',
+  LOCATION_NOT_ALLOWED: 'Nao e remota nem da Bahia',
   SPAM_DETECTED: 'Bloqueada pelo filtro anti-spam',
 };
 

@@ -91,7 +91,7 @@ export function JobsPage(): ReactNode {
     <div className="flex flex-col gap-4">
       <Panel
         title="Vagas abertas"
-        description="Publicadas nas ultimas 72h em Salvador/BA, Regiao Metropolitana ou 100% remotas"
+        description="Publicadas nas ultimas 72h em qualquer municipio da Bahia ou 100% remotas"
       >
         <div className="flex flex-col gap-4">
           <JobsFilterForm

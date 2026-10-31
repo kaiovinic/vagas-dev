@@ -1,6 +1,6 @@
 # Vagas Dev
 
-Agregador de vagas para **Desenvolvedor Frontend e Fullstack** em Salvador/BA (e Região Metropolitana) ou 100% remotas. Coleta de sete fontes a cada 2 horas, descarta o que não é vaga de verdade, deduplica entre plataformas, avisa no Telegram e apresenta tudo em um dashboard analítico.
+Agregador de vagas para **Desenvolvedor Frontend e Fullstack** em qualquer município da Bahia ou 100% remotas. Coleta de sete fontes a cada 2 horas, descarta o que não é vaga de verdade, deduplica entre plataformas, avisa no Telegram e apresenta tudo em um dashboard analítico.
 
 [![CI](https://github.com/kaiovinic/vagas-dev/actions/workflows/ci.yml/badge.svg)](https://github.com/kaiovinic/vagas-dev/actions/workflows/ci.yml)
 [![Cobertura](https://img.shields.io/badge/cobertura-97%25-brightgreen)](#qualidade)
@@ -19,7 +19,7 @@ Agregador de vagas para **Desenvolvedor Frontend e Fullstack** em Salvador/BA (e
 
 ## O problema
 
-Procurar vaga de dev em Salvador significa abrir seis abas por dia, reler os mesmos anúncios e ainda assim perder a vaga publicada às 23h de uma sexta. Pior: boa parte do que uma busca por "React" devolve não é vaga — é curso, bootcamp, divulgação de currículo ou alguém pedindo recolocação.
+Procurar vaga de dev na Bahia significa abrir seis abas por dia, reler os mesmos anúncios e ainda assim perder a vaga publicada às 23h de uma sexta. Pior: boa parte do que uma busca por "React" devolve não é vaga — é curso, bootcamp, divulgação de currículo ou alguém pedindo recolocação.
 
 Este projeto resolve as duas coisas: busca sozinho, e **joga fora o que não é vaga**.
 
@@ -71,7 +71,7 @@ O coletor de publicações é o único que custa dinheiro. Ele roda dentro da ca
 2.500 créditos gratuitos  ÷  18              ≈  4 meses e meio
 ```
 
-São duas buscas separadas — uma de remoto nacional (1 página), outra de Salvador e região (2 páginas). Separar importa: uma busca única e ampla é dominada pelo mercado remoto, que tem muito mais volume, e a região nunca aparece.
+São duas buscas separadas — uma de remoto nacional (1 página), outra da Bahia (2 páginas). Separar importa: uma busca única e ampla é dominada pelo mercado remoto, que tem muito mais volume, e a região nunca aparece.
 
 ### O funil
 
@@ -81,7 +81,7 @@ O que entra passa por **sete regras**, todas públicas na aba `Regras` com um te
 |---|---|
 | Janela de 72h | descarta o que é velho e o que tem data no futuro |
 | Stack | exige React, Next.js, TypeScript, Node.js, Angular, C#/.NET ou cargo de desenvolvimento web |
-| Localidade | Remoto, ou Salvador e Região Metropolitana |
+| Localidade | Remoto, ou qualquer município da Bahia |
 | Anti-ruído | corta curso, bootcamp, lista de grupo, `#opentowork` |
 | Mercado nacional | descarta vaga declaradamente internacional |
 | Anúncio de verdade¹ | o texto precisa anunciar uma vaga, não falar sobre vagas |
@@ -165,7 +165,7 @@ Ver vaga e se candidatar
 
 A API avisa no boot se os alertas estão ligados ou não — um deploy sem token não sobe calado.
 
-**Toda segunda às 08:00** sai também o resumo da semana: vagas abertas, publicadas nos últimos 7 dias, remotas × Salvador/RMS e as cinco stacks mais pedidas.
+**Toda segunda às 08:00** sai também o resumo da semana: vagas abertas, publicadas nos últimos 7 dias, remotas × Bahia e as cinco stacks mais pedidas.
 
 ---
 
@@ -270,7 +270,7 @@ Sobe PostgreSQL com volume persistente, a API (que aplica as migrations no entry
 
 Para subir numa VPS do zero — Docker, DNS, firewall, TLS e backup — o passo a passo está em [`docs/deploy-vps.md`](docs/deploy-vps.md).
 
-Se a VPS já roda outro projeto nas portas 80 e 443, o Caddy do DevRadar vira a borda compartilhada dos dois: [`docs/deploy-vps-compartilhada.md`](docs/deploy-vps-compartilhada.md).
+Se a VPS já roda outro projeto nas portas 80 e 443, o Caddy do DevRadar vira a borda compartilhada dos dois: [`docs/deploy-vps-compartilhada.md`](docs/deploy-vps-compartilhada.md). Esse guia também cobre o deploy automático: `.github/workflows/deploy.yml` atualiza a VPS por SSH depois que o CI da `main` fecha em verde.
 
 ---
 

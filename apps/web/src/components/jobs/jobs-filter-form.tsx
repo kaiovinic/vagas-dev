@@ -30,7 +30,7 @@ const SENIORITY_VALUES = ['INTERN', 'JUNIOR', 'MID', 'SENIOR'] as const;
 export const WORK_MODE_OPTIONS = [
   { value: 'all', label: 'Todas' },
   { value: 'remote', label: 'Apenas Remoto' },
-  { value: 'local', label: 'Apenas Salvador/Presencial/Hibrido' },
+  { value: 'local', label: 'Apenas Bahia/Presencial/Hibrido' },
 ] as const;
 
 const jobsFilterSchema = z.object({
