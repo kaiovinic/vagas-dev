@@ -261,7 +261,18 @@ export class LinkedinGuestScraperProvider extends BaseScraperProvider {
 
       jobs.push(...page.jobs);
 
-      if (page.cards < LINKEDIN_PAGE_SIZE) {
+      // Pagina VAZIA e o fim; pagina curta nao e.
+      //
+      // O sinal anterior era "menos de dez cards": medido em producao, a mesma
+      // consulta que daqui devolve dez por pagina devolve sete ou oito ao IP da
+      // VPS, e a busca encerrava na primeira pagina. Resultado: 56 cards por
+      // ciclo em vez de ~85, e as vagas das paginas seguintes nunca eram
+      // pedidas — ficavam no feed sem descricao, porque o coletor nem as via.
+      //
+      // O custo de continuar e um pedido por pagina ate o teto da busca, no
+      // ritmo de 1,5s; a repeticao de card que o `start` as vezes traz morre no
+      // `dedupeByUrl` do ciclo.
+      if (page.cards === 0) {
         break;
       }
     }
