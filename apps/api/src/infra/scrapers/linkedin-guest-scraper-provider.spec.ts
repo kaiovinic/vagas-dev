@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   LINKEDIN_DEFAULT_SEARCHES,
-  LINKEDIN_DETAIL_DELAY_IN_MS,
   LINKEDIN_LAST_72H_FILTER,
+  LINKEDIN_MAX_CARDS_PER_SEARCH,
+  LINKEDIN_PAGE_SIZE,
+  LINKEDIN_REQUEST_DELAY_IN_MS,
   LinkedinGuestScraperProvider,
   type LinkedinSearch,
 } from '@/infra/scrapers/linkedin-guest-scraper-provider';
@@ -234,6 +236,116 @@ describe('LinkedinGuestScraperProvider', () => {
     await expect(provider.scrape()).resolves.toEqual([]);
   });
 
+  describe('paginacao da busca', () => {
+    const PAGE_1 = readFixture('linkedin-guest-jobs-page-1.html');
+    const PAGE_2 = readFixture('linkedin-guest-jobs-page-2.html');
+
+    const startOf = (url: string): string => new URL(url).searchParams.get('start') ?? '';
+    const searchStarts = (client: FakeHttpClient): string[] =>
+      client.requestedUrls.filter(isSearch).map(startOf);
+
+    /** Responde a pagina real de dez cards enquanto o `start` for menor que `ate`. */
+    function respondUntil(ate: number): (url: string) => string {
+      return (url) => {
+        if (!isSearch(url)) {
+          return DETAIL_FIXTURE;
+        }
+
+        return Number(startOf(url)) < ate ? PAGE_1 : PAGE_2;
+      };
+    }
+
+    it('anda de dez em dez a partir de zero', async () => {
+      const client = new FakeHttpClient(respondUntil(30));
+      const provider = makeProvider(client);
+
+      await provider.scrape();
+
+      expect(searchStarts(client)).toEqual(['0', '10', '20', '30']);
+    });
+
+    it('para na primeira pagina incompleta', async () => {
+      const client = new FakeHttpClient(respondUntil(10));
+      const provider = makeProvider(client);
+
+      await provider.scrape();
+
+      // A pagina de `start=10` volta com tres cards: nao existe a de 20.
+      expect(searchStarts(client)).toEqual(['0', '10']);
+    });
+
+    it('nao busca pagina nenhuma alem do teto da busca', async () => {
+      const client = new FakeHttpClient((url) => (isSearch(url) ? PAGE_1 : DETAIL_FIXTURE));
+      const provider = makeProvider(client, [{ ...SALVADOR_SEARCH, maxCards: 20 }]);
+
+      await provider.scrape();
+
+      // Toda pagina vem cheia; so o teto encerra a busca.
+      expect(searchStarts(client)).toEqual(['0', '10']);
+    });
+
+    it('usa o teto do coletor quando a busca nao define o proprio', async () => {
+      const client = new FakeHttpClient((url) => (isSearch(url) ? PAGE_1 : DETAIL_FIXTURE));
+      const provider = new LinkedinGuestScraperProvider(
+        client,
+        descriptions,
+        [SALVADOR_SEARCH],
+        async () => {},
+        0,
+        20,
+      );
+
+      await provider.scrape();
+
+      expect(searchStarts(client)).toEqual(['0', '10']);
+    });
+
+    it('junta as vagas de todas as paginas', async () => {
+      const client = new FakeHttpClient(respondUntil(10));
+      const provider = makeProvider(client);
+
+      const jobs = await provider.scrape();
+
+      // Dez cards na primeira pagina, tres na segunda, sem repetir url.
+      expect(jobs).toHaveLength(13);
+      expect(new Set(jobs.map((job) => job.url)).size).toBe(13);
+    });
+
+    it('espera entre uma pagina e a seguinte', async () => {
+      const provider = makeProvider(new FakeHttpClient(respondUntil(10)));
+
+      await provider.scrape();
+
+      // Duas paginas de busca e treze detalhes: quinze requisicoes, catorze
+      // esperas. Nenhuma saiu em rajada, e a primeira nao esperou.
+      expect(waits.every((ms) => ms === LINKEDIN_REQUEST_DELAY_IN_MS)).toBe(true);
+      expect(waits).toHaveLength(14);
+    });
+
+    it('nao paralela as buscas: as paginas de uma saem antes da proxima', async () => {
+      const client = new FakeHttpClient(respondUntil(10));
+      const provider = makeProvider(client, [
+        SALVADOR_SEARCH,
+        { ...SALVADOR_SEARCH, keywords: 'react' },
+      ]);
+
+      await provider.scrape();
+
+      const buscas = client.requestedUrls.filter(isSearch);
+
+      expect(buscas.map((url) => new URL(url).searchParams.get('keywords'))).toEqual([
+        'desenvolvedor frontend',
+        'desenvolvedor frontend',
+        'react',
+        'react',
+      ]);
+    });
+
+    it('mantem o teto padrao em quatro paginas por busca', () => {
+      expect(LINKEDIN_MAX_CARDS_PER_SEARCH / LINKEDIN_PAGE_SIZE).toBe(4);
+    });
+  });
+
   describe('descricao completa', () => {
     const detailUrls = (client: FakeHttpClient): string[] =>
       client.requestedUrls.filter((url) => url.includes('/jobPosting/'));
@@ -278,11 +390,11 @@ describe('LinkedinGuestScraperProvider', () => {
       expect(descriptions.asked[0]).toHaveLength(2);
     });
 
-    it('espera entre um detalhe e o seguinte', async () => {
+    it('espera entre as requisicoes do ciclo, menos antes da primeira', async () => {
       await provider.scrape();
 
-      // Duas vagas, uma espera: a primeira requisicao nao precisa esperar nada.
-      expect(waits).toEqual([LINKEDIN_DETAIL_DELAY_IN_MS]);
+      // Uma pagina de busca e dois detalhes: tres requisicoes, duas esperas.
+      expect(waits).toEqual([LINKEDIN_REQUEST_DELAY_IN_MS, LINKEDIN_REQUEST_DELAY_IN_MS]);
     });
 
     it('respeita o teto de detalhes por ciclo', async () => {
@@ -332,10 +444,17 @@ describe('LinkedinGuestScraperProvider', () => {
   });
 
   it('usa as buscas padrao quando nenhuma e informada', async () => {
-    const provider = new LinkedinGuestScraperProvider(http, descriptions);
+    const provider = new LinkedinGuestScraperProvider(
+      http,
+      descriptions,
+      undefined,
+      async () => {},
+    );
 
     await provider.scrape();
 
+    // A fixture tem seis cards, menos que uma pagina cheia: uma requisicao por
+    // busca, sem paginacao.
     expect(http.requestedUrls.filter(isSearch)).toHaveLength(LINKEDIN_DEFAULT_SEARCHES.length);
   });
 });

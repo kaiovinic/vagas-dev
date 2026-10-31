@@ -11,6 +11,7 @@ import {
 import { BaseScraperProvider } from '@/infra/scrapers/support/base-scraper-provider';
 import {
   collapseSpaces,
+  createPacer,
   dedupeByUrl,
   htmlToText,
   parseDate,
@@ -25,14 +26,33 @@ const GUEST_DETAIL_URL = 'https://www.linkedin.com/jobs-guest/jobs/api/jobPostin
 const LINKEDIN_ORIGIN = 'https://www.linkedin.com';
 
 /**
- * Intervalo entre duas requisicoes de detalhe.
+ * Intervalo entre duas requisicoes, de pagina de busca ou de detalhe.
  *
  * O endpoint e publico e sem autenticacao, entao o que esta em jogo nao e conta
  * banida, e sim o IP da VPS levar 429 — e o IP e compartilhado com outro
  * projeto. Um segundo e meio e o ritmo que outros coletores publicos usam
  * contra o mesmo endpoint sem apanhar.
+ *
+ * Vale para a fila inteira do ciclo: as paginas de todas as buscas e os
+ * detalhes saem em sequencia, num unico ritmo, e nao em rajadas paralelas.
  */
-export const LINKEDIN_DETAIL_DELAY_IN_MS = 1_500;
+export const LINKEDIN_REQUEST_DELAY_IN_MS = 1_500;
+
+/** Cards por pagina na rota guest. O `start` anda de dez em dez. */
+export const LINKEDIN_PAGE_SIZE = 10;
+
+/**
+ * Teto de cards por busca.
+ *
+ * A rota guest nao informa o total de resultados: a unica forma de saber que
+ * acabou e receber menos de uma pagina cheia. Quarenta cards sao quatro
+ * paginas por busca e, com as oito buscas padrao, 32 requisicoes de busca no
+ * pior caso — dentro do que o ritmo de 1,5s absorve sem esticar a captura.
+ *
+ * Cada busca pode pedir o proprio teto: a consulta regional da Bahia esgota em
+ * uma pagina, enquanto a remota nacional tem fila para muito mais.
+ */
+export const LINKEDIN_MAX_CARDS_PER_SEARCH = 40;
 
 /**
  * Teto de detalhes por ciclo.
@@ -66,6 +86,8 @@ export interface LinkedinSearch {
   readonly keywords: string;
   readonly location: string;
   readonly remoteOnly: boolean;
+  /** Teto proprio de cards; sem ele, vale o do coletor. */
+  readonly maxCards?: number;
 }
 
 export const LINKEDIN_DEFAULT_SEARCHES: readonly LinkedinSearch[] = KEYWORDS.flatMap(
@@ -73,7 +95,11 @@ export const LINKEDIN_DEFAULT_SEARCHES: readonly LinkedinSearch[] = KEYWORDS.fla
     // O estado inteiro, e nao a capital: o LinkedIn aceita a localidade no
     // nivel de UF e passa a trazer tambem Feira de Santana, Vitoria da
     // Conquista e o resto do interior, sem custar uma requisicao a mais.
-    { keywords, location: 'Bahia, Brazil', remoteOnly: false },
+    //
+    // Duas paginas bastam aqui: o mercado baiano de frontend nao tem vinte
+    // vagas novas por palavra-chave em 72 horas, e a pagina incompleta ja
+    // encerra a busca sozinha.
+    { keywords, location: 'Bahia, Brazil', remoteOnly: false, maxCards: 20 },
     { keywords, location: 'Brazil', remoteOnly: true },
   ],
 );
@@ -94,14 +120,28 @@ export class LinkedinGuestScraperProvider extends BaseScraperProvider {
     @Optional() private readonly searches: readonly LinkedinSearch[] = LINKEDIN_DEFAULT_SEARCHES,
     @Optional() private readonly wait: (ms: number) => Promise<void> = sleep,
     @Optional() private readonly maxDetails: number = LINKEDIN_MAX_DETAILS_PER_CYCLE,
+    @Optional() private readonly maxCards: number = LINKEDIN_MAX_CARDS_PER_SEARCH,
   ) {
     super();
   }
 
+  /**
+   * Um unico ritmo para o ciclo inteiro: paginas e detalhes saem em sequencia.
+   *
+   * Antes as buscas iam em paralelo com `Promise.all`, o que era uma rajada de
+   * oito requisicoes simultaneas. Com a paginacao isso viraria rajada de
+   * dezenas, exatamente o que atrai o 429 — e o IP e compartilhado com outro
+   * projeto na mesma VPS.
+   */
   protected async collect(): Promise<RawJobProps[]> {
-    const pages = await Promise.all(this.searches.map((search) => this.fetchSearch(search)));
+    const pace = createPacer(this.wait, LINKEDIN_REQUEST_DELAY_IN_MS);
+    const found: RawJobProps[] = [];
 
-    return this.withDescriptions(dedupeByUrl(pages.flat()));
+    for (const search of this.searches) {
+      found.push(...(await this.fetchSearch(search, pace)));
+    }
+
+    return this.withDescriptions(dedupeByUrl(found), pace);
   }
 
   /**
@@ -109,10 +149,13 @@ export class LinkedinGuestScraperProvider extends BaseScraperProvider {
    * citado no corpo do anuncio. Cada vaga e buscada UMA vez na vida: o que ja
    * esta no banco volta do cache, o resto vai a rede em fila, com espera.
    */
-  private async withDescriptions(jobs: readonly RawJobProps[]): Promise<RawJobProps[]> {
+  private async withDescriptions(
+    jobs: readonly RawJobProps[],
+    pace: Pace,
+  ): Promise<RawJobProps[]> {
     const cached = await this.descriptions.findDescriptionsByUrl(jobs.map((job) => job.url));
     const pending = jobs.filter((job) => !cached.has(job.url)).slice(0, this.maxDetails);
-    const fetched = await this.fetchDescriptions(pending);
+    const fetched = await this.fetchDescriptions(pending, pace);
 
     return jobs.map((job) => ({
       ...job,
@@ -120,13 +163,14 @@ export class LinkedinGuestScraperProvider extends BaseScraperProvider {
     }));
   }
 
-  private async fetchDescriptions(jobs: readonly RawJobProps[]): Promise<Map<string, string>> {
+  private async fetchDescriptions(
+    jobs: readonly RawJobProps[],
+    pace: Pace,
+  ): Promise<Map<string, string>> {
     const descriptions = new Map<string, string>();
 
-    for (const [index, job] of jobs.entries()) {
-      if (index > 0) {
-        await this.wait(LINKEDIN_DETAIL_DELAY_IN_MS);
-      }
+    for (const job of jobs) {
+      await pace();
 
       const description = await this.fetchDescription(job.url);
 
@@ -163,8 +207,35 @@ export class LinkedinGuestScraperProvider extends BaseScraperProvider {
     }
   }
 
-  private async fetchSearch(search: LinkedinSearch): Promise<RawJobProps[]> {
-    const { body } = await this.http.get<string>(buildSearchUrl(search), {
+  /**
+   * Percorre as paginas de uma busca ate a fonte dizer que acabou.
+   *
+   * A rota guest nao informa o total de resultados, entao o sinal de fim e a
+   * pagina incompleta: menos de dez cards significa que nao ha a seguinte. O
+   * teto existe para o caso oposto — uma busca ampla que devolveria pagina
+   * cheia indefinidamente.
+   */
+  private async fetchSearch(search: LinkedinSearch, pace: Pace): Promise<RawJobProps[]> {
+    const limit = search.maxCards ?? this.maxCards;
+    const jobs: RawJobProps[] = [];
+
+    for (let start = 0; start < limit; start += LINKEDIN_PAGE_SIZE) {
+      const page = await this.fetchPage(search, start, pace);
+
+      jobs.push(...page.jobs);
+
+      if (page.cards < LINKEDIN_PAGE_SIZE) {
+        break;
+      }
+    }
+
+    return jobs;
+  }
+
+  private async fetchPage(search: LinkedinSearch, start: number, pace: Pace): Promise<SearchPage> {
+    await pace();
+
+    const { body } = await this.http.get<string>(buildSearchUrl(search, start), {
       headers: {
         Accept: 'text/html',
         'Accept-Language': 'pt-BR,pt;q=0.9',
@@ -174,12 +245,19 @@ export class LinkedinGuestScraperProvider extends BaseScraperProvider {
     return this.parseCards(body);
   }
 
-  private parseCards(html: string): RawJobProps[] {
+  /**
+   * Devolve tambem quantos cards a pagina trazia, e nao so as vagas validas: e
+   * a contagem crua que diz se a pagina estava cheia. Card descartado por falta
+   * de titulo ou de data continua ocupando lugar na pagina da fonte.
+   */
+  private parseCards(html: string): SearchPage {
     const $ = cheerio.load(html);
+    const cards = $('div.base-card').toArray();
 
-    return $('div.base-card')
-      .toArray()
-      .flatMap((element) => this.toRawJob($(element)));
+    return {
+      cards: cards.length,
+      jobs: cards.flatMap((element) => this.toRawJob($(element))),
+    };
   }
 
   private toRawJob(card: HtmlNodes): RawJobProps[] {
@@ -210,12 +288,20 @@ export class LinkedinGuestScraperProvider extends BaseScraperProvider {
   }
 }
 
-function buildSearchUrl(search: LinkedinSearch): string {
+type Pace = () => Promise<void>;
+
+interface SearchPage {
+  /** Cards que a pagina trazia, validos ou nao: e o sinal de pagina cheia. */
+  readonly cards: number;
+  readonly jobs: readonly RawJobProps[];
+}
+
+function buildSearchUrl(search: LinkedinSearch, start: number): string {
   const params = new URLSearchParams({
     keywords: search.keywords,
     location: search.location,
     f_TPR: LINKEDIN_LAST_72H_FILTER,
-    start: '0',
+    start: String(start),
   });
 
   if (search.remoteOnly) {

@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 
-import { HTTP_CLIENT } from '@/domain/providers/http-client';
+import { HTTP_CLIENT, type IHttpClient } from '@/domain/providers/http-client';
 import {
   JOB_SCRAPERS,
   type IJobScraperProvider,
@@ -19,6 +19,7 @@ import { JOB_DESCRIPTION_READER } from '@/domain/repositories/job-description-re
 import { JOB_QUERY_REPOSITORY } from '@/domain/repositories/job-query-repository';
 import { JOB_WRITE_REPOSITORY } from '@/domain/repositories/job-write-repository';
 import { AxiosHttpClient } from '@/infra/http/axios-http-client';
+import { RetryingHttpClient } from '@/infra/http/retrying-http-client';
 import { TelegramHttpNotifier } from '@/infra/notifications/telegram-http-notifier';
 import { PrismaCaptureLogRepository } from '@/infra/prisma/prisma-capture-log-repository';
 import { PrismaJobDescriptionRepository } from '@/infra/prisma/prisma-job-description-repository';
@@ -82,7 +83,14 @@ const SCRAPERS = [
     PrismaMarketInsightsRepository,
     PrismaWeeklyDigestRepository,
     PrismaSourceHealthRepository,
-    { provide: HTTP_CLIENT, useClass: AxiosHttpClient },
+    AxiosHttpClient,
+    // Todo coletor recebe o cliente ja embrulhado no retry: 429 e timeout sao
+    // repetidos com espera exponencial sem que nenhum deles saiba disso.
+    {
+      provide: HTTP_CLIENT,
+      useFactory: (axios: AxiosHttpClient): IHttpClient => new RetryingHttpClient(axios),
+      inject: [AxiosHttpClient],
+    },
     { provide: TELEGRAM_NOTIFIER, useClass: TelegramHttpNotifier },
     ...SCRAPERS,
     {

@@ -119,6 +119,30 @@ export function dedupeByUrl<TItem extends { readonly url: string }>(
   });
 }
 
+/**
+ * Ritmo de uma fila de requisicoes: espera antes de cada uma, menos a primeira.
+ *
+ * O estado vive na closure, e nao no coletor, que e singleton — um ciclo nunca
+ * herda a contagem do anterior. Quem cria um pacer por ciclo tem a garantia de
+ * que a primeira chamada sai na hora e as seguintes respeitam o intervalo.
+ */
+export function createPacer(
+  wait: (ms: number) => Promise<void>,
+  delayInMs: number,
+): () => Promise<void> {
+  let first = true;
+
+  return async () => {
+    if (first) {
+      first = false;
+
+      return;
+    }
+
+    await wait(delayInMs);
+  };
+}
+
 export function uniqueStrings(values: readonly string[]): string[] {
   const seen = new Set<string>();
 

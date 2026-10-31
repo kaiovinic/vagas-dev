@@ -7,6 +7,7 @@ import { normalizeForMatching } from '@/domain/value-objects/text-normalizer';
 import { BaseScraperProvider } from '@/infra/scrapers/support/base-scraper-provider';
 import {
   collapseSpaces,
+  createPacer,
   dedupeByUrl,
   htmlToText,
   parseDate,
@@ -172,7 +173,7 @@ export class InhireScraperProvider extends BaseScraperProvider {
   }
 
   protected async collect(): Promise<RawJobProps[]> {
-    const pace = this.pacer();
+    const pace = createPacer(this.wait, INHIRE_REQUEST_DELAY_IN_MS);
     const candidates: InhireCandidate[] = [];
 
     for (const tenant of this.tenants) {
@@ -258,25 +259,6 @@ export class InhireScraperProvider extends BaseScraperProvider {
         workModel,
       },
     ];
-  }
-
-  /**
-   * Espera antes de cada requisicao, menos a primeira do ciclo. O estado vive na
-   * closure e nao no provider, que e singleton: um ciclo nunca herda a contagem
-   * do anterior.
-   */
-  private pacer(): Pace {
-    let first = true;
-
-    return async () => {
-      if (first) {
-        first = false;
-
-        return;
-      }
-
-      await this.wait(INHIRE_REQUEST_DELAY_IN_MS);
-    };
   }
 }
 
