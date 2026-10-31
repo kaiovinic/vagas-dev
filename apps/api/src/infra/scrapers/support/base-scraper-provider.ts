@@ -19,6 +19,14 @@ export abstract class BaseScraperProvider implements IJobScraperProvider {
     this.logger = new Logger(this.constructor.name);
   }
 
+  /**
+   * Toda fonte e varrida a cada captura. Quem tem cadencia propria — hoje so o
+   * coletor de publicacoes, que gasta cota — sobrescreve este metodo.
+   */
+  async isDue(_reference: Date): Promise<boolean> {
+    return true;
+  }
+
   async scrape(): Promise<RawJobProps[]> {
     try {
       return await this.collect();

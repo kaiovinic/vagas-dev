@@ -2,6 +2,10 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 
 import type { RawJobProps } from '@/domain/dtos/raw-job-props';
 import { HTTP_CLIENT, type IHttpClient } from '@/domain/providers/http-client';
+import {
+  SOURCE_LAST_RUN_READER,
+  type ISourceLastRunReader,
+} from '@/domain/repositories/source-health-repository';
 import { SOCIAL_POSTS_INTERVAL_IN_HOURS } from '@/domain/services/source-cadence';
 import { BaseScraperProvider } from '@/infra/scrapers/support/base-scraper-provider';
 import {
@@ -79,6 +83,8 @@ export const LINKEDIN_POSTS_QUERIES_PER_RUN = LINKEDIN_POSTS_SEARCHES.reduce(
 
 export const SERPER_ENDPOINT = 'https://google.serper.dev/search';
 
+const MILLISECONDS_IN_HOUR = 60 * 60 * 1000;
+
 export interface SerpConfig {
   /** Endpoint do buscador; o padrao e o Serper. */
   readonly endpoint: string;
@@ -117,11 +123,9 @@ export class LinkedinPostsScraperProvider extends BaseScraperProvider {
   readonly source = 'linkedin-posts';
   readonly label = 'Publicacoes do LinkedIn';
 
-  /** Ultima execucao de verdade, para respeitar o intervalo minimo. */
-  private lastRunAt: Date | undefined;
-
   constructor(
     @Inject(HTTP_CLIENT) private readonly http: IHttpClient,
+    @Inject(SOURCE_LAST_RUN_READER) private readonly lastRun: ISourceLastRunReader,
     @Optional() private readonly config: SerpConfig = readConfigFromEnv(),
     @Optional()
     private readonly searches: readonly LinkedinPostsSearch[] = LINKEDIN_POSTS_SEARCHES,
@@ -132,6 +136,31 @@ export class LinkedinPostsScraperProvider extends BaseScraperProvider {
     super();
   }
 
+  /**
+   * O intervalo e medido contra o banco, nao contra um campo em memoria.
+   *
+   * Com o estado na memoria, todo restart da API zerava a contagem e a
+   * primeira captura seguinte gastava credito por mais recente que tivesse
+   * sido a busca anterior — em desenvolvimento, varias vezes por dia. O
+   * `capture_source_logs` ja guarda o instante de cada execucao real, e e
+   * dele que a decisao sai agora.
+   */
+  override async isDue(reference: Date = this.now()): Promise<boolean> {
+    if (!this.isConfigured()) {
+      return false;
+    }
+
+    const lastRunAt = await this.lastRun.getLastRunAt(this.source);
+
+    if (lastRunAt === null) {
+      return true;
+    }
+
+    const elapsedHours = (reference.getTime() - lastRunAt.getTime()) / MILLISECONDS_IN_HOUR;
+
+    return elapsedHours >= this.minIntervalHours;
+  }
+
   protected async collect(): Promise<RawJobProps[]> {
     if (!this.isConfigured()) {
       this.logger.debug('Busca nao configurada: coletor de publicacoes ignorado');
@@ -139,16 +168,14 @@ export class LinkedinPostsScraperProvider extends BaseScraperProvider {
       return [];
     }
 
-    // O coletor roda dentro da captura de 2h, mas cada execucao gasta credito
-    // do buscador. Fora do intervalo, ele se recusa em silencio — e por isso
-    // que a captura continua a cada 2h sem queimar a cota.
-    if (!this.isDue()) {
+    // Segunda barreira: o orquestrador ja pergunta `isDue` antes de chamar,
+    // mas uma chamada direta ao coletor nao passaria por la — e cada execucao
+    // gasta credito de verdade.
+    if (!(await this.isDue())) {
       this.logger.debug('Dentro do intervalo minimo: busca de publicacoes adiada');
 
       return [];
     }
-
-    this.lastRunAt = this.now();
 
     const requests = this.searches.flatMap((search) =>
       Array.from({ length: search.pages }, (_unused, index) =>
@@ -215,16 +242,6 @@ export class LinkedinPostsScraperProvider extends BaseScraperProvider {
         recruiterName: authorDisplayName(post.author),
       },
     ];
-  }
-
-  private isDue(): boolean {
-    if (!this.lastRunAt) {
-      return true;
-    }
-
-    const elapsedHours = (this.now().getTime() - this.lastRunAt.getTime()) / 3_600_000;
-
-    return elapsedHours >= this.minIntervalHours;
   }
 
   private isConfigured(): boolean {

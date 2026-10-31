@@ -83,6 +83,7 @@ describe('RunJobCollectionUseCase', () => {
         source: 'fonte-fora-do-contrato',
         label: 'Fonte fora do contrato',
         calls: 0,
+        isDue: async () => true,
         scrape: async () => Promise.reject('falha crua'),
       } as unknown as StubScraperProvider;
 
@@ -93,6 +94,67 @@ describe('RunJobCollectionUseCase', () => {
       expect(report.status).toBe('PARTIAL');
       expect(report.failedSources).toEqual(['fonte-fora-do-contrato']);
       expect(jobs.saved).toHaveLength(1);
+    });
+
+    it('nao visita a fonte que ainda nao chegou a vez', async () => {
+      const adiada = new StubScraperProvider('linkedin-posts', [rawJob()]);
+      adiada.due = false;
+
+      const report = await buildUseCase([
+        adiada,
+        new StubScraperProvider('gupy', [rawJob()]),
+      ]).execute(FIXED_NOW);
+
+      expect(adiada.calls).toBe(0);
+      expect(report.status).toBe('SUCCESS');
+      expect(report.failedSources).toEqual([]);
+    });
+
+    // Uma fonte adiada nao foi visitada: conta-la como execucao faria o
+    // proprio registro ser lido como "rodou agora", e a vez dela nunca viria.
+    it('nao registra execucao para a fonte adiada', async () => {
+      const adiada = new StubScraperProvider('linkedin-posts', [rawJob()]);
+      adiada.due = false;
+
+      await buildUseCase([adiada, new StubScraperProvider('gupy', [rawJob()])]).execute(FIXED_NOW);
+
+      expect(sourceHealth.recorded.map((entry) => entry.source)).toEqual(['gupy']);
+    });
+
+    it('pergunta a cada fonte, com a referencia da captura', async () => {
+      const gupy = new StubScraperProvider('gupy', [rawJob()]);
+
+      await buildUseCase([gupy]).execute(FIXED_NOW);
+
+      expect(gupy.dueCalls).toBe(1);
+    });
+
+    it('adia a fonte que nao consegue dizer se esta na hora', async () => {
+      const muda = new StubScraperProvider('linkedin-posts', [rawJob()]);
+      muda.due = new Error('banco fora do ar');
+
+      const report = await buildUseCase([
+        muda,
+        new StubScraperProvider('gupy', [rawJob()]),
+      ]).execute(FIXED_NOW);
+
+      // Adiar custa um ciclo; insistir custaria cota de API.
+      expect(muda.calls).toBe(0);
+      expect(report.status).toBe('SUCCESS');
+    });
+
+    it('marca FAILED quando a unica fonte da vez falha', async () => {
+      const adiada = new StubScraperProvider('linkedin-posts', [rawJob()]);
+      adiada.due = false;
+
+      const report = await buildUseCase([
+        adiada,
+        new StubScraperProvider('gupy', new Error('timeout')),
+      ]).execute(FIXED_NOW);
+
+      // Seis coletores adiados e saudaveis nao salvam o ciclo: quem foi
+      // visitado nesta captura caiu por inteiro.
+      expect(report.status).toBe('FAILED');
     });
 
     it('conclui com SUCCESS quando nenhuma fonte falha', async () => {

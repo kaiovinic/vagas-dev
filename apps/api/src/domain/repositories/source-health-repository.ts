@@ -1,5 +1,6 @@
 export const SOURCE_HEALTH_WRITER = Symbol.for('SOURCE_HEALTH_WRITER');
 export const SOURCE_HEALTH_REPOSITORY = Symbol.for('SOURCE_HEALTH_REPOSITORY');
+export const SOURCE_LAST_RUN_READER = Symbol.for('SOURCE_LAST_RUN_READER');
 
 /** O que uma fonte produziu numa captura. */
 export interface SourceRunRecord {
@@ -32,4 +33,15 @@ export interface ISourceHealthWriter {
  */
 export interface ISourceHealthRepository {
   summarize(reference: Date, windowInHours: number): Promise<SourceHealth[]>;
+}
+
+/**
+ * Leitura minima (ISP): quando a fonte rodou pela ultima vez.
+ *
+ * Interface propria, e nao mais um metodo em `ISourceHealthRepository`, porque
+ * quem usa isto e um coletor decidindo se ja pode gastar cota — ele nao tem o
+ * que fazer com o resto do resumo da saude.
+ */
+export interface ISourceLastRunReader {
+  getLastRunAt(source: string): Promise<Date | null>;
 }

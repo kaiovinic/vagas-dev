@@ -47,6 +47,8 @@ interface CollectedJobs {
   readonly raw: RawJobProps[];
   readonly failedSources: string[];
   readonly outcomes: SourceOutcome[];
+  /** Fontes efetivamente visitadas neste ciclo — as adiadas nao contam. */
+  readonly attempted: number;
 }
 
 /**
@@ -77,7 +79,7 @@ export class RunJobCollectionUseCase {
     const nextRunAt = this.schedule.nextRunAt(reference);
     const captureId = await this.captureLogs.start({ startedAt: reference, nextRunAt });
 
-    const { raw, failedSources, outcomes } = await this.collectFromSources();
+    const { raw, failedSources, outcomes, attempted } = await this.collectFromSources(reference);
 
     // Registrado antes do filtro: a tabela de saude pergunta se a fonte
     // RESPONDEU, nao se o que ela trouxe foi aprovado.
@@ -91,14 +93,14 @@ export class RunJobCollectionUseCase {
     const outcome: FinishCaptureInput = {
       captureId,
       finishedAt: new Date(),
-      status: this.resolveStatus(failedSources.length),
+      status: this.resolveStatus(failedSources.length, attempted),
       totalFound: raw.length,
       totalApproved: approved.length,
       totalRejected: raw.length - approved.length,
       totalDuplicated: approved.length - fresh.length,
       totalPersisted: created,
       failedSources,
-      ...this.describeFailure(failedSources),
+      ...this.describeFailure(failedSources, attempted),
     };
 
     await this.captureLogs.finish(outcome);
@@ -110,10 +112,16 @@ export class RunJobCollectionUseCase {
    * `Promise.allSettled` garante que a falha de um site nao interrompa os demais.
    * Cada promessa carrega a sua fonte, por isso as que falharam sao justamente as
    * fontes sem resultado bem-sucedido — sem depender de indices paralelos.
+   *
+   * Fontes adiadas ficam de fora inteiras: nao sao visitadas, nao entram na
+   * saude da coleta e nao contam para o status da captura. Uma fonte que
+   * ninguem visitou nao esta falhando nem parada — ela so nao chegou a vez.
    */
-  private async collectFromSources(): Promise<CollectedJobs> {
+  private async collectFromSources(reference: Date): Promise<CollectedJobs> {
+    const due = await this.selectDueSources(reference);
+
     const settled = await Promise.allSettled(
-      this.scrapers.map(async (scraper) => ({
+      due.map(async (scraper) => ({
         source: scraper.source,
         jobs: await scraper.scrape(),
       })),
@@ -133,7 +141,7 @@ export class RunJobCollectionUseCase {
       raw.push(...result.value.jobs);
     }
 
-    const outcomes = this.scrapers.map((scraper) => ({
+    const outcomes = due.map((scraper) => ({
       source: scraper.source,
       totalFound: found.get(scraper.source) ?? 0,
       failed: !found.has(scraper.source),
@@ -143,7 +151,34 @@ export class RunJobCollectionUseCase {
       raw,
       failedSources: outcomes.filter((o) => o.failed).map((o) => o.source),
       outcomes,
+      attempted: due.length,
     };
+  }
+
+  /**
+   * Uma fonte que se recusa a responder se esta na hora e tratada como adiada:
+   * perguntar custa nada e errar para menos so adia a coleta ate o proximo
+   * ciclo, enquanto errar para mais gastaria cota de API.
+   */
+  private async selectDueSources(reference: Date): Promise<IJobScraperProvider[]> {
+    // `async` de proposito: assim ate um coletor que estoure de forma sincrona
+    // — ou que nem tenha o metodo — vira promessa rejeitada em vez de derrubar
+    // a captura inteira antes de comecar.
+    const answers = await Promise.allSettled(
+      this.scrapers.map(async (scraper) => scraper.isDue(reference)),
+    );
+
+    return this.scrapers.filter((scraper, index) => {
+      const answer = answers[index];
+
+      if (answer?.status !== 'fulfilled') {
+        this.logger.warn(`Fonte ${scraper.source} nao disse se esta na hora: adiada`);
+
+        return false;
+      }
+
+      return answer.value;
+    });
   }
 
   /** Converte para entidade e mantem apenas o que passa pelo motor de regras. */
@@ -230,16 +265,24 @@ export class RunJobCollectionUseCase {
     }
   }
 
-  private resolveStatus(failedCount: number): CaptureStatus {
+  /**
+   * `FAILED` compara com as fontes VISITADAS, nao com o registro inteiro: num
+   * ciclo em que so uma fonte estava na hora e ela caiu, a captura falhou por
+   * completo, ainda que seis coletores adiados sigam saudaveis.
+   */
+  private resolveStatus(failedCount: number, attempted: number): CaptureStatus {
     if (failedCount === 0) {
       return 'SUCCESS';
     }
 
-    return failedCount === this.scrapers.length ? 'FAILED' : 'PARTIAL';
+    return failedCount === attempted ? 'FAILED' : 'PARTIAL';
   }
 
-  private describeFailure(failedSources: readonly string[]): { errorMessage?: string } {
-    if (failedSources.length === 0 || failedSources.length < this.scrapers.length) {
+  private describeFailure(
+    failedSources: readonly string[],
+    attempted: number,
+  ): { errorMessage?: string } {
+    if (failedSources.length === 0 || failedSources.length < attempted) {
       return {};
     }
 

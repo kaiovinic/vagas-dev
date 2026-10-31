@@ -4,6 +4,7 @@ import type { IJobScraperProvider } from '@/domain/providers/job-scraper-provide
 import type {
   ISourceHealthRepository,
   ISourceHealthWriter,
+  ISourceLastRunReader,
   SourceHealth,
   SourceRunRecord,
 } from '@/domain/repositories/source-health-repository';
@@ -68,12 +69,25 @@ export class FakeCaptureSchedule implements ICaptureSchedule {
 
 export class StubScraperProvider implements IJobScraperProvider {
   calls = 0;
+  /** `false` simula a fonte que ainda nao chegou a vez; `Error`, a que nem responde. */
+  due: boolean | Error = true;
+  dueCalls = 0;
 
   constructor(
     readonly source: string,
     private readonly result: RawJobProps[] | Error,
     readonly label: string = source,
   ) {}
+
+  async isDue(_reference: Date): Promise<boolean> {
+    this.dueCalls += 1;
+
+    if (this.due instanceof Error) {
+      throw this.due;
+    }
+
+    return this.due;
+  }
 
   async scrape(): Promise<RawJobProps[]> {
     this.calls += 1;
@@ -155,6 +169,18 @@ export class StubSourceHealthRepository implements ISourceHealthRepository {
     this.lastQuery = { reference, windowInHours };
 
     return this.health;
+  }
+}
+
+export class StubSourceLastRunReader implements ISourceLastRunReader {
+  /** `null` = a fonte nunca rodou. */
+  lastRunAt: Date | null = null;
+  readonly asked: string[] = [];
+
+  async getLastRunAt(source: string): Promise<Date | null> {
+    this.asked.push(source);
+
+    return this.lastRunAt;
   }
 }
 

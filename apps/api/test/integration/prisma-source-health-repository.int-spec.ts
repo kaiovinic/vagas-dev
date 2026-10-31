@@ -146,6 +146,31 @@ describe('PrismaSourceHealthRepository (integracao)', () => {
     ]);
   });
 
+  describe('getLastRunAt', () => {
+    it('devolve o instante da execucao mais recente', async () => {
+      await seed([
+        { source: 'linkedin-posts', ranAt: hoursBefore(9), totalFound: 5 },
+        { source: 'linkedin-posts', ranAt: hoursBefore(1), totalFound: 3 },
+        { source: 'gupy', ranAt: REFERENCE, totalFound: 59 },
+      ]);
+
+      expect(await repository.getLastRunAt('linkedin-posts')).toEqual(hoursBefore(1));
+    });
+
+    it('devolve null para a fonte que nunca rodou', async () => {
+      expect(await repository.getLastRunAt('linkedin-posts')).toBeNull();
+    });
+
+    // E o que faz o intervalo sobreviver a restart: o estado esta no banco,
+    // nao na memoria do processo.
+    it('nao se confunde com a execucao de outra fonte', async () => {
+      await seed([{ source: 'gupy', ranAt: REFERENCE, totalFound: 59 }]);
+
+      expect(await repository.getLastRunAt('linkedin-posts')).toBeNull();
+      expect(await repository.getLastRunAt('gupy')).toEqual(REFERENCE);
+    });
+  });
+
   it('devolve vazio quando nenhum coletor rodou', async () => {
     expect(await repository.summarize(REFERENCE, WINDOW_IN_HOURS)).toEqual([]);
   });

@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import type {
   ISourceHealthRepository,
   ISourceHealthWriter,
+  ISourceLastRunReader,
   SourceHealth,
   SourceRunRecord,
 } from '@/domain/repositories/source-health-repository';
@@ -12,9 +13,25 @@ const MILLISECONDS_IN_HOUR = 60 * 60 * 1000;
 
 @Injectable()
 export class PrismaSourceHealthRepository
-  implements ISourceHealthWriter, ISourceHealthRepository
+  implements ISourceHealthWriter, ISourceHealthRepository, ISourceLastRunReader
 {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Quando a fonte rodou pela ultima vez — `null` se nunca rodou.
+   *
+   * So existe linha para ciclo em que a fonte foi de fato visitada, entao este
+   * instante e o da ultima execucao real, e sobrevive a restart e a deploy.
+   */
+  async getLastRunAt(source: string): Promise<Date | null> {
+    const last = await this.prisma.captureSourceLog.findFirst({
+      where: { source },
+      orderBy: { ranAt: 'desc' },
+      select: { ranAt: true },
+    });
+
+    return last?.ranAt ?? null;
+  }
 
   async record(entries: readonly SourceRunRecord[]): Promise<void> {
     if (entries.length === 0) {

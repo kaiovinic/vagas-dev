@@ -14,6 +14,7 @@ import {
   failingHttpClient,
   readJsonFixture,
 } from '../../../test/factories/fake-http-client';
+import { StubSourceLastRunReader } from '../../../test/factories/doubles';
 
 const FIXTURE = readJsonFixture<unknown>('serp-linkedin-posts.json');
 
@@ -24,11 +25,13 @@ const UMA_BUSCA = [{ label: 'teste', query: 'site:linkedin.com/posts vaga', page
 
 describe('LinkedinPostsScraperProvider', () => {
   let http: FakeHttpClient;
+  let lastRun: StubSourceLastRunReader;
   let provider: LinkedinPostsScraperProvider;
 
   beforeEach(() => {
     http = new FakeHttpClient(() => FIXTURE);
-    provider = new LinkedinPostsScraperProvider(http, CONFIG, UMA_BUSCA);
+    lastRun = new StubSourceLastRunReader();
+    provider = new LinkedinPostsScraperProvider(http, lastRun, CONFIG, UMA_BUSCA);
   });
 
   it('identifica a fonte', () => {
@@ -71,7 +74,7 @@ describe('LinkedinPostsScraperProvider', () => {
         { label: 'b', query: 'consulta-b', pages: 1 },
       ];
 
-      await new LinkedinPostsScraperProvider(http, CONFIG, duas).scrape();
+      await new LinkedinPostsScraperProvider(http, lastRun, CONFIG, duas).scrape();
 
       expect(http.requests.map((r) => (r.body as { q: string; page: number }))).toEqual([
         expect.objectContaining({ q: 'consulta-a', page: 1 }),
@@ -111,7 +114,7 @@ describe('LinkedinPostsScraperProvider', () => {
     });
 
     it('vira no-op silencioso sem configuracao', async () => {
-      const semChave = new LinkedinPostsScraperProvider(http, {
+      const semChave = new LinkedinPostsScraperProvider(http, lastRun, {
         endpoint: SERPER_ENDPOINT,
         apiKey: '',
       });
@@ -127,7 +130,7 @@ describe('LinkedinPostsScraperProvider', () => {
       process.env.SERP_API_KEY = 'do-ambiente';
 
       try {
-        await new LinkedinPostsScraperProvider(http).scrape();
+        await new LinkedinPostsScraperProvider(http, lastRun).scrape();
 
         expect(http.requestedUrls[0]).toBe(SERPER_ENDPOINT);
         expect(http.requests[0]?.options?.headers?.['X-API-KEY']).toBe('do-ambiente');
@@ -144,7 +147,7 @@ describe('LinkedinPostsScraperProvider', () => {
       process.env.SERP_API_KEY = 'do-ambiente';
 
       try {
-        await new LinkedinPostsScraperProvider(http).scrape();
+        await new LinkedinPostsScraperProvider(http, lastRun).scrape();
 
         expect(http.requestedUrls[0]).toBe('https://exemplo.test/search');
       } finally {
@@ -155,72 +158,93 @@ describe('LinkedinPostsScraperProvider', () => {
   });
 
   describe('intervalo entre execucoes', () => {
-    /** Relogio controlado: o intervalo e medido em horas. */
-    function comRelogio(inicio: Date): { provider: LinkedinPostsScraperProvider; avancar: (horas: number) => void } {
-      let agora = inicio;
+    const AGORA = new Date('2026-10-31T13:00:00.000Z');
 
-      const provider = new LinkedinPostsScraperProvider(
+    /** Relogio fixo: o intervalo e medido contra o que o banco registrou. */
+    function comIntervalo(): LinkedinPostsScraperProvider {
+      return new LinkedinPostsScraperProvider(
         http,
+        lastRun,
         CONFIG,
         UMA_BUSCA,
-        () => agora,
+        () => AGORA,
         4,
       );
+    }
 
-      return {
-        provider,
-        avancar: (horas) => {
-          agora = new Date(agora.getTime() + horas * 3_600_000);
-        },
-      };
+    function horasAtras(horas: number): Date {
+      return new Date(AGORA.getTime() - horas * 3_600_000);
     }
 
     it('espaca as buscas em 4 horas, para a cota durar', () => {
       expect(LINKEDIN_POSTS_MIN_INTERVAL_HOURS).toBe(4);
     });
 
-    it('busca na primeira execucao', async () => {
-      const { provider } = comRelogio(new Date('2026-10-31T09:00:00.000Z'));
+    it('esta na hora quando a fonte nunca rodou', async () => {
+      lastRun.lastRunAt = null;
 
-      await provider.scrape();
+      await expect(comIntervalo().isDue(AGORA)).resolves.toBe(true);
+    });
+
+    it('pergunta pela propria fonte', async () => {
+      await comIntervalo().isDue(AGORA);
+
+      expect(lastRun.asked).toEqual(['linkedin-posts']);
+    });
+
+    // A captura geral roda a cada 2h; esta e a execucao que deve ser pulada.
+    it('nao esta na hora dentro do intervalo', async () => {
+      lastRun.lastRunAt = horasAtras(2);
+
+      await expect(comIntervalo().isDue(AGORA)).resolves.toBe(false);
+    });
+
+    it('esta na hora quando o intervalo fecha exatamente', async () => {
+      lastRun.lastRunAt = horasAtras(4);
+
+      await expect(comIntervalo().isDue(AGORA)).resolves.toBe(true);
+    });
+
+    it('esta na hora depois do intervalo', async () => {
+      lastRun.lastRunAt = horasAtras(13);
+
+      await expect(comIntervalo().isDue(AGORA)).resolves.toBe(true);
+    });
+
+    /**
+     * O ponto da mudanca: antes o intervalo vivia num campo em memoria, e todo
+     * restart da API o zerava — a primeira captura seguinte gastava credito por
+     * mais recente que tivesse sido a busca anterior.
+     */
+    it('respeita o intervalo mesmo em uma instancia recem-criada', async () => {
+      lastRun.lastRunAt = horasAtras(1);
+
+      const recemSubido = comIntervalo();
+
+      await expect(recemSubido.isDue(AGORA)).resolves.toBe(false);
+      await expect(recemSubido.scrape()).resolves.toEqual([]);
+      expect(http.requestedUrls).toEqual([]);
+    });
+
+    it('busca quando chamado direto e esta na hora', async () => {
+      lastRun.lastRunAt = horasAtras(5);
+
+      await comIntervalo().scrape();
 
       expect(http.requestedUrls).toHaveLength(1);
     });
 
-    it('nao busca de novo dentro do intervalo', async () => {
-      const { provider, avancar } = comRelogio(new Date('2026-10-31T09:00:00.000Z'));
-
-      await provider.scrape();
-      avancar(2);
-      const jobs = await provider.scrape();
-
-      // A captura geral roda a cada 2h; esta e a execucao que deve ser pulada.
-      expect(http.requestedUrls).toHaveLength(1);
-      expect(jobs).toEqual([]);
-    });
-
-    it('volta a buscar depois do intervalo', async () => {
-      const { provider, avancar } = comRelogio(new Date('2026-10-31T09:00:00.000Z'));
-
-      await provider.scrape();
-      avancar(4);
-      await provider.scrape();
-
-      expect(http.requestedUrls).toHaveLength(2);
-    });
-
-    it('o intervalo so comeca a contar apos uma busca de verdade', async () => {
+    it('nunca esta na hora sem chave configurada', async () => {
       const semChave = new LinkedinPostsScraperProvider(
         http,
+        lastRun,
         { endpoint: SERPER_ENDPOINT, apiKey: '' },
         UMA_BUSCA,
       );
 
-      await semChave.scrape();
-      await semChave.scrape();
-
-      // Sem chave nao houve busca, entao nao ha intervalo a respeitar.
-      expect(http.requestedUrls).toEqual([]);
+      // Sem chave nao ha busca a fazer, e perguntar ao banco seria em vao.
+      await expect(semChave.isDue(AGORA)).resolves.toBe(false);
+      expect(lastRun.asked).toEqual([]);
     });
 
     it('gasta tres creditos por execucao', () => {
@@ -270,6 +294,7 @@ describe('LinkedinPostsScraperProvider', () => {
 
       const posts = await new LinkedinPostsScraperProvider(
         new FakeHttpClient(() => semSnippet),
+        lastRun,
         CONFIG,
         UMA_BUSCA,
       ).scrape();
@@ -289,6 +314,7 @@ describe('LinkedinPostsScraperProvider', () => {
 
       const posts = await new LinkedinPostsScraperProvider(
         new FakeHttpClient(() => longo),
+        lastRun,
         CONFIG,
         UMA_BUSCA,
       ).scrape();
@@ -336,6 +362,7 @@ describe('LinkedinPostsScraperProvider', () => {
 
       const posts = await new LinkedinPostsScraperProvider(
         new FakeHttpClient(() => repetido),
+        lastRun,
         CONFIG,
         UMA_BUSCA,
       ).scrape();
@@ -362,6 +389,7 @@ describe('LinkedinPostsScraperProvider', () => {
 
       const posts = await new LinkedinPostsScraperProvider(
         new FakeHttpClient(() => body),
+        lastRun,
         CONFIG,
         UMA_BUSCA,
       ).scrape();
@@ -382,6 +410,7 @@ describe('LinkedinPostsScraperProvider', () => {
 
       const posts = await new LinkedinPostsScraperProvider(
         new FakeHttpClient(() => body),
+        lastRun,
         CONFIG,
         UMA_BUSCA,
       ).scrape();
@@ -401,6 +430,7 @@ describe('LinkedinPostsScraperProvider', () => {
 
       const posts = await new LinkedinPostsScraperProvider(
         new FakeHttpClient(() => body),
+        lastRun,
         CONFIG,
         UMA_BUSCA,
       ).scrape();
@@ -416,13 +446,14 @@ describe('LinkedinPostsScraperProvider', () => {
       };
 
       await expect(
-        new LinkedinPostsScraperProvider(new FakeHttpClient(() => body), CONFIG, UMA_BUSCA).scrape(),
+        new LinkedinPostsScraperProvider(new FakeHttpClient(() => body), lastRun, CONFIG, UMA_BUSCA).scrape(),
       ).resolves.toEqual([]);
     });
 
     it('devolve lista vazia quando a resposta nao tem lista de resultados', async () => {
       const estranho = new LinkedinPostsScraperProvider(
         new FakeHttpClient(() => ({ erro: 'cota excedida' })),
+        lastRun,
         CONFIG,
         UMA_BUSCA,
       );
@@ -431,7 +462,7 @@ describe('LinkedinPostsScraperProvider', () => {
     });
 
     it('devolve lista vazia quando o buscador esta fora do ar', async () => {
-      const fora = new LinkedinPostsScraperProvider(failingHttpClient('429'), CONFIG, UMA_BUSCA);
+      const fora = new LinkedinPostsScraperProvider(failingHttpClient('429'), lastRun, CONFIG, UMA_BUSCA);
 
       await expect(fora.scrape()).resolves.toEqual([]);
     });

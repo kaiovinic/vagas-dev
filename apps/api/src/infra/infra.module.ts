@@ -13,6 +13,7 @@ import { WEEKLY_DIGEST_REPOSITORY } from '@/domain/repositories/weekly-digest-re
 import {
   SOURCE_HEALTH_REPOSITORY,
   SOURCE_HEALTH_WRITER,
+  SOURCE_LAST_RUN_READER,
 } from '@/domain/repositories/source-health-repository';
 import { JOB_QUERY_REPOSITORY } from '@/domain/repositories/job-query-repository';
 import { JOB_WRITE_REPOSITORY } from '@/domain/repositories/job-write-repository';
@@ -92,6 +93,7 @@ const SCRAPERS = [
     { provide: WEEKLY_DIGEST_REPOSITORY, useExisting: PrismaWeeklyDigestRepository },
     { provide: SOURCE_HEALTH_WRITER, useExisting: PrismaSourceHealthRepository },
     { provide: SOURCE_HEALTH_REPOSITORY, useExisting: PrismaSourceHealthRepository },
+    { provide: SOURCE_LAST_RUN_READER, useExisting: PrismaSourceHealthRepository },
   ],
   exports: [
     JOB_SCRAPERS,
@@ -103,6 +105,7 @@ const SCRAPERS = [
     WEEKLY_DIGEST_REPOSITORY,
     SOURCE_HEALTH_WRITER,
     SOURCE_HEALTH_REPOSITORY,
+    SOURCE_LAST_RUN_READER,
     TELEGRAM_NOTIFIER,
     PrismaService,
   ],

@@ -139,6 +139,16 @@ nextSourceRunAt('linkedin-posts', lastRunAt)
 
 O provider do LinkedIn deriva seu próprio `LINKEDIN_POSTS_MIN_INTERVAL_HOURS` dessa constante. Mudar a cadência de uma fonte é editar **um** arquivo, e a interface acompanha sozinha.
 
+#### Onde o intervalo é medido
+
+O intervalo diz *quanto* esperar; falta saber *desde quando*. Esse instante vem do banco, não da memória do processo.
+
+A primeira versão guardava o `lastRunAt` num campo do provider, e todo restart da API o zerava: a captura seguinte gastava os 3 créditos por mais recente que tivesse sido a busca anterior. Em desenvolvimento, com a API reiniciando a cada arquivo salvo, isso queimava cota o dia inteiro — e a conta de 4 meses e meio virava ficção.
+
+Hoje o orquestrador pergunta `isDue(reference)` a cada coletor **antes** de visitá-lo, e o de publicações responde comparando o relógio com o último `ranAt` em `capture_source_logs`.
+
+Perguntar antes não é detalhe de implementação: é o que torna a leitura possível. Se a fonte adiada ainda assim fosse registrada no ciclo, o próprio registro do adiamento seria lido como "rodou agora" e a vez dela não chegaria nunca. Fonte adiada não é visitada, não entra na saúde da coleta e não conta para o status da captura — não está falhando nem parada, só não chegou a hora.
+
 ### Alertas no Telegram
 
 Cada vaga inédita vira uma mensagem com cargo, empresa, modalidade, mercado, stack e link direto da candidatura:
@@ -258,6 +268,8 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 
 Sobe PostgreSQL com volume persistente, a API (que aplica as migrations no entrypoint antes de servir), o Nginx com os estáticos e o Caddy como proxy reverso, **com certificado TLS emitido e renovado automaticamente**. Só o proxy publica porta; o banco fica em rede sem saída para a internet.
 
+Para subir numa VPS do zero — Docker, DNS, firewall, TLS e backup — o passo a passo está em [`docs/deploy-vps.md`](docs/deploy-vps.md).
+
 ---
 
 ## Comandos úteis
@@ -286,13 +298,13 @@ Sobe PostgreSQL com volume persistente, a API (que aplica as migrations no entry
 
 ## Qualidade
 
-**1.146 testes** unitários e de E2E — 863 na API e 283 no frontend — mais **57 de integração** contra um PostgreSQL real, somando 1.203. Tudo roda em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração, build dos workspaces e build das duas imagens Docker.
+**1.155 testes** unitários e de E2E — 872 na API e 283 no frontend — mais **60 de integração** contra um PostgreSQL real, somando 1.215. Tudo roda em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração, build dos workspaces e build das duas imagens Docker.
 
 | Camada | Cobertura | Limite no CI |
 |---|---|---|
 | `domain/` | 100% | 100% — obrigatório |
 | `application/` | 100% | 100% — obrigatório |
-| API, total | 97,2% | 95% |
+| API, total | 96,8% | 95% |
 | Frontend | 99,4% | 85% |
 
 O limite não é enfeite: `npm run test:cov` falha abaixo dele, e é esse comando que o CI roda — não o `npm test`. A diferença já custou caro uma vez, quando um controller inteiro passou meses em 0% de cobertura porque o pipeline rodava a versão sem limite.

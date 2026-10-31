@@ -16,7 +16,10 @@ import { AxiosHttpClient } from '@/infra/http/axios-http-client';
 import { LinkedinPostsScraperProvider } from '@/infra/scrapers/linkedin-posts-scraper-provider';
 
 async function main(): Promise<void> {
-  const provider = new LinkedinPostsScraperProvider(new AxiosHttpClient());
+  // Diagnostico manual: busca sempre, sem consultar o intervalo do banco.
+  const provider = new LinkedinPostsScraperProvider(new AxiosHttpClient(), {
+    getLastRunAt: async () => null,
+  });
 
   console.log('Buscas enviadas ao Serper:\n');
 
