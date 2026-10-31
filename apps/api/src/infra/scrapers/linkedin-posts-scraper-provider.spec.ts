@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
-  LINKEDIN_POSTS_QUERY,
+  LINKEDIN_POSTS_QUERIES_PER_RUN,
   LINKEDIN_POSTS_RECENCY,
+  LINKEDIN_POSTS_SEARCHES,
   LINKEDIN_POSTS_RESULT_LIMIT,
   SERPER_ENDPOINT,
   LinkedinPostsScraperProvider,
@@ -17,13 +18,16 @@ const FIXTURE = readJsonFixture<unknown>('serp-linkedin-posts.json');
 
 const CONFIG = { endpoint: SERPER_ENDPOINT, apiKey: 'chave-de-teste' };
 
+/** Uma busca, uma pagina: os casos de parse nao precisam de mais. */
+const UMA_BUSCA = [{ label: 'teste', query: 'site:linkedin.com/posts vaga', pages: 1 }];
+
 describe('LinkedinPostsScraperProvider', () => {
   let http: FakeHttpClient;
   let provider: LinkedinPostsScraperProvider;
 
   beforeEach(() => {
     http = new FakeHttpClient(() => FIXTURE);
-    provider = new LinkedinPostsScraperProvider(http, CONFIG, 1);
+    provider = new LinkedinPostsScraperProvider(http, CONFIG, UMA_BUSCA);
   });
 
   it('identifica a fonte', () => {
@@ -32,15 +36,52 @@ describe('LinkedinPostsScraperProvider', () => {
   });
 
   describe('consulta ao buscador', () => {
-    it('limita a busca ao caminho de publicacoes', async () => {
-      await provider.scrape();
-
-      expect(LINKEDIN_POSTS_QUERY).toContain('site:linkedin.com/posts');
+    it('limita toda busca ao caminho de publicacoes', () => {
+      for (const search of LINKEDIN_POSTS_SEARCHES) {
+        expect(search.query).toContain('site:linkedin.com/posts');
+      }
     });
 
-    it('procura marcador de anuncio junto da stack', async () => {
-      expect(LINKEDIN_POSTS_QUERY).toContain('"contratando"');
-      expect(LINKEDIN_POSTS_QUERY).toContain('"react"');
+    it('separa a busca nacional da regional', () => {
+      expect(LINKEDIN_POSTS_SEARCHES.map((search) => search.label)).toEqual([
+        'Remoto nacional',
+        'Salvador e RMS',
+      ]);
+    });
+
+    it('a busca regional cita Salvador e a regiao metropolitana', () => {
+      const regional = LINKEDIN_POSTS_SEARCHES.find((s) => s.label === 'Salvador e RMS');
+
+      expect(regional?.query).toContain('"salvador"');
+      expect(regional?.query).toContain('"lauro de freitas"');
+      expect(regional?.query).toContain('"camaçari"');
+    });
+
+    it('a busca nacional exige modalidade remota', () => {
+      const nacional = LINKEDIN_POSTS_SEARCHES.find((s) => s.label === 'Remoto nacional');
+
+      expect(nacional?.query).toContain('"remoto"');
+      expect(nacional?.query).toContain('"home office"');
+    });
+
+    it('gasta poucas consultas por ciclo, para nao queimar a cota', () => {
+      // Sao 12 capturas por dia; cada consulta a mais custa 12 creditos/dia.
+      expect(LINKEDIN_POSTS_QUERIES_PER_RUN).toBeLessThanOrEqual(4);
+    });
+
+    it('consulta cada busca em cada pagina', async () => {
+      const duas = [
+        { label: 'a', query: 'consulta-a', pages: 2 },
+        { label: 'b', query: 'consulta-b', pages: 1 },
+      ];
+
+      await new LinkedinPostsScraperProvider(http, CONFIG, duas).scrape();
+
+      expect(http.requests.map((r) => (r.body as { q: string; page: number }))).toEqual([
+        expect.objectContaining({ q: 'consulta-a', page: 1 }),
+        expect.objectContaining({ q: 'consulta-a', page: 2 }),
+        expect.objectContaining({ q: 'consulta-b', page: 1 }),
+      ]);
     });
 
     it('chama o endpoint do Serper', async () => {
@@ -53,7 +94,7 @@ describe('LinkedinPostsScraperProvider', () => {
       await provider.scrape();
 
       expect(http.requests[0]?.body).toMatchObject({
-        q: LINKEDIN_POSTS_QUERY,
+        q: UMA_BUSCA[0]?.query,
         tbs: LINKEDIN_POSTS_RECENCY,
         num: LINKEDIN_POSTS_RESULT_LIMIT,
         gl: 'br',
@@ -159,7 +200,7 @@ describe('LinkedinPostsScraperProvider', () => {
       const posts = await new LinkedinPostsScraperProvider(
         new FakeHttpClient(() => semSnippet),
         CONFIG,
-        1,
+        UMA_BUSCA,
       ).scrape();
 
       expect(posts[0]?.title).toBe('Vaga de Dev React');
@@ -178,7 +219,7 @@ describe('LinkedinPostsScraperProvider', () => {
       const posts = await new LinkedinPostsScraperProvider(
         new FakeHttpClient(() => longo),
         CONFIG,
-        1,
+        UMA_BUSCA,
       ).scrape();
 
       expect(posts[0]?.title.length).toBeLessThanOrEqual(140);
@@ -225,7 +266,7 @@ describe('LinkedinPostsScraperProvider', () => {
       const posts = await new LinkedinPostsScraperProvider(
         new FakeHttpClient(() => repetido),
         CONFIG,
-        1,
+        UMA_BUSCA,
       ).scrape();
 
       expect(posts).toHaveLength(1);
@@ -251,7 +292,7 @@ describe('LinkedinPostsScraperProvider', () => {
       const posts = await new LinkedinPostsScraperProvider(
         new FakeHttpClient(() => body),
         CONFIG,
-        1,
+        UMA_BUSCA,
       ).scrape();
 
       expect(posts).toHaveLength(1);
@@ -271,7 +312,7 @@ describe('LinkedinPostsScraperProvider', () => {
       const posts = await new LinkedinPostsScraperProvider(
         new FakeHttpClient(() => body),
         CONFIG,
-        1,
+        UMA_BUSCA,
       ).scrape();
 
       expect(posts[0]?.description).toBe('Estamos contratando');
@@ -290,7 +331,7 @@ describe('LinkedinPostsScraperProvider', () => {
       const posts = await new LinkedinPostsScraperProvider(
         new FakeHttpClient(() => body),
         CONFIG,
-        1,
+        UMA_BUSCA,
       ).scrape();
 
       expect(posts[0]?.title).toBe('Estamos contratando pessoa desenvolvedora React');
@@ -304,7 +345,7 @@ describe('LinkedinPostsScraperProvider', () => {
       };
 
       await expect(
-        new LinkedinPostsScraperProvider(new FakeHttpClient(() => body), CONFIG, 1).scrape(),
+        new LinkedinPostsScraperProvider(new FakeHttpClient(() => body), CONFIG, UMA_BUSCA).scrape(),
       ).resolves.toEqual([]);
     });
 
@@ -312,14 +353,14 @@ describe('LinkedinPostsScraperProvider', () => {
       const estranho = new LinkedinPostsScraperProvider(
         new FakeHttpClient(() => ({ erro: 'cota excedida' })),
         CONFIG,
-        1,
+        UMA_BUSCA,
       );
 
       await expect(estranho.scrape()).resolves.toEqual([]);
     });
 
     it('devolve lista vazia quando o buscador esta fora do ar', async () => {
-      const fora = new LinkedinPostsScraperProvider(failingHttpClient('429'), CONFIG, 1);
+      const fora = new LinkedinPostsScraperProvider(failingHttpClient('429'), CONFIG, UMA_BUSCA);
 
       await expect(fora.scrape()).resolves.toEqual([]);
     });

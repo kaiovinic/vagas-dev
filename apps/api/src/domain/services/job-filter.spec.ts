@@ -381,6 +381,62 @@ describe('JobRuleEngine (domain service)', () => {
     });
   });
 
+  describe('cabecalho de vaga no inicio da publicacao', () => {
+    const POST = { origin: 'SOCIAL_POST' } as const;
+
+    it.each([
+      'VAGA HOME OFFICE: Full Stack Engineer (Java + React)',
+      'VAGA | DESENVOLVEDOR(A) FULL STACK — REACT',
+      'VAGAS: Pessoa Desenvolvedora React',
+      '🚨 VAGA React Pleno',
+    ])('aceita o anuncio que ABRE com vaga: "%s"', (title) => {
+      const job = makeJob({ title, description: 'Remoto, CLT' });
+
+      expect(engine.evaluate(job, FIXED_NOW, POST).approved).toBe(true);
+    });
+
+    it('expoe o cabecalho como marcador encontrado', () => {
+      const job = makeJob({ title: 'VAGA | Dev React', description: 'Remoto CLT' });
+
+      expect(engine.evaluate(job, FIXED_NOW, POST).matchedHiringSignals).toContain(
+        'Cabecalho de vaga',
+      );
+    });
+
+    it('nao vale com "vaga" no meio da frase', () => {
+      const job = makeJob({
+        title: 'Como se preparar para uma vaga de React',
+        description: 'Dicas de carreira. Remoto, CLT.',
+      });
+
+      expect(engine.evaluate(job, FIXED_NOW, POST).rejectionReasons).toContain(
+        JobRejectionReason.HiringSignalMissing,
+      );
+    });
+
+    it('nao vale quando o buscador cortou o texto antes', () => {
+      // O snippet comeca com reticencias: o que se ve e meio de frase, nao
+      // cabecalho. Era o que aprovava "... vaga de Python Pleno. Mas dessa
+      // vez nao foi abordagem".
+      const job = makeJob({
+        title: '... vaga de Python Pleno. Mas dessa vez nao foi abordagem',
+        description: 'Relato sobre processo seletivo. Remoto, CLT.',
+      });
+
+      expect(engine.evaluate(job, FIXED_NOW, POST).rejectionReasons).toContain(
+        JobRejectionReason.HiringSignalMissing,
+      );
+    });
+
+    it('nao muda nada para vaga de portal', () => {
+      const job = makeJob({ title: 'Desenvolvedor React', description: 'Remoto CLT' });
+
+      expect(engine.evaluate(job, FIXED_NOW).matchedHiringSignals).not.toContain(
+        'Cabecalho de vaga',
+      );
+    });
+  });
+
   describe('regra 7: conta agregadora de vagas', () => {
     const POST = { origin: 'SOCIAL_POST' } as const;
 

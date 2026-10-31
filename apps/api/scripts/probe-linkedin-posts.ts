@@ -18,8 +18,13 @@ import { LinkedinPostsScraperProvider } from '@/infra/scrapers/linkedin-posts-sc
 async function main(): Promise<void> {
   const provider = new LinkedinPostsScraperProvider(new AxiosHttpClient());
 
-  console.log('Consulta enviada ao buscador:\n');
-  console.log(`  ${provider.query}\n`);
+  console.log('Buscas enviadas ao Serper:\n');
+
+  for (const search of provider.configuredSearches) {
+    console.log(`  [${search.label}] ${search.pages} pagina(s)`);
+    console.log(`     ${search.query}\n`);
+  }
+
   console.log('Buscando...\n');
 
   const posts = await provider.scrape();
@@ -52,7 +57,9 @@ async function main(): Promise<void> {
         ? 'APROVADA'
         : evaluation.rejectionReasons.join(', ');
 
-    console.log(`  [${idade.padStart(4)}] ${props.company}`);
+    const marca = isRegional(props) ? ' [SALVADOR/RMS]' : '';
+
+    console.log(`  [${idade.padStart(4)}]${marca} ${props.company}`);
     console.log(`         ${props.title.slice(0, 92)}`);
     console.log(`         ${veredito}`);
 
@@ -64,9 +71,21 @@ async function main(): Promise<void> {
   reportApproved(aprovadas);
 }
 
+/** Marca o que cita a regiao, que e a lacuna que esta busca quer fechar. */
+const REGIAO = /salvador|lauro de freitas|cama[cç]ari|sim[oõ]es filho|candeias|bahia/i;
+
+function isRegional(props: RawJobProps): boolean {
+  return REGIAO.test(`${props.title} ${props.description ?? ''} ${props.location ?? ''}`);
+}
+
 function reportApproved(aprovadas: readonly RawJobProps[]): void {
+  const regionais = aprovadas.filter(isRegional);
+
   console.log(`\n${'='.repeat(78)}`);
-  console.log(`${aprovadas.length} publicacao(oes) APROVADA(S) pelo motor de regras\n`);
+  console.log(
+    `${aprovadas.length} APROVADA(S) pelo motor de regras — ` +
+      `${regionais.length} citando Salvador/RMS\n`,
+  );
 
   for (const props of aprovadas) {
     console.log(`  ${props.title}`);

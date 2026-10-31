@@ -29,7 +29,7 @@ Varre sete fontes a cada 2 horas: **Gupy**, **LinkedIn** (vagas e publicações)
 
 > Os coletores de **Sólides** e **Coodesh** existem e são testados, mas estão fora do registro: medidos, rendiam 1 e 0 vagas aprovadas por captura, ao custo de 16 requisições. O catálogo real da Coodesh fica atrás de API autenticada, e a área de "tecnologia" da Sólides é suporte, não desenvolvimento.
 
-> O coletor de **publicações do LinkedIn** busca pelo índice do Google, via [Serper](https://serper.dev), e precisa de `SERP_API_KEY`. A data de cada post sai do snowflake embutido na URL, com precisão de minutos — o resultado de busca não traz data.
+> O coletor de **publicações do LinkedIn** busca pelo índice do Google, via [Serper](https://serper.dev), e precisa de `SERP_API_KEY`. São duas consultas por ciclo — uma de remoto nacional, outra de Salvador e região — a 4 créditos por captura. A data de cada post sai do snowflake embutido na URL, com precisão de minutos — o resultado de busca não traz data.
 
 > Existe também um coletor do **Jobbol**, implementado e testado, mas inativo na prática: o site fica atrás do Bot Management da Cloudflare, que responde `403` a qualquer cliente HTTP que não seja um navegador. O coletor continua registrado e passa a funcionar sem alteração caso o acesso seja liberado. Também dá para disparar na hora, pelo botão `Capturar agora` do dashboard.
 
@@ -199,7 +199,7 @@ Sobe PostgreSQL com volume persistente, a API (que aplica as migrations no entry
 
 ## Qualidade
 
-**1.140 testes**, rodando em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração contra um PostgreSQL real, build dos workspaces e build das duas imagens Docker.
+**1.152 testes**, rodando em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração contra um PostgreSQL real, build dos workspaces e build das duas imagens Docker.
 
 | Camada | Cobertura |
 |---|---|

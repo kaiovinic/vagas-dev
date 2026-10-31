@@ -10,13 +10,41 @@ import {
 } from '@/infra/scrapers/support/linkedin-post';
 import { collapseSpaces, dedupeByUrl } from '@/infra/scrapers/support/scraper-helpers';
 
+export interface LinkedinPostsSearch {
+  /** Aparece no diagnostico, para saber de qual busca veio cada publicacao. */
+  readonly label: string;
+  readonly query: string;
+  readonly pages: number;
+}
+
 /**
- * Operador de busca para achar publicacoes que anunciam vaga. O `site:` limita
- * ao caminho de publicacoes — perfil, artigo e pagina de empresa ficam de fora.
+ * Duas buscas por ciclo, em vez de uma generica.
+ *
+ * Uma busca so, ampla, e dominada pelo mercado remoto nacional — e muito mais
+ * volume — e Salvador nunca aparece. Separando, a cota garante um piso para a
+ * consulta regional, que e justamente a lacuna que nenhuma das outras sete
+ * fontes resolveu.
+ *
+ * O `site:` limita ao caminho de publicacoes: perfil, artigo e pagina de
+ * empresa ficam de fora.
  */
-export const LINKEDIN_POSTS_QUERY =
-  'site:linkedin.com/posts ("vaga" OR "contratando" OR "estamos buscando" OR "candidate-se") ' +
-  '("react" OR "frontend" OR "front-end" OR "fullstack" OR "desenvolvedor" OR "node" OR ".net")';
+export const LINKEDIN_POSTS_SEARCHES: readonly LinkedinPostsSearch[] = [
+  {
+    label: 'Remoto nacional',
+    query:
+      'site:linkedin.com/posts ("vaga" OR "contratando" OR "estamos buscando") ' +
+      '("react" OR "frontend" OR "desenvolvedor" OR ".net") ("remoto" OR "home office")',
+    pages: 2,
+  },
+  {
+    label: 'Salvador e RMS',
+    query:
+      'site:linkedin.com/posts ("vaga" OR "contratando") ' +
+      '("desenvolvedor" OR "programador" OR "ti" OR "frontend") ' +
+      '("salvador" OR "lauro de freitas" OR "camaçari" OR "bahia")',
+    pages: 2,
+  },
+];
 
 /** Recorte de recencia: `qdr:d3` = ultimos 3 dias, a janela do radar. */
 export const LINKEDIN_POSTS_RECENCY = 'qdr:d3';
@@ -28,8 +56,15 @@ export const LINKEDIN_POSTS_RECENCY = 'qdr:d3';
  */
 export const LINKEDIN_POSTS_RESULT_LIMIT = 10;
 
-/** Paginas por captura. Sao 10 por pagina, e as paginas nao se repetem. */
-export const LINKEDIN_POSTS_PAGES = 3;
+/**
+ * Custo por captura: uma consulta por pagina de cada busca. Com as duas
+ * buscas em 2 paginas sao 4 consultas, ou cerca de 48 por dia no cron de 2h —
+ * uns 52 dias dos 2.500 creditos gratuitos do Serper.
+ */
+export const LINKEDIN_POSTS_QUERIES_PER_RUN = LINKEDIN_POSTS_SEARCHES.reduce(
+  (total, search) => total + search.pages,
+  0,
+);
 
 export const SERPER_ENDPOINT = 'https://google.serper.dev/search';
 
@@ -74,7 +109,8 @@ export class LinkedinPostsScraperProvider extends BaseScraperProvider {
   constructor(
     @Inject(HTTP_CLIENT) private readonly http: IHttpClient,
     @Optional() private readonly config: SerpConfig = readConfigFromEnv(),
-    @Optional() private readonly pages: number = LINKEDIN_POSTS_PAGES,
+    @Optional()
+    private readonly searches: readonly LinkedinPostsSearch[] = LINKEDIN_POSTS_SEARCHES,
   ) {
     super();
   }
@@ -86,19 +122,21 @@ export class LinkedinPostsScraperProvider extends BaseScraperProvider {
       return [];
     }
 
-    const pages = await Promise.all(
-      Array.from({ length: this.pages }, (_unused, index) => this.fetchPage(index + 1)),
+    const requests = this.searches.flatMap((search) =>
+      Array.from({ length: search.pages }, (_unused, index) =>
+        this.fetchPage(search.query, index + 1),
+      ),
     );
 
-    return dedupeByUrl(pages.flat());
+    return dedupeByUrl((await Promise.all(requests)).flat());
   }
 
   /** O Serper so aceita POST, com a consulta no corpo. */
-  private async fetchPage(page: number): Promise<RawJobProps[]> {
+  private async fetchPage(query: string, page: number): Promise<RawJobProps[]> {
     const { body } = await this.http.post<unknown>(
       this.config.endpoint,
       {
-        q: LINKEDIN_POSTS_QUERY,
+        q: query,
         tbs: LINKEDIN_POSTS_RECENCY,
         num: LINKEDIN_POSTS_RESULT_LIMIT,
         gl: 'br',
@@ -155,9 +193,9 @@ export class LinkedinPostsScraperProvider extends BaseScraperProvider {
     return this.config.endpoint.length > 0 && this.config.apiKey.length > 0;
   }
 
-  /** So para o comando de diagnostico: a consulta exata que vai ao buscador. */
-  get query(): string {
-    return LINKEDIN_POSTS_QUERY;
+  /** So para o comando de diagnostico: as consultas que vao ao buscador. */
+  get configuredSearches(): readonly LinkedinPostsSearch[] {
+    return this.searches;
   }
 }
 

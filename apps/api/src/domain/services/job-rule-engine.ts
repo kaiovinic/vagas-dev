@@ -134,7 +134,10 @@ export class JobRuleEngine {
     const matchedStack = matchKeywordLabels(text, this.stackGroups);
     const matchedLocations = this.matchLocations(job, text);
     const matchedSpamTerms = matchKeywordLabels(text, this.spamGroups);
-    const matchedHiringSignals = matchKeywordLabels(text, this.hiringSignalGroups);
+    const matchedHiringSignals = [
+      ...matchKeywordLabels(text, this.hiringSignalGroups),
+      ...headlineSignal(job.title),
+    ];
     const scope = classifyJobScope({
       title: job.title,
       company: job.company,
@@ -227,6 +230,29 @@ export class JobRuleEngine {
 }
 
 /** Apaga os trechos que contem o nome de uma cidade aceita mas apontam para outro lugar. */
+/**
+ * Publicacao que ABRE com "vaga" e anuncio, qualquer que seja o que vem
+ * depois: "VAGA:", "VAGA | ...", "VAGA HOME OFFICE:", "VAGA REMOTA:".
+ *
+ * A posicao e o que decide, e nao uma lista de variantes — enumerar
+ * delimitador por delimitador seria caca sem fim. "Vaga" no meio da frase
+ * ("como se preparar para uma vaga de React") nao abre nada e continua fora.
+ *
+ * Os oito caracteres de folga no inicio absorvem emoji e pontuacao, que quase
+ * todo recrutador usa antes da palavra.
+ */
+/*
+ * O ponto e a reticencia ficam FORA do prefixo aceito de proposito: quando o
+ * snippet comeca com "...", o buscador cortou o texto e o que se ve e meio de
+ * frase, nao cabecalho. Era o que fazia "... vaga de Python Pleno. Mas dessa
+ * vez nao foi abordagem" passar como anuncio.
+ */
+const POST_HEADLINE = /^[^a-z0-9.…]{0,8}vagas?\b/;
+
+function headlineSignal(title: string): string[] {
+  return POST_HEADLINE.test(normalizeForMatching(title)) ? ['Cabecalho de vaga'] : [];
+}
+
 function withoutFalsePositives(text: string): string {
   return LOCATION_FALSE_POSITIVES.reduce(
     (cleaned, phrase) => cleaned.split(phrase).join(' '),
