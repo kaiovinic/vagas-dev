@@ -290,7 +290,7 @@ Em **Settings > Secrets and variables > Actions > New repository secret**:
 | `VPS_HOST` | IP ou hostname da VPS | sim |
 | `VPS_USERNAME` | usuário do SSH (`root`, se seguiu este guia) | sim |
 | `VPS_SSH_KEY` | **chave privada** inteira, com as linhas `-----BEGIN...` e `-----END...` | sim |
-| `VPS_PORT` | porta do SSH; deixe de fora se for a 22 | não |
+| `VPS_PORT` | porta do SSH; o workflow cai em `22` quando o secret não existe | não |
 
 Prefira chave a senha. Se você realmente precisar de senha, cadastre
 `VPS_SSH_PASSWORD` e troque, em `deploy.yml`, a linha `key: ${{

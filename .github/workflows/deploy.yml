@@ -46,8 +46,12 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          # Sem o secret, o default da action e 22.
-          port: ${{ secrets.VPS_PORT }}
+          # O `|| '22'` nao e redundante com o default da action: o runner so
+          # aplica o default quando a entrada NAO e passada, e aqui ela e
+          # sempre passada — vazia, quando o secret nao existe. Hoje o
+          # drone-ssh cai nos 22 sozinho nesse caso, mas isso e detalhe de
+          # implementacao dele, nao contrato.
+          port: ${{ secrets.VPS_PORT || '22' }}
           # 20 minutos: o build do Vite e do Nest na VPS passa de 5 minutos com
           # cache frio, e o default da action (10s de comando) derrubaria tudo.
           command_timeout: 20m
