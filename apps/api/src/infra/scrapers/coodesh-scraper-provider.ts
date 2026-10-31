@@ -7,6 +7,7 @@ import { BaseScraperProvider } from '@/infra/scrapers/support/base-scraper-provi
 import {
   collapseSpaces,
   dedupeByUrl,
+  htmlToText,
   parseDate,
 } from '@/infra/scrapers/support/scraper-helpers';
 
@@ -127,7 +128,7 @@ export class CoodeshScraperProvider extends BaseScraperProvider {
         url,
         publishedAt,
         publishedAtSource: 'SOURCE',
-        description: stripHtml(readString(posting.description)),
+        description: htmlToText(readString(posting.description)),
         location,
         workModel: readWorkModel(posting, location),
       },
@@ -177,9 +178,6 @@ function readWorkModel(posting: JsonLdJobPosting, location: string): JobWorkMode
   return location.length > 0 ? 'ONSITE' : 'UNKNOWN';
 }
 
-function stripHtml(value: string): string {
-  return collapseSpaces(value.replace(/<[^>]*>/g, ' '));
-}
 
 function readString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';

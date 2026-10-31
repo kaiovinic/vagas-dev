@@ -7,6 +7,7 @@ import { BaseScraperProvider } from '@/infra/scrapers/support/base-scraper-provi
 import {
   collapseSpaces,
   dedupeByUrl,
+  htmlToText,
   parseDate,
   uniqueStrings,
 } from '@/infra/scrapers/support/scraper-helpers';
@@ -140,7 +141,7 @@ export class SolidesScraperProvider extends BaseScraperProvider {
         url: `${SOLIDES_ORIGIN}/vaga/${id}`,
         publishedAt,
         publishedAtSource: 'SOURCE',
-        description: stripHtml(readString(vacancy.description)),
+        description: htmlToText(readString(vacancy.description)),
         location: readPlace(vacancy),
         workModel: WORK_MODELS[readString(vacancy.jobType).toLowerCase()] ?? 'UNKNOWN',
         tags: uniqueStrings([
@@ -164,10 +165,6 @@ function namesOf(items: readonly SolidesNamed[] | undefined): string[] {
   return (items ?? []).map((item) => readString(item.name));
 }
 
-/** A descricao vem em HTML; o motor de regras so precisa do texto. */
-function stripHtml(value: string): string {
-  return collapseSpaces(value.replace(/<[^>]*>/g, ' '));
-}
 
 function readId(value: unknown): string {
   return typeof value === 'number' && Number.isFinite(value) ? String(value) : '';

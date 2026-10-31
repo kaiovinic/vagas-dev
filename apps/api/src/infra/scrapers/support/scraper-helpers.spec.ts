@@ -4,7 +4,9 @@ import type { RawJobProps } from '@/domain/dtos/raw-job-props';
 import {
   collapseSpaces,
   dedupeByUrl,
+  htmlToText,
   parseDate,
+  removeHtmlTags,
   toAbsoluteUrl,
   uniqueStrings,
   workModelFromText,
@@ -130,6 +132,89 @@ describe('scraper-helpers', () => {
         'React',
         'Node JS',
       ]);
+    });
+  });
+
+  describe('htmlToText', () => {
+    it('tira as tags e mantem o texto', () => {
+      expect(htmlToText('<p>Buscamos <strong>dev React</strong></p>')).toBe('Buscamos dev React');
+    });
+
+    it('quebra linha no fim de paragrafo e de item de lista', () => {
+      const text = htmlToText('<p>Requisitos</p><ul><li>React</li><li>Node</li></ul>');
+
+      expect(text.split('\n').filter((line) => line.length > 0)).toEqual([
+        'Requisitos',
+        'React',
+        'Node',
+      ]);
+    });
+
+    it('resolve as entidades', () => {
+      expect(htmlToText('<p>Front &amp; back&nbsp;hoje</p>')).toBe('Front & back hoje');
+    });
+
+    it('devolve vazio para entrada vazia', () => {
+      expect(htmlToText('')).toBe('');
+    });
+  });
+
+  describe('removeHtmlTags', () => {
+    it('tira a tag html solta no meio do markdown', () => {
+      // O paragrafo fica separado por linha em branco, como o Markdown em volta.
+      expect(removeHtmlTags('## Vaga\n<p>Remoto</p>')).toBe('## Vaga\n\nRemoto');
+    });
+
+    it('tira a tag inline sem picar a frase', () => {
+      expect(removeHtmlTags('Buscamos <strong>dev React</strong> pleno')).toBe(
+        'Buscamos dev React pleno',
+      );
+    });
+
+    it('quebra linha onde havia bloco', () => {
+      const text = removeHtmlTags('<ul><li>React</li><li>Node</li></ul>');
+
+      expect(text.split('\n').filter((line) => line.length > 0)).toEqual(['React', 'Node']);
+    });
+
+    it('preserva o autolink do markdown, que nao e tag', () => {
+      // Um parser de HTML leria `<https://...>` como tag desconhecida e levaria
+      // o link embora — justamente o endereco para se candidatar.
+      const body = 'Candidate-se em <https://empresa.com/vaga>';
+
+      expect(removeHtmlTags(body)).toBe(body);
+    });
+
+    it('preserva texto entre sinais de menor e maior que nao e elemento html', () => {
+      expect(removeHtmlTags('Experiencia com List<String> e Map<K, V>')).toBe(
+        'Experiencia com List<String> e Map<K, V>',
+      );
+    });
+
+    it('preserva o email entre sinais, como o markdown escreve', () => {
+      expect(removeHtmlTags('Envie para <vagas@empresa.com>')).toBe(
+        'Envie para <vagas@empresa.com>',
+      );
+    });
+
+    it('mantem o markdown intacto', () => {
+      const body = '## Vaga\n\n- **React**\n- [Site](https://empresa.com)\n\n`npm i`';
+
+      expect(removeHtmlTags(body)).toBe(body);
+    });
+
+    it('tira a tag com atributos', () => {
+      expect(removeHtmlTags('<a href="https://empresa.com" target="_blank">Site</a>')).toBe(
+        'Site',
+      );
+    });
+
+    it('nao deixa mais de uma linha em branco seguida', () => {
+      expect(removeHtmlTags('A<div></div><div></div><div></div>B')).toBe('A\n\nB');
+    });
+
+    it('devolve vazio para entrada vazia', () => {
+      expect(removeHtmlTags('')).toBe('');
     });
   });
 });

@@ -188,6 +188,71 @@ describe('RemotarScraperProvider', () => {
     await expect(provider.scrape()).resolves.toEqual([]);
   });
 
+  describe('descricao', () => {
+    async function descriptionOf(overrides: Record<string, unknown>): Promise<string> {
+      const client = new FakeHttpClient(() => ({ data: [job(overrides)] }));
+      const [vaga] = await new RemotarScraperProvider(client, 1).scrape();
+
+      return vaga?.description ?? '';
+    }
+
+    it('grava texto limpo, sem a marcacao que o anunciante escreveu', async () => {
+      const description = await descriptionOf({
+        subtitle: '',
+        description: '<p>Buscamos <strong>pessoa dev</strong> para o time de <em>produto</em>.</p>',
+      });
+
+      expect(description).toBe('Buscamos pessoa dev para o time de produto.');
+    });
+
+    it('mantem cada item da lista na sua linha', async () => {
+      const description = await descriptionOf({
+        subtitle: '',
+        description:
+          '<p>Responsabilidades</p><ul><li>Construir telas em React</li>' +
+          '<li>Escrever testes</li></ul>',
+      });
+
+      expect(description.split('\n').filter((line) => line.length > 0)).toEqual([
+        'Responsabilidades',
+        'Construir telas em React',
+        'Escrever testes',
+      ]);
+    });
+
+    it('separa o subtitulo do corpo por uma linha em branco', async () => {
+      const description = await descriptionOf({
+        subtitle: 'Vaga remota para o time de produto',
+        description: '<p>Stack: React e Node.</p>',
+      });
+
+      expect(description).toBe('Vaga remota para o time de produto\n\nStack: React e Node.');
+    });
+
+    it('resolve as entidades html', async () => {
+      const description = await descriptionOf({
+        subtitle: '',
+        description: '<p>Front &amp; back, R$ 12.000&nbsp;a&nbsp;15.000</p>',
+      });
+
+      expect(description).toBe('Front & back, R$ 12.000 a 15.000');
+    });
+
+    it('nao deixa linha em branco quando a fonte nao manda corpo', async () => {
+      expect(await descriptionOf({ subtitle: 'Vaga remota', description: '' })).toBe('Vaga remota');
+    });
+
+    it('nao deixa linha em branco quando a fonte nao manda subtitulo', async () => {
+      expect(await descriptionOf({ subtitle: '', description: '<p>Stack React</p>' })).toBe(
+        'Stack React',
+      );
+    });
+
+    it('nao deixa rastro de tag quando a fonte nao manda descricao nenhuma', async () => {
+      expect(await descriptionOf({ subtitle: '', description: null })).toBe('');
+    });
+  });
+
   it('consulta duas paginas por padrao', async () => {
     await new RemotarScraperProvider(http).scrape();
 

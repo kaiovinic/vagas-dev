@@ -179,3 +179,39 @@ export function htmlToText(html: string): string {
 
   return lines.join('\n').replace(BLANK_LINE_RUN, '\n\n').trim();
 }
+
+/** Elementos HTML nomeados, abrindo ou fechando, com ou sem atributos. */
+const KNOWN_HTML_TAG = new RegExp(
+  '</?(?:p|br|hr|div|span|strong|b|em|i|u|s|ul|ol|li|dl|dt|dd|h[1-6]|a|img|figure|table|thead' +
+    '|tbody|tfoot|tr|td|th|code|pre|blockquote|sub|sup|small|font|center|details|summary|section' +
+    '|article|header|footer|nav|aside|main|label|button)\\b[^>]*>',
+  'gi',
+);
+
+/**
+ * Tira as tags HTML de um texto que NAO e HTML.
+ *
+ * O corpo de uma issue do GitHub e Markdown, e Markdown aceita HTML solto no
+ * meio: e de la que vinham os `<p>` e `</a>` crus no painel. Passar o texto
+ * pelo cheerio, como faz o `htmlToText`, resolveria as tags e levaria junto o
+ * que o Markdown escreve entre sinais de menor e maior — um autolink
+ * `<https://empresa.com/vaga>` e um generico `List<String>` desapareceriam,
+ * porque o parser os le como tag desconhecida. Por isso aqui a remocao e por
+ * nome de elemento conhecido: o que nao for tag de verdade fica no texto.
+ */
+export function removeHtmlTags(text: string): string {
+  const lines = text
+    .replace(KNOWN_HTML_TAG, (tag) => (isInlineTag(tag) ? '' : '\n'))
+    .split('\n')
+    .map((line) => collapseSpaces(line));
+
+  return lines.join('\n').replace(BLANK_LINE_RUN, '\n\n').trim();
+}
+
+/** Tag que nao quebra linha: tirada sem deixar marca, para nao picar a frase. */
+function isInlineTag(tag: string): boolean {
+  return INLINE_TAG.test(tag);
+}
+
+const INLINE_TAG =
+  /^<\/?(?:span|strong|b|em|i|u|s|a|code|sub|sup|small|font|label|button)\b[^>]*>$/i;

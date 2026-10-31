@@ -7,6 +7,7 @@ import { BaseScraperProvider } from '@/infra/scrapers/support/base-scraper-provi
 import {
   collapseSpaces,
   dedupeByUrl,
+  htmlToText,
   parseDate,
   uniqueStrings,
 } from '@/infra/scrapers/support/scraper-helpers';
@@ -91,7 +92,7 @@ export class RemotarScraperProvider extends BaseScraperProvider {
         url,
         publishedAt,
         publishedAtSource: 'SOURCE',
-        description: collapseSpaces(`${readString(job.subtitle)} ${readString(job.description)}`),
+        description: resolveDescription(job),
         location: resolveLocation(job),
         workModel: toWorkModel(readString(job.type)),
         recruiterName: readString(job.author?.name),
@@ -109,6 +110,22 @@ function readJobs(body: unknown): RemotarJob[] {
   const { data } = body as { data?: unknown };
 
   return Array.isArray(data) ? (data as RemotarJob[]) : [];
+}
+
+/**
+ * Descricao legivel: subtitulo em texto corrido e o corpo, que vem em HTML.
+ *
+ * O corpo da Remotar e o HTML que o anunciante escreveu no editor do site —
+ * `<p>`, `<strong>`, listas. Gravado como veio, o painel exibia a marcacao
+ * crua no lugar do texto; `htmlToText` tira as tags e troca o fim de cada
+ * bloco por quebra de linha, para a lista de responsabilidades nao virar um
+ * paragrafo unico.
+ */
+function resolveDescription(job: RemotarJob): string {
+  const subtitle = collapseSpaces(readString(job.subtitle));
+  const body = htmlToText(readString(job.description));
+
+  return [subtitle, body].filter((part) => part.length > 0).join('\n\n');
 }
 
 function resolveCompany(job: RemotarJob): string {

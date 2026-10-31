@@ -364,6 +364,35 @@ describe('GithubIssuesScraperProvider', () => {
     });
   });
 
+  describe('descricao', () => {
+    async function descriptionOf(body: unknown): Promise<string> {
+      const client = new FakeHttpClient(() => [issue({ body })]);
+      const [vaga] = await new GithubIssuesScraperProvider(client, ['frontendbr/vagas']).scrape();
+
+      return vaga?.description ?? '';
+    }
+
+    it('tira a tag html que o anunciante deixou no corpo markdown', async () => {
+      const description = await descriptionOf(
+        '## Vaga\n<p>Buscamos <strong>dev React</strong></p>',
+      );
+
+      expect(description).toBe('## Vaga\n\nBuscamos dev React');
+    });
+
+    it('preserva o autolink, que o markdown escreve entre sinais', async () => {
+      const body = 'Candidate-se em <https://empresa.com/vaga> ate sexta.';
+
+      expect(await descriptionOf(body)).toBe(body);
+    });
+
+    it('mantem a lista e o negrito do markdown', async () => {
+      const body = '## Requisitos\n\n- **React**\n- TypeScript';
+
+      expect(await descriptionOf(body)).toBe(body);
+    });
+  });
+
   describe('issues fechadas', () => {
     const closedUrl = (suffix: string): string =>
       `https://github.com/frontendbr/vagas/issues/${suffix}`;

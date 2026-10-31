@@ -10,6 +10,7 @@ import {
   looksLikeJobMetadata,
   dedupeByUrl,
   parseDate,
+  removeHtmlTags,
   uniqueStrings,
   workModelFromText,
 } from '@/infra/scrapers/support/scraper-helpers';
@@ -171,7 +172,7 @@ export class GithubIssuesScraperProvider
         url,
         publishedAt,
         publishedAtSource: 'SOURCE',
-        description: readString(issue.body),
+        description: removeHtmlTags(readString(issue.body)),
         location: modality,
         workModel: resolveWorkModel(modality, labels),
         recruiterName: author,
