@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   INHIRE_DEFAULT_TENANTS,
+  INHIRE_MAX_DETAILS_PER_CYCLE,
   INHIRE_REQUEST_DELAY_IN_MS,
   InhireScraperProvider,
   inhireTenantsFromEnv,
 } from '@/infra/scrapers/inhire-scraper-provider';
+import type { InhireTenantDiscovery } from '@/infra/scrapers/support/inhire-tenant-discovery';
 import {
   FakeHttpClient,
   failingHttpClient,
@@ -242,6 +244,79 @@ describe('InhireScraperProvider', () => {
     const provider = new InhireScraperProvider(failingHttpClient(), ['sympla'], async () => {});
 
     expect(await provider.scrape()).toEqual([]);
+  });
+
+  describe('tenants descobertos no banco', () => {
+    function discoveryOf(tenants: readonly string[]): InhireTenantDiscovery {
+      return { discover: async () => tenants } as InhireTenantDiscovery;
+    }
+
+    function tenantsOf(client: FakeHttpClient): (string | undefined)[] {
+      return client.requests
+        .filter((request) => request.url === LISTING_URL)
+        .map((request) => request.options?.headers?.['X-Tenant']);
+    }
+
+    it('varre o tenant descoberto junto com a semente', async () => {
+      const provider = new InhireScraperProvider(
+        http,
+        ['sympla'],
+        async () => {},
+        INHIRE_MAX_DETAILS_PER_CYCLE,
+        discoveryOf(['novatech']),
+      );
+
+      await provider.scrape();
+
+      expect(tenantsOf(http)).toEqual(['sympla', 'novatech']);
+    });
+
+    it('nao varre duas vezes o tenant que a semente ja tinha', async () => {
+      const provider = new InhireScraperProvider(
+        http,
+        ['sympla', 'dock'],
+        async () => {},
+        INHIRE_MAX_DETAILS_PER_CYCLE,
+        discoveryOf(['dock', 'novatech']),
+      );
+
+      await provider.scrape();
+
+      expect(tenantsOf(http)).toEqual(['sympla', 'dock', 'novatech']);
+    });
+
+    it('mantem a cadencia de 1,5s nas requisicoes do tenant descoberto', async () => {
+      const provider = new InhireScraperProvider(
+        http,
+        ['sympla'],
+        async (ms) => {
+          waited.push(ms);
+        },
+        INHIRE_MAX_DETAILS_PER_CYCLE,
+        discoveryOf(['novatech']),
+      );
+
+      await provider.scrape();
+
+      // Duas listas e os detalhes de ambas, todos na mesma fila: so a primeira
+      // requisicao do ciclo sai sem espera.
+      expect(waited.length).toBe(tenantsOf(http).length + detailUrls(http).length - 1);
+      expect(new Set(waited)).toEqual(new Set([INHIRE_REQUEST_DELAY_IN_MS]));
+    });
+
+    it('segue so com a semente quando nada foi descoberto', async () => {
+      const provider = new InhireScraperProvider(
+        http,
+        ['sympla'],
+        async () => {},
+        INHIRE_MAX_DETAILS_PER_CYCLE,
+        discoveryOf([]),
+      );
+
+      await provider.scrape();
+
+      expect(tenantsOf(http)).toEqual(['sympla']);
+    });
   });
 
   describe('inhireTenantsFromEnv', () => {

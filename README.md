@@ -37,7 +37,7 @@ Oito fontes ativas. A coluna **lidas** é o que cada uma trouxe numa varredura r
 | **Gupy** | `__NEXT_DATA__` da busca | 2h | 59 | |
 | **LinkedIn** (vagas) | endpoint guest, sem login, paginado de 10 em 10 | 2h | 49 | teto de 4 páginas por busca remota, 2 na regional |
 | **ProgramaThor** | HTML | 2h | 18 | |
-| **InHire** | API publica do ATS, um tenant por empresa | 2h | 69 | 410 vagas nos 17 tenants; 69 sao cargos de desenvolvimento |
+| **InHire** | API publica do ATS, um tenant por empresa | 2h | 69 | 410 vagas nos 17 tenants semente, mais os descobertos; 69 sao cargos de desenvolvimento |
 | **LinkedIn** (publicações) | índice do Google, via [Serper](https://serper.dev) | **4h** | 5 | catálogo exclusivo; exige `SERP_API_KEY` |
 
 Toda saída HTTP passa por um decorator de repeticão: 429, timeout e 5xx são tentados de novo com espera exponencial (1s, 2s, 4s), respeitando o `Retry-After` quando a fonte o informa. As requisições de uma mesma fonte saem em fila, com 1,5s entre elas — o IP da VPS é compartilhado com outro projeto.

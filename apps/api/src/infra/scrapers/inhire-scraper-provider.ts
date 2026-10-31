@@ -5,6 +5,8 @@ import type { JobWorkModel } from '@/domain/entities/job';
 import { HTTP_CLIENT, type IHttpClient } from '@/domain/providers/http-client';
 import { normalizeForMatching } from '@/domain/value-objects/text-normalizer';
 import { BaseScraperProvider } from '@/infra/scrapers/support/base-scraper-provider';
+import { InhireTenantDiscovery } from '@/infra/scrapers/support/inhire-tenant-discovery';
+import { mergeTenants, TENANT_SLUG } from '@/infra/scrapers/support/inhire-tenants';
 import {
   collapseSpaces,
   createPacer,
@@ -106,9 +108,6 @@ export const INHIRE_ROLE_HINTS: readonly string[] = [
   'typescript',
 ];
 
-/** Subdominio valido: o que a InHire aceita a esquerda de `.inhire.app`. */
-const TENANT_SLUG = /^[a-z0-9][a-z0-9-]{1,62}$/;
-
 /**
  * `, BR` no fim de "Salvador, BA, BR": o pais nao acrescenta nada ao painel.
  *
@@ -168,6 +167,7 @@ export class InhireScraperProvider extends BaseScraperProvider {
     @Optional() private readonly tenants: readonly string[] = inhireTenantsFromEnv(),
     @Optional() private readonly wait: (ms: number) => Promise<void> = sleep,
     @Optional() private readonly maxDetails: number = INHIRE_MAX_DETAILS_PER_CYCLE,
+    @Optional() private readonly discovery: InhireTenantDiscovery = new InhireTenantDiscovery(),
   ) {
     super();
   }
@@ -176,7 +176,10 @@ export class InhireScraperProvider extends BaseScraperProvider {
     const pace = createPacer(this.wait, INHIRE_REQUEST_DELAY_IN_MS);
     const candidates: InhireCandidate[] = [];
 
-    for (const tenant of this.tenants) {
+    // O tenant descoberto entra na MESMA fila: cada lista sua passa pelo
+    // `pace`, com os 1,5s entre requisicoes. Uma lista que dobre de tamanho
+    // alonga o ciclo, nunca vira rajada.
+    for (const tenant of await this.resolveTenants()) {
       candidates.push(...(await this.fetchTenant(tenant, pace)));
     }
 
@@ -187,6 +190,24 @@ export class InhireScraperProvider extends BaseScraperProvider {
     }
 
     return jobs;
+  }
+
+  /**
+   * Semente configurada mais o que o radar descobriu no proprio banco.
+   *
+   * A semente vem primeiro de proposito: ela e verificada, e e ela que precisa
+   * caber no teto de detalhes do ciclo quando a descoberta trouxer muita gente.
+   */
+  private async resolveTenants(): Promise<readonly string[]> {
+    const discovered = await this.discovery.discover();
+    const tenants = mergeTenants(this.tenants, discovered);
+    const novos = tenants.length - this.tenants.length;
+
+    if (novos > 0) {
+      this.logger.log(`${novos} tenant(s) da InHire descobertos nos anuncios ja gravados`);
+    }
+
+    return tenants;
   }
 
   /**

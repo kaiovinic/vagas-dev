@@ -9,6 +9,7 @@ import {
   JOB_SCRAPERS,
   type IJobScraperProvider,
 } from '@/domain/providers/job-scraper-provider';
+import { INHIRE_TENANT_DISCOVERY_READER } from '@/domain/providers/inhire-tenant-discovery-reader';
 import { TELEGRAM_NOTIFIER } from '@/domain/providers/telegram-notifier';
 import { CAPTURE_LOG_REPOSITORY } from '@/domain/repositories/capture-log-repository';
 import { DASHBOARD_METRICS_REPOSITORY } from '@/domain/repositories/dashboard-metrics-repository';
@@ -28,6 +29,7 @@ import { RetryingHttpClient } from '@/infra/http/retrying-http-client';
 import { TelegramHttpNotifier } from '@/infra/notifications/telegram-http-notifier';
 import { PrismaCaptureLogRepository } from '@/infra/prisma/prisma-capture-log-repository';
 import { PrismaJobClosureRepository } from '@/infra/prisma/prisma-job-closure-repository';
+import { PrismaInhireTenantReader } from '@/infra/prisma/prisma-inhire-tenant-reader';
 import { PrismaJobDescriptionRepository } from '@/infra/prisma/prisma-job-description-repository';
 import { PrismaJobQueryRepository } from '@/infra/prisma/prisma-job-query-repository';
 import { PrismaMarketInsightsRepository } from '@/infra/prisma/prisma-market-insights-repository';
@@ -38,6 +40,7 @@ import { PrismaService } from '@/infra/prisma/prisma.service';
 import { GithubIssuesScraperProvider } from '@/infra/scrapers/github-issues-scraper-provider';
 import { GupyScraperProvider } from '@/infra/scrapers/gupy-scraper-provider';
 import { InhireScraperProvider } from '@/infra/scrapers/inhire-scraper-provider';
+import { InhireTenantDiscovery } from '@/infra/scrapers/support/inhire-tenant-discovery';
 import { LinkedinGuestScraperProvider } from '@/infra/scrapers/linkedin-guest-scraper-provider';
 import { LinkedinPostsScraperProvider } from '@/infra/scrapers/linkedin-posts-scraper-provider';
 import { NextCommitScraperProvider } from '@/infra/scrapers/nextcommit-scraper-provider';
@@ -90,6 +93,11 @@ const SCRAPERS = [
     PrismaMarketInsightsRepository,
     PrismaWeeklyDigestRepository,
     PrismaSourceHealthRepository,
+    PrismaInhireTenantReader,
+    { provide: INHIRE_TENANT_DISCOVERY_READER, useExisting: PrismaInhireTenantReader },
+    // A InHire e a unica fonte cuja lista de empresas o radar mantem a mao;
+    // esta classe le os anuncios ja gravados para que ela nao envelheca.
+    InhireTenantDiscovery,
     AxiosHttpClient,
     // Todo coletor recebe o cliente ja embrulhado no retry: 429 e timeout sao
     // repetidos com espera exponencial sem que nenhum deles saiba disso.
