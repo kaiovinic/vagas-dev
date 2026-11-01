@@ -47,3 +47,9 @@ tmp/
 .DS_Store
 Thumbs.db
 *.swp
+
+# --- Artes de origem da marca --------------------------------------------
+# O JPG exportado da marca tem 1,4 MB e serve so de origem: o cabecalho usa o
+# SVG e o card social usa o og-devradar.jpg reenquadrado, ambos versionados.
+# O bruto nao entra porque o historico do git carregaria esse peso para sempre.
+apps/web/src/assets/Logo-DevRadar.jpg
