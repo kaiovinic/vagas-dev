@@ -83,8 +83,8 @@ describe('AppHeader', () => {
     renderWithProviders(<AppHeader capture={capture()} />);
 
     // O logo e uma imagem: o nome acessivel vem do `alt`, nao do texto.
-    expect(screen.getByRole('heading', { level: 1, name: 'Vagas Dev BA/Remoto' })).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Vagas Dev BA/Remoto' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'DevRadar' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'DevRadar' })).toBeInTheDocument();
   });
 
   it('anuncia a cobertura do estado inteiro, nao so da capital', () => {

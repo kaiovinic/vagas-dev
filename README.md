@@ -1,4 +1,4 @@
-# Vagas Dev
+# DevRadar
 
 Agregador de vagas para **Desenvolvedor Frontend e Fullstack** em qualquer município da Bahia ou 100% remotas. Coleta de oito fontes a cada 2 horas, descarta o que não é vaga de verdade, deduplica entre plataformas, avisa no Telegram e apresenta tudo em um dashboard analítico.
 
@@ -13,7 +13,7 @@ Agregador de vagas para **Desenvolvedor Frontend e Fullstack** em qualquer munic
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-multi--stage-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 
-![Dashboard do Vagas Dev: KPIs das últimas 72h, vagas por fonte, novas por dia e a tabela de saúde da coleta](docs/dashboard.png)
+![Dashboard do DevRadar: KPIs das últimas 72h, vagas por fonte, novas por dia e a tabela de saúde da coleta](docs/dashboard.png)
 
 ---
 

@@ -23,7 +23,7 @@ export function AppHeader({ capture }: AppHeaderProps): ReactNode {
             {/* O proprio logo ja traz o simbolo e o nome; o `alt` e o nome acessivel do h1. */}
             <h1 className="flex items-center">
               {/* shrink-0: sem isso o flex comprime a imagem e corta o "DEV" do logo. */}
-              <img src={logoUrl} alt="Vagas Dev BA/Remoto" className="h-11 w-auto shrink-0" />
+              <img src={logoUrl} alt="DevRadar" className="h-11 w-auto shrink-0" />
             </h1>
             <p className="hidden max-w-44 text-xs leading-tight text-content-muted lg:block">
               Frontend e Fullstack na Bahia e 100% remotas

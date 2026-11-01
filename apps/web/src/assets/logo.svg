@@ -7,8 +7,8 @@
       <stop offset="100%" stop-color="#7B2CBF" />
     </linearGradient>
 
-    <!-- Gradiente do Texto DEV -->
-    <linearGradient id="devGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+    <!-- Gradiente do Texto RADAR -->
+    <linearGradient id="radarGradient" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#00F5FF" />
       <stop offset="100%" stop-color="#00D2A0" />
     </linearGradient>
@@ -44,17 +44,16 @@
     <!-- Haste da Lupa -->
     <path d="M 72 142 L 50 164" stroke="#00A8FF" stroke-width="9" stroke-linecap="round" />
 
-    <!-- Tags de Código { / } Centralizadas -->
+    <!-- Tags de Código { ; } Centralizadas -->
     <text x="110" y="117" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="34" fill="#00F5FF" text-anchor="middle" letter-spacing="1">
-      {<tspan fill="#FFFFFF">/</tspan>}
+      {<tspan fill="#FFFFFF">;</tspan>}
     </text>
   </g>
 
-  <!-- Grupo Tipográfico: VAGAS DEV -->
+  <!-- Grupo Tipográfico: DEVRADAR -->
   <g transform="translate(300, 138)">
     <text font-family="system-ui, -apple-system, BlinkMacSystemFont, &#39;Segoe UI&#39;, Roboto, sans-serif" font-weight="900" font-size="78" letter-spacing="2">
-      <tspan fill="#FFFFFF">VAGAS</tspan>
-      <tspan fill="url(#devGradient)">DEV</tspan>
+      <tspan fill="#FFFFFF">DEV</tspan><tspan fill="url(#radarGradient)">RADAR</tspan>
     </text>
   </g>
 </svg>
