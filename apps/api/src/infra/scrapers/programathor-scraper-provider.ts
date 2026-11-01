@@ -3,10 +3,12 @@ import * as cheerio from 'cheerio';
 
 import type { RawJobProps } from '@/domain/dtos/raw-job-props';
 import { HTTP_CLIENT, type IHttpClient } from '@/domain/providers/http-client';
+import type { IJobDescriptionFetcher } from '@/domain/providers/job-description-fetcher';
 import { BaseScraperProvider } from '@/infra/scrapers/support/base-scraper-provider';
 import {
   collapseSpaces,
   dedupeByUrl,
+  htmlToText,
   toAbsoluteUrl,
   uniqueStrings,
   workModelFromText,
@@ -14,6 +16,18 @@ import {
 
 const PROGRAMATHOR_ORIGIN = 'https://programathor.com.br';
 const EXPIRED_BADGE = 'vencida';
+
+export const PROGRAMATHOR_REQUEST_DELAY_IN_MS = 1_500;
+
+/**
+ * O anuncio inteiro mora neste bloco: os `h3` ("Descricao da empresa",
+ * "Atividades e Responsabilidades", "Requisitos") e os paragrafos de cada um.
+ * O que vem depois dele e barra lateral e rodape do site.
+ */
+const DESCRIPTION_BLOCK = 'div.line-height-2-4';
+
+/** O bloco carrega um anuncio do Google no meio; sem remover, o script viraria texto. */
+const NOT_CONTENT = 'script, style, ins, noscript';
 
 type HtmlNodes = ReturnType<cheerio.CheerioAPI>;
 
@@ -33,17 +47,47 @@ export const PROGRAMATHOR_DEFAULT_CATEGORIES: readonly string[] = [
  * detalhe — por isso toda vaga sai sem `publishedAt` e com
  * `publishedAtSource: 'CAPTURE'`: quem decide a data e o orquestrador, usando o
  * instante da captura. Cards marcados como "Vencida" (`.opacity-60p`) sao descartados.
+ *
+ * A descricao tambem nao esta no card: a coleta grava a vaga sem texto e o
+ * conserto por url (`IJobDescriptionFetcher`) busca o detalhe depois. Assim uma
+ * vaga nova nunca espera pelo detalhe para entrar no feed, e as cinco
+ * categorias da listagem nao viram dezenas de requisicoes por ciclo.
  */
 @Injectable()
-export class ProgramathorScraperProvider extends BaseScraperProvider {
+export class ProgramathorScraperProvider
+  extends BaseScraperProvider
+  implements IJobDescriptionFetcher
+{
   readonly source = 'programathor';
   readonly label = 'ProgramaThor';
 
   constructor(
     @Inject(HTTP_CLIENT) private readonly http: IHttpClient,
     @Optional() private readonly categories: readonly string[] = PROGRAMATHOR_DEFAULT_CATEGORIES,
+    @Optional() private readonly wait: (ms: number) => Promise<void> = sleep,
   ) {
     super();
+  }
+
+  /**
+   * Descricao da vaga pela url, para a linha que entrou sem texto.
+   *
+   * Espera antes de pedir, como as demais requisicoes desta fonte, e devolve
+   * vazio em vez de lancar: anuncio retirado do ar ou layout mudado nao derruba
+   * a captura (LSP), e a vaga e tentada de novo no ciclo seguinte.
+   */
+  async fetchDescriptionFor(url: string): Promise<string> {
+    await this.wait(PROGRAMATHOR_REQUEST_DELAY_IN_MS);
+
+    try {
+      const { body } = await this.http.get<string>(url, { headers: { Accept: 'text/html' } });
+
+      return descriptionFromDetail(body);
+    } catch (error: unknown) {
+      this.logger.warn(`Detalhe de ${url}: ${describeError(error)}`);
+
+      return '';
+    }
   }
 
   protected async collect(): Promise<RawJobProps[]> {
@@ -104,6 +148,27 @@ export class ProgramathorScraperProvider extends BaseScraperProvider {
       },
     ];
   }
+}
+
+function descriptionFromDetail(html: string): string {
+  const $ = cheerio.load(html);
+  const block = $(DESCRIPTION_BLOCK).first();
+
+  if (block.length === 0) {
+    return '';
+  }
+
+  block.find(NOT_CONTENT).remove();
+
+  return htmlToText(block.html() ?? '');
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function textOf(nodes: cheerio.CheerioAPI, card: HtmlNodes, selector: string): string[] {

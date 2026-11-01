@@ -154,6 +154,14 @@ describe('scraper-helpers', () => {
       expect(htmlToText('<p>Front &amp; back&nbsp;hoje</p>')).toBe('Front & back hoje');
     });
 
+    it('nao abre linha em branco pela indentacao que antecede a quebra', () => {
+      // Como o anunciante escreve na ProgramaThor: um item por linha, separados
+      // por <br />. A quebra do codigo-fonte nao e um paragrafo novo.
+      const text = htmlToText('<p>- React\n<br />- Node\n<br />- SQL</p>');
+
+      expect(text).toBe('- React\n- Node\n- SQL');
+    });
+
     it('devolve vazio para entrada vazia', () => {
       expect(htmlToText('')).toBe('');
     });

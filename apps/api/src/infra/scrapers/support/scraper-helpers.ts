@@ -158,7 +158,7 @@ export function uniqueStrings(values: readonly string[]): string[] {
 }
 
 /** Tags que fecham um bloco: viram quebra de linha antes de o texto ser extraido. */
-const BLOCK_TAG = /<\s*(?:br|\/p|\/li|\/ul|\/ol|\/h[1-6]|\/div|\/tr)\s*\/?>/gi;
+const BLOCK_TAG = /\s*<\s*(?:br|\/p|\/li|\/ul|\/ol|\/h[1-6]|\/div|\/tr)\s*\/?>/gi;
 const BLANK_LINE_RUN = /\n{3,}/g;
 
 /**
@@ -166,6 +166,9 @@ const BLANK_LINE_RUN = /\n{3,}/g;
  *
  * As tags de bloco viram quebra de linha ANTES da extracao: sem isso os itens da
  * lista sairiam grudados numa linha so, e a descricao tambem e exibida no painel.
+ * O espaco em branco que vem antes da tag entra na troca, porque e indentacao do
+ * HTML e nao conteudo: sem isso "item<br />\n item" sairia com uma linha vazia
+ * entre os dois itens.
  * A segunda passada pelo cheerio resolve as entidades (&amp;, &nbsp;, &atilde;).
  */
 export function htmlToText(html: string): string {

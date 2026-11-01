@@ -136,13 +136,16 @@ const SCRAPERS = [
     { provide: JOB_DESCRIPTION_READER, useExisting: PrismaJobDescriptionRepository },
     { provide: JOB_DESCRIPTION_WRITER, useExisting: PrismaJobDescriptionRepository },
     { provide: MISSING_DESCRIPTION_REPOSITORY, useExisting: PrismaJobDescriptionRepository },
-    // So o LinkedIn guarda a descricao atras de uma segunda pagina, entao so
-    // ele sabe buscar a de uma vaga avulsa; a lista existe para a segunda fonte
-    // com esse formato entrar aqui, e nao no caso de uso (OCP).
+    // Fontes cuja descricao mora atras de uma segunda pagina: a listagem nao a
+    // traz e a vaga e gravada sem texto. Entrar aqui basta para o conserto por
+    // url alcanca-la, sem tocar no caso de uso (OCP).
     {
       provide: JOB_DESCRIPTION_FETCHERS,
-      useFactory: (linkedin: LinkedinGuestScraperProvider): IJobDescriptionFetcher[] => [linkedin],
-      inject: [LinkedinGuestScraperProvider],
+      useFactory: (
+        linkedin: LinkedinGuestScraperProvider,
+        programathor: ProgramathorScraperProvider,
+      ): IJobDescriptionFetcher[] => [linkedin, programathor],
+      inject: [LinkedinGuestScraperProvider, ProgramathorScraperProvider],
     },
     { provide: CAPTURE_LOG_REPOSITORY, useExisting: PrismaCaptureLogRepository },
     { provide: MARKET_INSIGHTS_REPOSITORY, useExisting: PrismaMarketInsightsRepository },
