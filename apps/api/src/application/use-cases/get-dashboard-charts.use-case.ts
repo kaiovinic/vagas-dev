@@ -8,6 +8,7 @@ import { PUBLICATION_WINDOW_IN_HOURS } from '@/domain/services/job-rule-engine';
 import { toPercentage } from '@/application/use-cases/get-dashboard-summary.use-case';
 
 export const DEFAULT_CHART_DAYS = 14;
+export const CAPTURE_BLOCK_IN_HOURS = 2;
 export const MAX_CHART_DAYS = 90;
 
 export interface SourceSlice {
@@ -22,6 +23,14 @@ export interface DailyStack {
   readonly sources: readonly SourceSlice[];
 }
 
+/** Uma barra da volumetria de captura: um bloco de 2h das ultimas 24h. */
+export interface CaptureBlock {
+  /** Hora de inicio do bloco no horario de Brasilia, no formato `HH:mm`. */
+  readonly label: string;
+  readonly count: number;
+  readonly start: Date;
+}
+
 export interface DashboardCharts {
   readonly days: number;
   readonly windowInHours: number;
@@ -31,6 +40,10 @@ export interface DashboardCharts {
   readonly openJobsBySource: readonly SourceSlice[];
   /** Grafico de barras empilhadas: vagas novas por dia de publicacao, por fonte. */
   readonly newJobsByDay: readonly DailyStack[];
+  /** Tamanho de cada bloco da volumetria de captura, em horas. */
+  readonly captureBlockInHours: number;
+  /** Volumetria de captura das ultimas 24h: 12 blocos de 2h, em ordem cronologica. */
+  readonly capturesTimeline: readonly CaptureBlock[];
 }
 
 @Injectable()
@@ -42,9 +55,10 @@ export class GetDashboardChartsUseCase {
 
   async execute(days = DEFAULT_CHART_DAYS, reference: Date = new Date()): Promise<DashboardCharts> {
     const period = normalizeDays(days);
-    const [bySource, byDay] = await Promise.all([
+    const [bySource, byDay, timeline] = await Promise.all([
       this.metrics.countOpenJobsBySource(reference),
       this.metrics.countJobsByDayAndSource(reference, period),
+      this.metrics.findCapturesTimeline24h(reference),
     ]);
 
     const openTotal = bySource.reduce((total, slice) => total + slice.total, 0);
@@ -59,6 +73,12 @@ export class GetDashboardChartsUseCase {
         percentage: toPercentage(slice.total, openTotal),
       })),
       newJobsByDay: stackByDay(byDay),
+      captureBlockInHours: CAPTURE_BLOCK_IN_HOURS,
+      capturesTimeline: timeline.map((block) => ({
+        label: block.label,
+        count: block.total,
+        start: block.start,
+      })),
     };
   }
 }

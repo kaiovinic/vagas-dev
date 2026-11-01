@@ -27,6 +27,7 @@ import type {
   StartCaptureInput,
 } from '@/domain/repositories/capture-log-repository';
 import type {
+  CaptureBucketCount,
   DailySourceJobCount,
   IDashboardMetricsRepository,
   OpenJobsSummary,
@@ -226,6 +227,7 @@ export class StubDashboardMetricsRepository implements IDashboardMetricsReposito
 
   bySource: SourceJobCount[] = [];
   byDay: DailySourceJobCount[] = [];
+  timeline: CaptureBucketCount[] = [];
   lastDaysArgument = 0;
 
   async getOpenJobsSummary(): Promise<OpenJobsSummary> {
@@ -240,6 +242,10 @@ export class StubDashboardMetricsRepository implements IDashboardMetricsReposito
     this.lastDaysArgument = days;
 
     return this.byDay;
+  }
+
+  async findCapturesTimeline24h(): Promise<CaptureBucketCount[]> {
+    return this.timeline;
   }
 }
 

@@ -65,6 +65,8 @@ model Job {
   @@index([scope, publishedAt])
   @@index([closedAt, publishedAt])
   @@index([company])
+  /// Volumetria de captura do dashboard: blocos de 2h sobre a data de ingestao.
+  @@index([createdAt])
   @@map("jobs")
 }
 

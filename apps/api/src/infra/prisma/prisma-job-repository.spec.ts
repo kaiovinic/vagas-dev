@@ -309,4 +309,74 @@ describe('PrismaJobRepository', () => {
       expect(query.values.every((value) => !(value instanceof Date))).toBe(true);
     });
   });
+  describe('findCapturesTimeline24h', () => {
+    function queryOf(): { sql: string; values: unknown[] } {
+      const [[query]] = prisma.$queryRaw.mock.calls as [[{ sql: string; values: unknown[] }]];
+
+      return query;
+    }
+
+    it('agrupa a ingestao em blocos de 2 horas, sem perder o bloco vazio', async () => {
+      prisma.$queryRaw.mockResolvedValue([
+        { start: new Date('2026-10-26T09:00:00.000Z'), label: '06:00', total: 4n },
+        { start: new Date('2026-10-26T11:00:00.000Z'), label: '08:00', total: 0 },
+      ]);
+
+      await expect(repository.findCapturesTimeline24h(FIXED_NOW)).resolves.toEqual([
+        { start: new Date('2026-10-26T09:00:00.000Z'), label: '06:00', total: 4 },
+        { start: new Date('2026-10-26T11:00:00.000Z'), label: '08:00', total: 0 },
+      ]);
+    });
+
+    it('monta os blocos com generate_series e left join, e nao agrupando as linhas', async () => {
+      await repository.findCapturesTimeline24h(FIXED_NOW);
+
+      const { sql } = queryOf();
+
+      expect(sql).toContain('generate_series');
+      expect(sql).toContain("INTERVAL '2 hours'");
+      expect(sql).toContain('LEFT JOIN');
+    });
+
+    it('filtra pela data de ingestao, e nao pela de publicacao', async () => {
+      await repository.findCapturesTimeline24h(FIXED_NOW);
+
+      const { sql } = queryOf();
+
+      expect(sql).toContain('"createdAt"');
+      expect(sql).not.toContain('"publishedAt"');
+    });
+
+    it('pede 12 blocos ancorados na hora par de Brasilia', async () => {
+      await repository.findCapturesTimeline24h(FIXED_NOW);
+
+      const { values } = queryOf();
+
+      // 12:00Z e 09:00 em Brasilia: o bloco corrente comeca as 08:00 (11:00Z),
+      // e os 12 blocos cobrem as 22 horas anteriores a ele.
+      expect(values).toContain('2026-10-26T11:00:00.000Z');
+      expect(values).toContain('2026-10-25T13:00:00.000Z');
+    });
+
+    it('ancora no proprio horario quando a hora de Brasilia ja e par', async () => {
+      // 11:40Z e 08:40 em Brasilia: a hora par e a propria, so os minutos caem.
+      await repository.findCapturesTimeline24h(new Date('2026-10-26T11:40:00.000Z'));
+
+      expect(queryOf().values).toContain('2026-10-26T11:00:00.000Z');
+    });
+
+    it('envia as datas como texto ISO lido como timestamptz', async () => {
+      await repository.findCapturesTimeline24h(FIXED_NOW);
+
+      const { sql, values } = queryOf();
+
+      expect(sql).toContain('::timestamptz');
+      expect(values).toContain('America/Bahia');
+      expect(values.every((value) => !(value instanceof Date))).toBe(true);
+    });
+
+    it('devolve lista vazia quando a consulta nao traz nada', async () => {
+      await expect(repository.findCapturesTimeline24h(FIXED_NOW)).resolves.toEqual([]);
+    });
+  });
 });

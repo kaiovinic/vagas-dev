@@ -324,4 +324,91 @@ describe('PrismaJobRepository (integracao)', () => {
       await expect(repository.countJobsByDayAndSource(FIXED_NOW, 14)).resolves.toEqual([]);
     });
   });
+  describe('volumetria de captura das ultimas 24h', () => {
+    // 12:00Z e 09:00 em Brasilia: o bloco corrente comeca as 11:00Z e os 12
+    // blocos vao de 2026-10-25T13:00Z ate 2026-10-26T11:00Z.
+    const LAST_BLOCK = new Date('2026-10-26T11:00:00.000Z');
+
+    async function ingest(company: string, createdAt: Date): Promise<void> {
+      const job = makeJob({ company });
+
+      await repository.saveMany([persistable({ job })]);
+      await prisma.job.update({
+        where: { fingerprint: job.fingerprint.value },
+        data: { createdAt },
+      });
+    }
+
+    beforeEach(async () => {
+      await resetDatabase(prisma);
+    });
+
+    it('devolve os 12 blocos em ordem cronologica, de 2 em 2 horas', async () => {
+      const blocks = await repository.findCapturesTimeline24h(FIXED_NOW);
+
+      expect(blocks).toHaveLength(12);
+      expect(blocks[0]?.start).toEqual(new Date('2026-10-25T13:00:00.000Z'));
+      expect(blocks[11]?.start).toEqual(LAST_BLOCK);
+
+      for (let index = 1; index < blocks.length; index += 1) {
+        const previous = blocks[index - 1]!.start.getTime();
+        const current = blocks[index]!.start.getTime();
+
+        expect(current - previous).toBe(2 * 60 * 60 * 1000);
+      }
+    });
+
+    it('explicita com zero o bloco em que nenhuma vaga foi capturada', async () => {
+      await ingest('Acme Corp', new Date('2026-10-26T11:30:00.000Z'));
+
+      const blocks = await repository.findCapturesTimeline24h(FIXED_NOW);
+
+      expect(blocks).toHaveLength(12);
+      expect(blocks[11]?.total).toBe(1);
+      expect(blocks.slice(0, 11).every((block) => block.total === 0)).toBe(true);
+    });
+
+    it('conta cada vaga no bloco de 2 horas da sua ingestao', async () => {
+      await ingest('Acme Corp', new Date('2026-10-26T11:05:00.000Z'));
+      await ingest('Globex', new Date('2026-10-26T12:59:00.000Z'));
+      await ingest('Initech', new Date('2026-10-26T09:10:00.000Z'));
+      await ingest('Umbrella', new Date('2026-10-26T10:50:00.000Z'));
+
+      const blocks = await repository.findCapturesTimeline24h(FIXED_NOW);
+      const byStart = new Map(blocks.map((block) => [block.start.toISOString(), block.total]));
+
+      // 09:10Z e 10:50Z caem no mesmo bloco de 09:00Z; 11:05Z e 12:59Z, no de 11:00Z.
+      expect(byStart.get('2026-10-26T09:00:00.000Z')).toBe(2);
+      expect(byStart.get('2026-10-26T11:00:00.000Z')).toBe(2);
+    });
+
+    it('ignora a vaga ingerida antes da janela de 24 horas', async () => {
+      await ingest('Velha Corp', new Date('2026-10-25T12:00:00.000Z'));
+
+      const blocks = await repository.findCapturesTimeline24h(FIXED_NOW);
+
+      expect(blocks.reduce((total, block) => total + block.total, 0)).toBe(0);
+    });
+
+    it('rotula o bloco no horario de Brasilia, e nao em UTC', async () => {
+      const blocks = await repository.findCapturesTimeline24h(FIXED_NOW);
+
+      // 11:00Z e 08:00 em Brasilia.
+      expect(blocks[11]?.label).toBe('08:00');
+      expect(blocks[0]?.label).toBe('10:00');
+    });
+
+    it('nao filtra pela data de publicacao: conta a ingestao mesmo de vaga antiga', async () => {
+      const job = makeJob({ company: 'Antiga', publishedAt: hoursAgo(100) });
+      await repository.saveMany([persistable({ job })]);
+      await prisma.job.update({
+        where: { fingerprint: job.fingerprint.value },
+        data: { createdAt: new Date('2026-10-26T11:30:00.000Z') },
+      });
+
+      const blocks = await repository.findCapturesTimeline24h(FIXED_NOW);
+
+      expect(blocks[11]?.total).toBe(1);
+    });
+  });
 });

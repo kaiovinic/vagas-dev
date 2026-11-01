@@ -172,6 +172,21 @@ describe('Dashboard (E2E)', () => {
       ]);
     });
 
+    it('devolve a volumetria de captura em blocos de 2 horas', async () => {
+      context.metrics.timeline = [
+        { start: new Date('2026-10-26T09:00:00.000Z'), label: '06:00', total: 5 },
+        { start: new Date('2026-10-26T11:00:00.000Z'), label: '08:00', total: 0 },
+      ];
+
+      const response = await http().get('/api/dashboard/charts').expect(200);
+
+      expect(response.body.captureBlockInHours).toBe(2);
+      expect(response.body.capturesTimeline).toEqual([
+        { label: '06:00', count: 5, start: '2026-10-26T09:00:00.000Z' },
+        { label: '08:00', count: 0, start: '2026-10-26T11:00:00.000Z' },
+      ]);
+    });
+
     it('usa 14 dias quando o periodo nao e informado', async () => {
       const response = await http().get('/api/dashboard/charts').expect(200);
 

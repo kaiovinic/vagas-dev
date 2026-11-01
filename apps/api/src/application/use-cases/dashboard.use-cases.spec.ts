@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  CAPTURE_BLOCK_IN_HOURS,
   DEFAULT_CHART_DAYS,
   GetDashboardChartsUseCase,
   MAX_CHART_DAYS,
@@ -199,5 +200,61 @@ describe('GetDashboardChartsUseCase', () => {
 
   it('usa o horario atual quando nenhuma referencia e informada', async () => {
     await expect(useCase.execute()).resolves.toMatchObject({ days: DEFAULT_CHART_DAYS });
+  });
+  describe('volumetria de captura das ultimas 24h', () => {
+    /** Os 12 blocos de 2h que o repositorio sempre devolve, o vazio incluido. */
+    function twelveBlocks(): { start: Date; label: string; total: number }[] {
+      const firstBlock = new Date('2026-10-25T13:00:00.000Z');
+
+      return Array.from({ length: 12 }, (_value, index) => {
+        const start = new Date(firstBlock.getTime() + index * 2 * 60 * 60 * 1000);
+
+        return { start, label: String(10 + index * 2).padStart(2, '0') + ':00', total: index };
+      });
+    }
+
+    it('mapeia cada bloco para label, count e start', async () => {
+      metrics.timeline = [
+        { start: new Date('2026-10-26T09:00:00.000Z'), label: '06:00', total: 7 },
+        { start: new Date('2026-10-26T11:00:00.000Z'), label: '08:00', total: 0 },
+      ];
+
+      const charts = await useCase.execute(DEFAULT_CHART_DAYS, FIXED_NOW);
+
+      expect(charts.capturesTimeline).toEqual([
+        { label: '06:00', count: 7, start: new Date('2026-10-26T09:00:00.000Z') },
+        { label: '08:00', count: 0, start: new Date('2026-10-26T11:00:00.000Z') },
+      ]);
+    });
+
+    it('preserva os 12 blocos e a ordem cronologica do repositorio', async () => {
+      metrics.timeline = twelveBlocks();
+
+      const charts = await useCase.execute(DEFAULT_CHART_DAYS, FIXED_NOW);
+
+      expect(charts.capturesTimeline).toHaveLength(12);
+      expect(charts.capturesTimeline.map((block) => block.start.toISOString())).toEqual(
+        twelveBlocks().map((block) => block.start.toISOString()),
+      );
+      expect(charts.captureBlockInHours).toBe(CAPTURE_BLOCK_IN_HOURS);
+    });
+
+    it('mantem o bloco sem captura como zero, em vez de descartar a barra', async () => {
+      metrics.timeline = [
+        { start: new Date('2026-10-26T09:00:00.000Z'), label: '06:00', total: 0 },
+      ];
+
+      const charts = await useCase.execute(DEFAULT_CHART_DAYS, FIXED_NOW);
+
+      expect(charts.capturesTimeline).toEqual([
+        { label: '06:00', count: 0, start: new Date('2026-10-26T09:00:00.000Z') },
+      ]);
+    });
+
+    it('devolve a volumetria vazia quando o repositorio nao traz blocos', async () => {
+      const charts = await useCase.execute(14, FIXED_NOW);
+
+      expect(charts.capturesTimeline).toEqual([]);
+    });
   });
 });

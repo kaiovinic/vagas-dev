@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import type {
+  CaptureBucketCount,
   DailySourceJobCount,
   IDashboardMetricsRepository,
   OpenJobsSummary,
@@ -19,6 +20,14 @@ import { PrismaService } from '@/infra/prisma/prisma.service';
 const MILLISECONDS_IN_HOUR = 60 * 60 * 1000;
 const BRASILIA_TIME_ZONE = 'America/Bahia';
 const KPI_WINDOW_IN_HOURS = 24;
+const CAPTURE_BLOCK_IN_HOURS = 2;
+const CAPTURE_BLOCKS_IN_24H = 12;
+
+interface CaptureBucketRow {
+  readonly start: Date;
+  readonly label: string;
+  readonly total: number | bigint;
+}
 
 interface DailyCountRow {
   readonly day: string;
@@ -172,6 +181,72 @@ export class PrismaJobRepository implements IJobWriteRepository, IDashboardMetri
 
     return rows.map((row) => ({ day: row.day, source: row.source, total: Number(row.total) }));
   }
+
+  /**
+   * Volumetria de ingestao (`createdAt`) das ultimas 24h em blocos de 2 horas.
+   *
+   * Os blocos vem do `generate_series` e as vagas entram por `LEFT JOIN`, e nao do
+   * agrupamento das linhas existentes: assim o ciclo que nao trouxe nada aparece
+   * como barra zerada em vez de desaparecer do grafico, que e o caso que importa.
+   *
+   * O inicio e ancorado na hora par de Brasilia para que cada bloco caia sobre o
+   * ciclo de captura, que roda de 2 em 2 horas, e nao no meio de dois ciclos.
+   */
+  async findCapturesTimeline24h(reference: Date): Promise<CaptureBucketCount[]> {
+    // Mesmo cuidado da consulta por dia: texto ISO lido como `timestamptz` e
+    // trazido para UTC, porque a coluna e `timestamp` sem fuso.
+    const lastBlock = startOfCaptureBlock(reference);
+    const end = lastBlock.toISOString();
+    const start = subtractHours(
+      lastBlock,
+      (CAPTURE_BLOCKS_IN_24H - 1) * CAPTURE_BLOCK_IN_HOURS,
+    ).toISOString();
+
+    const rows = await this.prisma.$queryRaw<CaptureBucketRow[]>(Prisma.sql`
+      WITH blocks AS (
+        SELECT generate_series(
+          (${start}::timestamptz AT TIME ZONE 'UTC'),
+          (${end}::timestamptz AT TIME ZONE 'UTC'),
+          INTERVAL '2 hours'
+        ) AS block_start
+      )
+      SELECT blocks.block_start AS "start",
+             to_char(blocks.block_start AT TIME ZONE 'UTC' AT TIME ZONE ${BRASILIA_TIME_ZONE}, 'HH24:MI') AS "label",
+             COUNT("jobs"."id") AS "total"
+      FROM blocks
+      LEFT JOIN "jobs"
+        ON "jobs"."createdAt" >= blocks.block_start
+       AND "jobs"."createdAt" < blocks.block_start + INTERVAL '2 hours'
+      GROUP BY 1, 2
+      ORDER BY 1 ASC
+    `);
+
+    return rows.map((row) => ({
+      start: new Date(row.start),
+      label: row.label,
+      total: Number(row.total),
+    }));
+  }
+}
+
+/**
+ * Inicio do bloco de 2 horas que contem a referencia, ancorado na hora par de
+ * Brasilia. A paridade e lida no fuso de Brasilia, e nao em UTC, para que o
+ * rotulo do bloco bata com a hora que o usuario ve no dashboard.
+ */
+function startOfCaptureBlock(reference: Date): Date {
+  const hourInBrasilia = Number(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: BRASILIA_TIME_ZONE,
+      hour: '2-digit',
+      hourCycle: 'h23',
+    }).format(reference),
+  );
+  const flooredToHour = new Date(reference);
+
+  flooredToHour.setUTCMinutes(0, 0, 0);
+
+  return subtractHours(flooredToHour, hourInBrasilia % CAPTURE_BLOCK_IN_HOURS);
 }
 
 function toCreateInput(entry: PersistableJob, seenAt: Date): Prisma.JobCreateManyInput {
