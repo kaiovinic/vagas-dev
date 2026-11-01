@@ -42,6 +42,8 @@ function chartsPayload(days: number): unknown {
     newJobsByDay: [
       { day: '2026-10-25', total: 4, sources: [{ source: 'gupy', total: 4, percentage: 100 }] },
     ],
+    captureBlockInHours: 2,
+    capturesTimeline: [{ label: '08:00', count: 4, start: '2026-10-26T11:00:00.000Z' }],
   };
 }
 

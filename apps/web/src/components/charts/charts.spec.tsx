@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import type { DailyStack, SourceSlice } from '@/api/schemas';
+import type { CaptureBlock, DailyStack, SourceSlice } from '@/api/schemas';
+import {
+  CapturesTimelineChart,
+  TimelineTooltip,
+  toRow,
+} from '@/components/charts/captures-timeline-chart';
 import { DailyStackedBarChart } from '@/components/charts/daily-stacked-bar-chart';
 import { SourceDonutChart } from '@/components/charts/source-donut-chart';
 
@@ -243,5 +248,130 @@ describe('DailyStackedBarChart', () => {
 
     expect(screen.getByText('Nao foi possivel carregar o grafico')).toBeInTheDocument();
     expect(screen.getByText('API fora do ar')).toBeInTheDocument();
+  });
+});
+
+/** Os 12 blocos de 2h que a API devolve, com dois ciclos em branco. */
+const TIMELINE: CaptureBlock[] = Array.from({ length: 12 }, (_value, index) => {
+  const start = new Date(Date.UTC(2026, 9, 25, 13 + index * 2));
+
+  return {
+    start: start.toISOString(),
+    label: String((10 + index * 2) % 24).padStart(2, '0') + ':00',
+    count: index === 3 || index === 7 ? 0 : index + 1,
+  };
+});
+
+function renderTimeline(
+  overrides: Partial<Parameters<typeof CapturesTimelineChart>[0]> = {},
+): HTMLElement {
+  const { container } = render(
+    <CapturesTimelineChart
+      blocks={TIMELINE}
+      blockInHours={2}
+      isLoading={false}
+      error={null}
+      {...overrides}
+    />,
+  );
+
+  return container;
+}
+
+describe('CapturesTimelineChart', () => {
+  it('anuncia a janela e o tamanho do bloco no cabecalho', () => {
+    renderTimeline();
+
+    expect(screen.getByRole('heading', { name: 'Volumetria da captura' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Vagas capturadas nas ultimas 24h, em blocos de 2h no horario de Brasilia'),
+    ).toBeInTheDocument();
+  });
+
+  it('desenha uma barra por bloco, inclusive os dois ciclos vazios', () => {
+    const container = renderTimeline();
+
+    expect(screen.getByTestId('captures-timeline-chart')).toBeInTheDocument();
+    expect(container.querySelectorAll('.recharts-rectangle')).toHaveLength(TIMELINE.length);
+  });
+
+  it('rotula o eixo com a hora de inicio de cada um dos 12 blocos', () => {
+    const container = renderTimeline();
+
+    const ticks = [...container.querySelectorAll('.recharts-xAxis .recharts-cartesian-axis-tick')];
+
+    expect(ticks).toHaveLength(12);
+    expect(ticks[0]).toHaveTextContent('10:00');
+    expect(ticks[11]).toHaveTextContent('08:00');
+  });
+
+  it('exibe skeleton enquanto carrega', () => {
+    renderTimeline({ isLoading: true, blocks: undefined });
+
+    expect(screen.getByTestId('skeleton')).toBeInTheDocument();
+    expect(screen.queryByTestId('captures-timeline-chart')).not.toBeInTheDocument();
+  });
+
+  it('avisa quando a api nao devolveu nenhum bloco', () => {
+    renderTimeline({ blocks: [] });
+
+    expect(screen.getByText('Nenhum ciclo de captura nas ultimas 24h')).toBeInTheDocument();
+  });
+
+  it('mostra a mensagem de erro da api', () => {
+    renderTimeline({ blocks: undefined, error: new Error('API fora do ar') });
+
+    expect(screen.getByText('Nao foi possivel carregar o grafico')).toBeInTheDocument();
+    expect(screen.getByText('API fora do ar')).toBeInTheDocument();
+  });
+
+  describe('tooltip', () => {
+    it('fecha o intervalo do bloco no horario de Brasilia', () => {
+      // 13:00Z e 10:00 em Brasilia; o bloco de 2h termina as 12:00.
+      const row = toRow({ start: '2026-10-25T13:00:00.000Z', label: '10:00', count: 3 }, 2);
+
+      expect(row.range).toBe('10:00 - 12:00');
+    });
+
+    it('mostra o intervalo completo e a quantidade exata', () => {
+      render(
+        <TimelineTooltip active row={{ label: '10:00', count: 3, range: '10:00 - 12:00' }} />,
+      );
+
+      const tooltip = screen.getByTestId('timeline-tooltip');
+
+      expect(tooltip).toHaveTextContent('10:00 - 12:00');
+      expect(tooltip).toHaveTextContent('3 vagas capturadas');
+    });
+
+    it('concorda o singular quando o bloco trouxe uma vaga so', () => {
+      render(
+        <TimelineTooltip active row={{ label: '10:00', count: 1, range: '10:00 - 12:00' }} />,
+      );
+
+      expect(screen.getByTestId('timeline-tooltip')).toHaveTextContent('1 vaga capturada');
+    });
+
+    it('deixa claro o ciclo que nao trouxe nada', () => {
+      render(
+        <TimelineTooltip active row={{ label: '10:00', count: 0, range: '10:00 - 12:00' }} />,
+      );
+
+      expect(screen.getByTestId('timeline-tooltip')).toHaveTextContent('0 vagas capturadas');
+    });
+
+    it('nao renderiza nada fora do hover', () => {
+      render(
+        <TimelineTooltip active={false} row={{ label: '10:00', count: 3, range: '10:00 - 12:00' }} />,
+      );
+
+      expect(screen.queryByTestId('timeline-tooltip')).not.toBeInTheDocument();
+    });
+
+    it('nao renderiza nada quando o recharts nao informa o bloco', () => {
+      render(<TimelineTooltip active row={undefined} />);
+
+      expect(screen.queryByTestId('timeline-tooltip')).not.toBeInTheDocument();
+    });
   });
 });

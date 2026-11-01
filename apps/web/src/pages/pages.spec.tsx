@@ -43,6 +43,13 @@ function charts(days: number): unknown {
         ],
       },
     ],
+    captureBlockInHours: 2,
+    // Dois ciclos cheios e um em branco: o grafico tem de mostrar os tres.
+    capturesTimeline: [
+      { label: '04:00', count: 6, start: '2026-10-26T07:00:00.000Z' },
+      { label: '06:00', count: 0, start: '2026-10-26T09:00:00.000Z' },
+      { label: '08:00', count: 3, start: '2026-10-26T11:00:00.000Z' },
+    ],
   };
 }
 
@@ -140,6 +147,19 @@ describe('DashboardPage', () => {
     expect(screen.getByText('75% das vagas abertas')).toBeInTheDocument();
     expect(screen.getByTestId('donut-legend')).toHaveTextContent('LinkedIn');
     expect(screen.getByTestId('stacked-bar-chart')).toBeInTheDocument();
+    expect(screen.getByTestId('captures-timeline-chart')).toBeInTheDocument();
+  });
+
+  it('desenha a volumetria de captura em blocos de 2h', async () => {
+    stubApi();
+
+    renderWithProviders(<DashboardPage />);
+
+    await screen.findByTestId('captures-timeline-chart');
+
+    expect(
+      screen.getByText('Vagas capturadas nas ultimas 24h, em blocos de 2h no horario de Brasilia'),
+    ).toBeInTheDocument();
   });
 
   it('inclui as fontes novas na rosca, com rotulo proprio', async () => {
@@ -198,7 +218,8 @@ describe('DashboardPage', () => {
     renderWithProviders(<DashboardPage />);
 
     await waitFor(() =>
-      expect(screen.getAllByText('Nao foi possivel carregar o grafico')).toHaveLength(2),
+      // Rosca, barras por dia e volumetria: os tres vem do mesmo endpoint.
+      expect(screen.getAllByText('Nao foi possivel carregar o grafico')).toHaveLength(3),
     );
   });
 });

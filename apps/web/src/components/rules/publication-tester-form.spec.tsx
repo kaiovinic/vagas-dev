@@ -226,4 +226,84 @@ describe('PublicationTesterForm', () => {
       expect(screen.getByText(/Falha ao validar a publicacao \(500\)/)).toBeInTheDocument(),
     );
   });
+  describe('botao Limpar', () => {
+    it('esvazia todos os campos do formulario', async () => {
+      stubPost(APPROVED);
+
+      renderWithProviders(<PublicationTesterForm />);
+
+      await userEvent.type(screen.getByLabelText('Texto da publicacao'), VALID_TEXT);
+      await userEvent.type(screen.getByLabelText('Empresa (opcional)'), 'Acme Corp');
+      await userEvent.type(screen.getByLabelText('Localidade (opcional)'), 'Salvador/BA');
+      await userEvent.type(
+        screen.getByLabelText('Link da vaga (opcional)'),
+        'https://gupy.io/vagas/1',
+      );
+
+      await userEvent.click(screen.getByRole('button', { name: 'Limpar' }));
+
+      expect(screen.getByLabelText('Texto da publicacao')).toHaveValue('');
+      expect(screen.getByLabelText('Empresa (opcional)')).toHaveValue('');
+      expect(screen.getByLabelText('Localidade (opcional)')).toHaveValue('');
+      expect(screen.getByLabelText('Link da vaga (opcional)')).toHaveValue('');
+    });
+
+    it('apaga o resultado da validacao anterior', async () => {
+      stubPost(APPROVED);
+
+      renderWithProviders(<PublicationTesterForm />);
+
+      await userEvent.type(screen.getByLabelText('Texto da publicacao'), VALID_TEXT);
+      await userEvent.click(screen.getByRole('button', { name: 'Validar Regra' }));
+
+      await screen.findByTestId('tester-result');
+
+      await userEvent.click(screen.getByRole('button', { name: 'Limpar' }));
+
+      expect(screen.queryByTestId('tester-result')).not.toBeInTheDocument();
+    });
+
+    it('apaga tambem o erro da validacao anterior', async () => {
+      stubPost({ message: 'Deu ruim' }, 500);
+
+      renderWithProviders(<PublicationTesterForm />);
+
+      await userEvent.type(screen.getByLabelText('Texto da publicacao'), VALID_TEXT);
+      await userEvent.click(screen.getByRole('button', { name: 'Validar Regra' }));
+
+      await screen.findByText('Nao foi possivel validar a publicacao');
+
+      await userEvent.click(screen.getByRole('button', { name: 'Limpar' }));
+
+      expect(
+        screen.queryByText('Nao foi possivel validar a publicacao'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('apaga a mensagem de campo invalido', async () => {
+      stubPost(APPROVED);
+
+      renderWithProviders(<PublicationTesterForm />);
+
+      await userEvent.type(screen.getByLabelText('Texto da publicacao'), 'curto');
+      await userEvent.click(screen.getByRole('button', { name: 'Validar Regra' }));
+
+      await screen.findByRole('alert');
+
+      await userEvent.click(screen.getByRole('button', { name: 'Limpar' }));
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('nao dispara nenhuma chamada a api', async () => {
+      const spy = stubPost(APPROVED);
+
+      renderWithProviders(<PublicationTesterForm />);
+
+      await userEvent.type(screen.getByLabelText('Texto da publicacao'), VALID_TEXT);
+      await userEvent.click(screen.getByRole('button', { name: 'Limpar' }));
+
+      expect(spy).not.toHaveBeenCalled();
+    });
+  });
 });

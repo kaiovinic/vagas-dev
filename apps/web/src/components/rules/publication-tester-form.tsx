@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { CircleCheck, CircleX, Loader2 } from 'lucide-react';
+import { CircleCheck, CircleX, Eraser, Loader2 } from 'lucide-react';
 import { z } from 'zod';
 
 import type { RejectionReason, RulesTestResult } from '@/api/schemas';
@@ -9,6 +9,8 @@ import { Panel, StateMessage } from '@/components/ui/panel';
 import { useTestRules } from '@/hooks/use-rules';
 
 const MIN_TEXT_LENGTH = 10;
+
+const EMPTY_FORM = { text: '', company: '', location: '', url: '' } as const;
 
 const testerSchema = z
   .object({
@@ -48,11 +50,18 @@ export function PublicationTesterForm(): ReactNode {
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<PublicationTesterValues>({
     resolver: zodResolver(testerSchema),
-    defaultValues: { text: '', company: '', location: '', url: '' },
+    defaultValues: EMPTY_FORM,
   });
+
+  /** Limpa os campos E o retorno anterior: resultado orfao confunde mais que ajuda. */
+  function clearForm(): void {
+    reset(EMPTY_FORM);
+    test.reset();
+  }
 
   return (
     <Panel
@@ -97,6 +106,16 @@ export function PublicationTesterForm(): ReactNode {
           >
             {test.isPending && <Loader2 aria-hidden="true" className="size-4 animate-spin" />}
             Validar Regra
+          </button>
+
+          <button
+            type="button"
+            onClick={clearForm}
+            disabled={test.isPending}
+            className="inline-flex items-center gap-2 rounded-lg border border-border-subtle bg-surface-base px-4 py-2 text-sm font-medium text-content-secondary hover:text-content-primary disabled:opacity-60"
+          >
+            <Eraser aria-hidden="true" className="size-4" />
+            Limpar
           </button>
         </div>
       </form>

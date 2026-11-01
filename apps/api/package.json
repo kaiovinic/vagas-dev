@@ -16,7 +16,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
-    "test:int": "vitest run --config vitest.integration.config.ts",
+    "test:int": "dotenv -e .env -- vitest run --config vitest.integration.config.ts",
     "telegram:test": "dotenv -e .env -- tsx scripts/send-telegram-test.ts",
     "telegram:digest": "dotenv -e .env -- tsx scripts/send-weekly-digest.ts",
     "jobs:purge-international": "dotenv -e .env -- tsx scripts/purge-international-jobs.ts",

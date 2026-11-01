@@ -48,6 +48,14 @@ export const dashboardChartsSchema = z.object({
       sources: z.array(sourceSliceSchema),
     }),
   ),
+  captureBlockInHours: z.number(),
+  capturesTimeline: z.array(
+    z.object({
+      label: z.string(),
+      count: z.number(),
+      start: z.string().datetime(),
+    }),
+  ),
 });
 
 export const jobListItemSchema = z.object({
@@ -147,6 +155,7 @@ export type DashboardSummary = z.infer<typeof dashboardSummarySchema>;
 export type DashboardCharts = z.infer<typeof dashboardChartsSchema>;
 export type SourceSlice = z.infer<typeof sourceSliceSchema>;
 export type DailyStack = DashboardCharts['newJobsByDay'][number];
+export type CaptureBlock = DashboardCharts['capturesTimeline'][number];
 export type JobListItem = z.infer<typeof jobListItemSchema>;
 export type JobsList = z.infer<typeof jobsListSchema>;
 export type HiringEntity = z.infer<typeof hiringEntitySchema>;

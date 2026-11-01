@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 
+import { CapturesTimelineChart } from '@/components/charts/captures-timeline-chart';
 import { DailyStackedBarChart } from '@/components/charts/daily-stacked-bar-chart';
 import { SourceDonutChart } from '@/components/charts/source-donut-chart';
 import { SourceHealthTable } from '@/components/health/source-health-table';
@@ -14,6 +15,9 @@ import { useSourceHealth } from '@/hooks/use-source-health';
 
 /** Legenda da tabela antes da primeira resposta; a API manda a janela real. */
 const SOURCE_HEALTH_WINDOW_FALLBACK_IN_HOURS = 24;
+
+/** Legenda do grafico de volumetria antes da primeira resposta. */
+const CAPTURE_BLOCK_FALLBACK_IN_HOURS = 2;
 
 export function DashboardPage(): ReactNode {
   const [days, setDays] = useState<ChartDays>(DEFAULT_CHART_DAYS);
@@ -43,6 +47,13 @@ export function DashboardPage(): ReactNode {
           error={charts.error}
         />
       </div>
+
+      <CapturesTimelineChart
+        blocks={charts.data?.capturesTimeline}
+        blockInHours={charts.data?.captureBlockInHours ?? CAPTURE_BLOCK_FALLBACK_IN_HOURS}
+        isLoading={charts.isPending}
+        error={charts.error}
+      />
 
       <SourceHealthTable
         rows={health.data?.sources}
