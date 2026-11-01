@@ -3,15 +3,19 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   NEXTCOMMIT_DEFAULT_AREAS,
   NEXTCOMMIT_PAGES,
+  NEXTCOMMIT_REQUEST_DELAY_IN_MS,
   NextCommitScraperProvider,
 } from '@/infra/scrapers/nextcommit-scraper-provider';
 import {
   FakeHttpClient,
   failingHttpClient,
   readFixture,
+  readJsonFixture,
 } from '../../../test/factories/fake-http-client';
 
 const FIXTURE = readFixture('nextcommit.html');
+const JOBICY_FIXTURE = readFixture('jobicy-job.html');
+const GREENHOUSE_FIXTURE = readJsonFixture<unknown>('greenhouse-job.json');
 
 describe('NextCommitScraperProvider', () => {
   let http: FakeHttpClient;
@@ -183,6 +187,136 @@ describe('NextCommitScraperProvider', () => {
       ).scrape();
 
       expect(jobs.every((job) => job.url.length > 0)).toBe(true);
+    });
+  });
+  describe('descricao na origem', () => {
+    const JOBICY = 'https://jobicy.com/jobs/157106-senior-backend-engineer-13';
+    const GREENHOUSE = 'https://job-boards.greenhouse.io/stone/jobs/8037007003';
+    const HIMALAYAS =
+      'https://himalayas.app/companies/keyrus/jobs/python-developer-mid-level?utm_source=api';
+    const ISSUE = 'https://github.com/frontendbr/vagas/issues/8572';
+
+    /** Quanto o coletor pediu para esperar, em vez de esperar de verdade. */
+    let waits: number[];
+
+    function makeFetcher(respond: (url: string) => unknown): NextCommitScraperProvider {
+      return new NextCommitScraperProvider(new FakeHttpClient(respond), ['frontend'], 1, async (
+        ms,
+      ) => {
+        waits.push(ms);
+      });
+    }
+
+    beforeEach(() => {
+      waits = [];
+    });
+
+    it('le o JSON-LD da vaga quando a origem publica um', async () => {
+      const fetcher = makeFetcher(() => JOBICY_FIXTURE);
+
+      const texto = await fetcher.fetchDescriptionFor(JOBICY);
+
+      expect(texto).toContain('5+ anos com Python');
+    });
+
+    it('pede a propria pagina da origem, nao a do agregador', async () => {
+      const client = new FakeHttpClient(() => JOBICY_FIXTURE);
+
+      await new NextCommitScraperProvider(client, ['frontend'], 1, async () => {}).fetchDescriptionFor(
+        JOBICY,
+      );
+
+      expect(client.requestedUrls).toEqual([JOBICY]);
+    });
+
+    it('usa a API aberta do Greenhouse, que nao publica JSON-LD na pagina', async () => {
+      const client = new FakeHttpClient(() => GREENHOUSE_FIXTURE);
+      const fetcher = new NextCommitScraperProvider(client, ['frontend'], 1, async () => {});
+
+      const texto = await fetcher.fetchDescriptionFor(GREENHOUSE);
+
+      expect(client.requestedUrls).toEqual([
+        'https://boards-api.greenhouse.io/v1/boards/stone/jobs/8037007003',
+      ]);
+      expect(texto).toContain('Sobre a Stone:');
+      expect(texto).toContain('Experiência com React e TypeScript');
+    });
+
+    it('desescapa a marcacao que a API do Greenhouse devolve', async () => {
+      const fetcher = makeFetcher(() => GREENHOUSE_FIXTURE);
+
+      const texto = await fetcher.fetchDescriptionFor(GREENHOUSE);
+
+      expect(texto).not.toContain('&lt;');
+      expect(texto).not.toContain('<p>');
+    });
+
+    it('devolve vazio quando a vaga do Greenhouse vem sem conteudo', async () => {
+      const fetcher = makeFetcher(() => ({ title: 'Vaga' }));
+
+      await expect(fetcher.fetchDescriptionFor(GREENHOUSE)).resolves.toBe('');
+    });
+
+    it('cai no JSON-LD quando a url do Greenhouse nao e de uma vaga', async () => {
+      const client = new FakeHttpClient(() => JOBICY_FIXTURE);
+      const quadro = 'https://job-boards.greenhouse.io/stone';
+      const fetcher = new NextCommitScraperProvider(client, ['frontend'], 1, async () => {});
+
+      await fetcher.fetchDescriptionFor(quadro);
+
+      expect(client.requestedUrls).toEqual([quadro]);
+    });
+
+    it('nao gasta requisicao com origem que serve desafio de bot', async () => {
+      const client = new FakeHttpClient(() => JOBICY_FIXTURE);
+      const fetcher = new NextCommitScraperProvider(client, ['frontend'], 1, async (ms) => {
+        waits.push(ms);
+      });
+
+      await expect(fetcher.fetchDescriptionFor(HIMALAYAS)).resolves.toBe('');
+      expect(client.requestedUrls).toEqual([]);
+      expect(waits).toEqual([]);
+    });
+
+    it('nao busca a issue do GitHub, que o coletor do GitHub ja traz inteira', async () => {
+      const client = new FakeHttpClient(() => JOBICY_FIXTURE);
+      const fetcher = new NextCommitScraperProvider(client, ['frontend'], 1, async () => {});
+
+      await expect(fetcher.fetchDescriptionFor(ISSUE)).resolves.toBe('');
+      expect(client.requestedUrls).toEqual([]);
+    });
+
+    it('espera antes de pedir, para nao somar rajada a origem', async () => {
+      const fetcher = makeFetcher(() => JOBICY_FIXTURE);
+
+      await fetcher.fetchDescriptionFor(JOBICY);
+
+      expect(waits).toEqual([NEXTCOMMIT_REQUEST_DELAY_IN_MS]);
+    });
+
+    it('devolve vazio sem lancar quando a origem falha', async () => {
+      const quebrado = new NextCommitScraperProvider(
+        failingHttpClient('403 Forbidden'),
+        ['frontend'],
+        1,
+        async () => {},
+      );
+
+      await expect(quebrado.fetchDescriptionFor(JOBICY)).resolves.toBe('');
+    });
+
+    it('devolve vazio para url que nao da nem para interpretar', async () => {
+      const client = new FakeHttpClient(() => JOBICY_FIXTURE);
+      const fetcher = new NextCommitScraperProvider(client, ['frontend'], 1, async () => {});
+
+      await expect(fetcher.fetchDescriptionFor('vaga-sem-esquema')).resolves.toBe('');
+      expect(client.requestedUrls).toEqual([]);
+    });
+
+    it('devolve vazio quando a origem nao publica JSON-LD de vaga', async () => {
+      const fetcher = makeFetcher(() => '<html><body><h1>Vaga</h1></body></html>');
+
+      await expect(fetcher.fetchDescriptionFor(JOBICY)).resolves.toBe('');
     });
   });
 });

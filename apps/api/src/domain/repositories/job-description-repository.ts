@@ -58,8 +58,18 @@ export const MISSING_DESCRIPTION_REPOSITORY = Symbol.for('MISSING_DESCRIPTION_RE
  * que permite voltar nela pela url, sem depender de o card reaparecer na busca.
  */
 export interface IMissingDescriptionRepository {
-  /** Urls de vagas abertas daquela fonte que estao sem descricao, as mais recentes primeiro. */
-  findUrlsMissingDescription(source: string, limit: number): Promise<readonly string[]>;
+  /**
+   * Urls de vagas daquela fonte que estao sem descricao, as mais recentes primeiro.
+   *
+   * Apenas o que esta no feed: aberta na fonte e publicada depois de
+   * `publishedAfter`. Vaga fora da janela nao e exibida em lugar nenhum do
+   * painel, entao buscar o texto dela seria gastar requisicao para ninguem.
+   */
+  findUrlsMissingDescription(
+    source: string,
+    publishedAfter: Date,
+    limit: number,
+  ): Promise<readonly string[]>;
 
   /**
    * Grava a descricao da vaga daquela url, se ela ainda estiver vazia.

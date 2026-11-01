@@ -3,10 +3,13 @@ import * as cheerio from 'cheerio';
 
 import type { RawJobProps } from '@/domain/dtos/raw-job-props';
 import { HTTP_CLIENT, type IHttpClient } from '@/domain/providers/http-client';
+import type { IJobDescriptionFetcher } from '@/domain/providers/job-description-fetcher';
 import { BaseScraperProvider } from '@/infra/scrapers/support/base-scraper-provider';
+import { jobPostingDescriptionFrom } from '@/infra/scrapers/support/job-posting-json-ld';
 import {
   collapseSpaces,
   dedupeByUrl,
+  htmlToText,
   looksLikeJobMetadata,
   parseDate,
   toAbsoluteUrl,
@@ -15,6 +18,34 @@ import {
 } from '@/infra/scrapers/support/scraper-helpers';
 
 const NEXTCOMMIT_ORIGIN = 'https://www.nextcommit.dev';
+
+export const NEXTCOMMIT_REQUEST_DELAY_IN_MS = 1_500;
+
+/**
+ * Origens que nao dao para ler, e por isso nem sao pedidas.
+ *
+ * Medido em 01/11/2026, nos 138 cards das tres areas: `himalayas.app` responde
+ * 108 deles e serve a pagina atras do desafio do Cloudflare ("Just a moment"),
+ * enquanto a API publica dela devolve so as 20 vagas mais recentes — uma janela
+ * de oito minutos, inutil para achar um anuncio de ontem. Em `github.com` estao
+ * as issues dos repositorios de vagas, que o coletor do GitHub ja traz com o
+ * corpo inteiro.
+ *
+ * Sem esta lista, cada ciclo gastaria uma requisicao por vaga para receber a
+ * pagina do desafio e gravar nada.
+ */
+const WITHOUT_READABLE_DETAIL: readonly string[] = ['himalayas.app', 'github.com'];
+
+const GREENHOUSE_HOST = 'greenhouse.io';
+const GREENHOUSE_BOARD_API = 'https://boards-api.greenhouse.io/v1/boards';
+
+/** `/{quadro}/jobs/{id}`: o caminho da pagina e tambem o caminho na API. */
+const GREENHOUSE_JOB_PATH = /^\/[^/]+\/jobs\/\d+$/;
+
+interface GreenhouseJob {
+  /** HTML do anuncio, com as tags escapadas (`&lt;p&gt;`). */
+  readonly content?: string;
+}
 
 /** Areas que batem com a stack monitorada; `dados` e `mobile` ficam de fora. */
 export const NEXTCOMMIT_DEFAULT_AREAS: readonly string[] = ['frontend', 'fullstack', 'backend'];
@@ -65,7 +96,10 @@ type HtmlNodes = ReturnType<cheerio.CheerioAPI>;
  * volume alto, quando o que e novo nao cabe numa pagina so.
  */
 @Injectable()
-export class NextCommitScraperProvider extends BaseScraperProvider {
+export class NextCommitScraperProvider
+  extends BaseScraperProvider
+  implements IJobDescriptionFetcher
+{
   readonly source = 'nextcommit';
   readonly label = 'Next Commit';
 
@@ -73,8 +107,57 @@ export class NextCommitScraperProvider extends BaseScraperProvider {
     @Inject(HTTP_CLIENT) private readonly http: IHttpClient,
     @Optional() private readonly areas: readonly string[] = NEXTCOMMIT_DEFAULT_AREAS,
     @Optional() private readonly pages: number = NEXTCOMMIT_PAGES,
+    @Optional() private readonly wait: (ms: number) => Promise<void> = sleep,
   ) {
     super();
+  }
+
+  /**
+   * Descricao da vaga na origem, porque o agregador nao a tem.
+   *
+   * O card do Next Commit traz titulo, empresa, local, stack e data — nunca o
+   * texto do anuncio — e nao existe pagina de detalhe no proprio site: o link e
+   * o botao "Ver vaga", que aponta para Himalayas, Greenhouse, Jobicy ou uma
+   * issue do GitHub. Entao o detalhe e lido na origem, e por isso aqui tem
+   * caminho por origem em vez de um seletor so.
+   *
+   * Origem que nao da para ler devolve vazio sem gastar requisicao.
+   */
+  async fetchDescriptionFor(url: string): Promise<string> {
+    if (hasNoReadableDetail(url)) {
+      return '';
+    }
+
+    await this.wait(NEXTCOMMIT_REQUEST_DELAY_IN_MS);
+
+    try {
+      return await this.readDetail(url);
+    } catch (error: unknown) {
+      this.logger.warn(`Detalhe de ${url}: ${describeError(error)}`);
+
+      return '';
+    }
+  }
+
+  private async readDetail(url: string): Promise<string> {
+    const greenhouse = greenhouseApiUrlOf(url);
+
+    if (greenhouse) {
+      return this.fromGreenhouse(greenhouse);
+    }
+
+    const { body } = await this.http.get<string>(url, { headers: { Accept: 'text/html' } });
+
+    return jobPostingDescriptionFrom(body);
+  }
+
+  /** O quadro do Greenhouse nao publica JSON-LD, mas tem API aberta por vaga. */
+  private async fromGreenhouse(apiUrl: string): Promise<string> {
+    const { body } = await this.http.get<GreenhouseJob>(apiUrl, {
+      headers: { Accept: 'application/json' },
+    });
+
+    return htmlToText(unescapeMarkup(body.content ?? ''));
   }
 
   protected async collect(): Promise<RawJobProps[]> {
@@ -137,6 +220,53 @@ export class NextCommitScraperProvider extends BaseScraperProvider {
       },
     ];
   }
+}
+
+function hasNoReadableDetail(url: string): boolean {
+  const host = hostOf(url);
+
+  // Sem host nao ha nem o que pedir: url guardada torta e origem desconhecida.
+  if (host.length === 0) {
+    return true;
+  }
+
+  return WITHOUT_READABLE_DETAIL.some((blocked) => host === blocked || host.endsWith(`.${blocked}`));
+}
+
+/** URL da vaga na API aberta do Greenhouse, ou nada quando a origem e outra. */
+function greenhouseApiUrlOf(url: string): string | undefined {
+  if (!hostOf(url).endsWith(GREENHOUSE_HOST)) {
+    return undefined;
+  }
+
+  const { pathname } = new URL(url);
+
+  return GREENHOUSE_JOB_PATH.test(pathname) ? `${GREENHOUSE_BOARD_API}${pathname}` : undefined;
+}
+
+/** Url invalida nao e excecao aqui: vira origem desconhecida e segue o fluxo. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * A API do Greenhouse devolve o anuncio com as tags escapadas, entao o texto
+ * precisa de uma passada para virar HTML de novo antes de virar texto corrido.
+ */
+function unescapeMarkup(escaped: string): string {
+  return cheerio.load(`<div>${escaped}</div>`).root().text();
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**

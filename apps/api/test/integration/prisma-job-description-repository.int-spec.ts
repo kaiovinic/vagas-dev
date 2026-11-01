@@ -5,7 +5,10 @@ import { PrismaJobDescriptionRepository } from '@/infra/prisma/prisma-job-descri
 import { PrismaJobRepository } from '@/infra/prisma/prisma-job-repository';
 import type { PrismaService } from '@/infra/prisma/prisma.service';
 import { createTestPrisma, resetDatabase } from './database';
-import { makeJob } from '../factories/make-job';
+import { hoursAgo, makeJob } from '../factories/make-job';
+
+/** Inicio da janela do feed, como o caso de uso informa. */
+const DENTRO_DA_JANELA = hoursAgo(72);
 
 const prisma: PrismaService = createTestPrisma();
 const repository = new PrismaJobDescriptionRepository(prisma);
@@ -147,7 +150,7 @@ describe('PrismaJobDescriptionRepository (integracao)', () => {
     const OUTRA_FONTE = 'https://www.gupy.io/job/sem-descricao-5';
 
     it('devolve a url da vaga aberta que esta sem descricao', async () => {
-      const urls = await repository.findUrlsMissingDescription('linkedin', 10);
+      const urls = await repository.findUrlsMissingDescription('linkedin', DENTRO_DA_JANELA, 10);
 
       expect(urls).toEqual([SEM_DESCRICAO]);
     });
@@ -165,14 +168,14 @@ describe('PrismaJobDescriptionRepository (integracao)', () => {
         }),
       ]);
 
-      expect(await repository.findUrlsMissingDescription('linkedin', 10)).toEqual([SEM_DESCRICAO]);
-      expect(await repository.findUrlsMissingDescription('gupy', 10)).toEqual([OUTRA_FONTE]);
+      expect(await repository.findUrlsMissingDescription('linkedin', DENTRO_DA_JANELA, 10)).toEqual([SEM_DESCRICAO]);
+      expect(await repository.findUrlsMissingDescription('gupy', DENTRO_DA_JANELA, 10)).toEqual([OUTRA_FONTE]);
     });
 
     it('nao devolve vaga encerrada: consertar o texto dela nao muda nada', async () => {
       await prisma.job.updateMany({ where: { url: SEM_DESCRICAO }, data: { closedAt: new Date() } });
 
-      expect(await repository.findUrlsMissingDescription('linkedin', 10)).toEqual([]);
+      expect(await repository.findUrlsMissingDescription('linkedin', DENTRO_DA_JANELA, 10)).toEqual([]);
     });
 
     it('respeita o limite e comeca pelas mais recentes', async () => {
@@ -189,9 +192,20 @@ describe('PrismaJobDescriptionRepository (integracao)', () => {
         }),
       ]);
 
-      const urls = await repository.findUrlsMissingDescription('linkedin', 1);
+      const urls = await repository.findUrlsMissingDescription('linkedin', DENTRO_DA_JANELA, 1);
 
       expect(urls).toEqual(['https://br.linkedin.com/jobs/view/recente-6']);
+    });
+
+    it('nao devolve vaga fora da janela do feed', async () => {
+      await prisma.job.updateMany({
+        where: { url: SEM_DESCRICAO },
+        data: { publishedAt: hoursAgo(80) },
+      });
+
+      expect(
+        await repository.findUrlsMissingDescription('linkedin', DENTRO_DA_JANELA, 10),
+      ).toEqual([]);
     });
 
     it('grava a descricao buscada pela url', async () => {

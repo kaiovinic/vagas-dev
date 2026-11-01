@@ -144,8 +144,13 @@ const SCRAPERS = [
       useFactory: (
         linkedin: LinkedinGuestScraperProvider,
         programathor: ProgramathorScraperProvider,
-      ): IJobDescriptionFetcher[] => [linkedin, programathor],
-      inject: [LinkedinGuestScraperProvider, ProgramathorScraperProvider],
+        nextcommit: NextCommitScraperProvider,
+      ): IJobDescriptionFetcher[] => [linkedin, programathor, nextcommit],
+      inject: [
+        LinkedinGuestScraperProvider,
+        ProgramathorScraperProvider,
+        NextCommitScraperProvider,
+      ],
     },
     { provide: CAPTURE_LOG_REPOSITORY, useExisting: PrismaCaptureLogRepository },
     { provide: MARKET_INSIGHTS_REPOSITORY, useExisting: PrismaMarketInsightsRepository },

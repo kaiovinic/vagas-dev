@@ -72,9 +72,13 @@ export class PrismaJobDescriptionRepository
    * So vaga ABERTA e dentro do feed: consertar a descricao de uma vaga
    * encerrada ou fora da janela nao muda nada que alguem va ler.
    */
-  async findUrlsMissingDescription(source: string, limit: number): Promise<readonly string[]> {
+  async findUrlsMissingDescription(
+    source: string,
+    publishedAfter: Date,
+    limit: number,
+  ): Promise<readonly string[]> {
     const rows = await this.prisma.job.findMany({
-      where: { ...OPEN_JOBS, source, description: '' },
+      where: { ...OPEN_JOBS, source, description: '', publishedAt: { gte: publishedAfter } },
       select: { url: true },
       orderBy: { publishedAt: 'desc' },
       take: limit,

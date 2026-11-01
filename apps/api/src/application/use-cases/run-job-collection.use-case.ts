@@ -109,7 +109,7 @@ export class RunJobCollectionUseCase {
 
     // Por ultimo, com o banco ja atualizado: as vagas que entraram agora sem
     // descricao sao justamente candidatas a este conserto.
-    const { totalFilled } = await this.fillMissingDescriptions.execute();
+    const { totalFilled } = await this.fillMissingDescriptions.execute(reference);
 
     const outcome: FinishCaptureInput = {
       captureId,

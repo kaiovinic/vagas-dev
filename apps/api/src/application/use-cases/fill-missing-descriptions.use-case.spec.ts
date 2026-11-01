@@ -4,11 +4,14 @@ import {
   FillMissingDescriptionsUseCase,
   MAX_DESCRIPTIONS_FILLED_PER_CYCLE,
 } from '@/application/use-cases/fill-missing-descriptions.use-case';
+import { PUBLICATION_WINDOW_IN_HOURS } from '@/domain/services/job-rule-engine';
 import {
   InMemoryJobDescriptionWriter,
   InMemoryMissingDescriptionRepository,
   StubJobDescriptionFetcher,
 } from '../../../test/factories/doubles';
+
+import { FIXED_NOW } from '../../../test/factories/make-job';
 
 const VAGA = 'https://www.linkedin.com/jobs/view/4321';
 const OUTRA = 'https://www.linkedin.com/jobs/view/8765';
@@ -92,7 +95,7 @@ describe('FillMissingDescriptionsUseCase', () => {
 
     const linkedin = new StubJobDescriptionFetcher('linkedin', descriptions);
 
-    const report = await buildUseCase([linkedin]).execute(2);
+    const report = await buildUseCase([linkedin]).execute(FIXED_NOW, 2);
 
     expect(report.totalFilled).toBe(2);
     expect(linkedin.asked).toHaveLength(2);
@@ -132,6 +135,14 @@ describe('FillMissingDescriptionsUseCase', () => {
     const report = await buildUseCase([]).execute();
 
     expect(report).toEqual({ totalFilled: 0, failedSources: [] });
+  });
+
+  it('procura apenas na janela do feed, nao em vaga que ninguem ve', async () => {
+    await buildUseCase([new StubJobDescriptionFetcher('linkedin')]).execute(FIXED_NOW);
+
+    const esperado = new Date(FIXED_NOW.getTime() - PUBLICATION_WINDOW_IN_HOURS * 3_600_000);
+
+    expect(jobs.askedFor?.publishedAfter).toEqual(esperado);
   });
 
   it('o teto padrao cobre o residuo medido em producao', () => {

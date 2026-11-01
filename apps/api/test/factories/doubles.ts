@@ -392,11 +392,19 @@ export class StubJobDescriptionFetcher implements IJobDescriptionFetcher {
 export class InMemoryMissingDescriptionRepository implements IMissingDescriptionRepository {
   readonly missing = new Map<string, string>();
   readonly filled = new Map<string, string>();
+  /** Janela recebida na ultima consulta, para conferir o recorte do feed. */
+  askedFor?: { source: string; publishedAfter: Date; limit: number };
   /** Urls que outra captura preencheu entre a leitura e a escrita. */
   readonly raced = new Set<string>();
   failWith?: unknown;
 
-  async findUrlsMissingDescription(source: string, limit: number): Promise<readonly string[]> {
+  async findUrlsMissingDescription(
+    source: string,
+    publishedAfter: Date,
+    limit: number,
+  ): Promise<readonly string[]> {
+    this.askedFor = { source, publishedAfter, limit };
+
     if (this.failWith) {
       throw this.failWith;
     }

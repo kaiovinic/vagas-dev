@@ -4,6 +4,7 @@ import {
   JOB_DESCRIPTION_FETCHERS,
   type IJobDescriptionFetcher,
 } from '@/domain/providers/job-description-fetcher';
+import { PUBLICATION_WINDOW_IN_HOURS } from '@/domain/services/job-rule-engine';
 import {
   JOB_DESCRIPTION_WRITER,
   MISSING_DESCRIPTION_REPOSITORY,
@@ -48,12 +49,16 @@ export class FillMissingDescriptionsUseCase {
     @Inject(JOB_DESCRIPTION_WRITER) private readonly cache: IJobDescriptionWriter,
   ) {}
 
-  async execute(limit: number = MAX_DESCRIPTIONS_FILLED_PER_CYCLE): Promise<FilledDescriptionsReport> {
+  async execute(
+    reference: Date = new Date(),
+    limit: number = MAX_DESCRIPTIONS_FILLED_PER_CYCLE,
+  ): Promise<FilledDescriptionsReport> {
+    const publishedAfter = windowStart(reference);
     let totalFilled = 0;
     const failedSources: string[] = [];
 
     for (const fetcher of this.fetchers) {
-      const report = await this.fillFor(fetcher, limit);
+      const report = await this.fillFor(fetcher, publishedAfter, limit);
 
       totalFilled += report.filled;
 
@@ -72,10 +77,15 @@ export class FillMissingDescriptionsUseCase {
   /** Uma fonte que falha nao impede as demais, nem derruba a captura. */
   private async fillFor(
     fetcher: IJobDescriptionFetcher,
+    publishedAfter: Date,
     limit: number,
   ): Promise<{ filled: number; failed: boolean }> {
     try {
-      const urls = await this.jobs.findUrlsMissingDescription(fetcher.source, limit);
+      const urls = await this.jobs.findUrlsMissingDescription(
+        fetcher.source,
+        publishedAfter,
+        limit,
+      );
       let filled = 0;
 
       for (const url of urls) {
@@ -103,6 +113,14 @@ export class FillMissingDescriptionsUseCase {
 
     return filled;
   }
+}
+
+/**
+ * Mesma janela do feed: o conserto existe para o que o painel exibe, e a regra
+ * de 72h e do dominio, nao deste caso de uso.
+ */
+function windowStart(reference: Date): Date {
+  return new Date(reference.getTime() - PUBLICATION_WINDOW_IN_HOURS * 60 * 60 * 1000);
 }
 
 function describeError(error: unknown): string {

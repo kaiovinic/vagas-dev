@@ -1,0 +1,41 @@
+<!--
+  Recorte de uma pagina de vaga do Jobicy, uma das origens que o Next Commit
+  agrega (https://jobicy.com/jobs/157106-senior-backend-engineer-13).
+
+  Mantem o formato real do JSON-LD: tres blocos, sendo o primeiro uma trilha de
+  navegacao, o segundo o `JobPosting` com a descricao em HTML e o terceiro uma
+  lista sem `@type`.
+-->
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8" />
+    <title>Senior Backend Engineer</title>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [{ "@type": "ListItem", "position": 1, "name": "Jobs" }]
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "JobPosting",
+        "title": "Senior Backend Engineer",
+        "datePosted": "2026-10-30T12:00:00Z",
+        "hiringOrganization": { "@type": "Organization", "name": "RevenueCat" },
+        "description": "<p>RevenueCat gives app businesses the infrastructure &amp; tools to monetize.</p><h3>About you</h3><ul><li>5+ anos com Python</li><li>Experi&ecirc;ncia com PostgreSQL</li></ul>"
+      }
+    </script>
+    <script type="application/ld+json">
+      [{ "position": 1, "name": "sem tipo declarado" }]
+    </script>
+  </head>
+  <body>
+    <main>
+      <h1>Senior Backend Engineer</h1>
+      <p>O corpo da pagina e montado no navegador, entao o texto do anuncio nao esta aqui.</p>
+    </main>
+  </body>
+</html>
