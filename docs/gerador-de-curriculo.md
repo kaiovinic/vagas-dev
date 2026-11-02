@@ -149,7 +149,8 @@ Três blocos, nesta ordem — e a ordem importa pelo cache:
 
 1. **Regras (estável)** — as regras do jogo: só usar fatos do perfil, nunca inflar
    senioridade, nunca inventar empresa ou tecnologia, escrever em português do
-   Brasil, devolver os campos no formato pedido. Esse bloco não muda entre gerações.
+   Brasil, devolver os campos no formato pedido, e seguir à risca a estrutura do
+   Markdown. Esse bloco não muda entre gerações.
 2. **Perfil (estável)** — o seu histórico serializado. Também idêntico em toda
    geração, até você editar a aba de perfil.
 3. **Vaga (volátil)** — título, empresa, descrição e tags da vaga alvo.
@@ -160,6 +161,19 @@ prefixo idêntico, o cache implícito do Gemini reconhece a repetição sozinho.
 monta os três blocos é o `ResumePromptBuilder`, no domínio — o adaptador só os
 coloca onde o SDK espera, e é essa divisão que faz a troca de provedor não mexer
 em nada do conteúdo.
+
+### A estrutura do Markdown é contrato
+
+O `RESUME_RULES` fixa os níveis de título e mostra o esqueleto: um `#` com o nome,
+`##` em caixa alta para cada seção, `### Título (período)` para cada cargo, projeto
+ou curso, e `**Tecnologias:** item1, item2` logo abaixo do `###`.
+
+Não é preciosismo de formato. O PDF só sabe engrossar um nome, versalear uma seção,
+alinhar o período à direita e manter um cargo inteiro na mesma página se eles
+chegarem nesses níveis — uma geração que saiu em texto plano virou um PDF de dois
+tamanhos de fonte, sem hierarquia nenhuma. Pedir a estrutura na origem custa alguns
+tokens no bloco que o cache já cobre; adivinhá-la no frontend custaria heurística em
+cima de heurística.
 
 A saída vem por **structured output** (`responseMimeType: 'application/json'` mais
 o schema), não por "me devolva um JSON" no texto: o formato de

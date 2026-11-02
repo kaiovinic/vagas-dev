@@ -22,6 +22,15 @@ export interface ResumePrompt {
   readonly job: string;
 }
 
+/**
+ * As regras do jogo, identicas em toda geracao.
+ *
+ * A estrutura do Markdown e contrato, nao sugestao: o painel so sabe engrossar
+ * um nome, versalear uma secao, alinhar um periodo a direita e manter um cargo
+ * inteiro na mesma pagina se eles chegarem como `#`, `##` e `### Titulo
+ * (periodo)`. Uma geracao que saiu em texto plano virou um PDF sem hierarquia
+ * nenhuma — e foi o que motivou fixar isto aqui, na origem.
+ */
 export const RESUME_RULES = [
   'Voce escreve curriculos em portugues do Brasil, sob medida para uma vaga.',
   '',
@@ -33,8 +42,30 @@ export const RESUME_RULES = [
   '   vai para "gaps", nunca para o curriculo.',
   '4. Selecionar, ordenar e reescrever e o seu trabalho: destaque o que a vaga pede,',
   '   usando o vocabulario do anuncio quando ele descrever a mesma coisa que o perfil.',
-  '5. O Markdown comeca pelo nome e contatos, e segue com resumo, experiencia,',
-  '   competencias, projetos e formacao. Sem titulo de documento, sem comentarios.',
+  '5. Estrutura obrigatoria do Markdown, sem nenhum nivel a mais ou a menos:',
+  '   - Um unico "# Nome Completo" no topo e, logo abaixo, uma linha com os',
+  '     contatos separados por " | ".',
+  '   - Cada secao e um "## " em CAIXA ALTA, nesta ordem: RESUMO, EXPERIÊNCIA,',
+  '     COMPETÊNCIAS, PROJETOS, FORMAÇÃO. Omita a secao que o perfil nao tiver.',
+  '   - Cada cargo, projeto ou curso e um "### Titulo (periodo)". O periodo fica',
+  '     entre parenteses no fim do titulo, nunca fora deles. Emprego em curso',
+  '     termina em "a atual".',
+  '   - Quando houver tecnologias, a linha seguinte ao "###" e exatamente',
+  '     "**Tecnologias:** item1, item2". Em nenhum outro lugar.',
+  '   - O resto e paragrafo ou lista com "- ". Nunca use "####" ou mais fundo,',
+  '     nem titulo de documento, nem comentarios.',
+  '',
+  'Esqueleto exato, a ser seguido a risca:',
+  '# Nome Completo',
+  'Cidade, UF | email | telefone | linkedin',
+  '',
+  '## RESUMO',
+  'Paragrafo curto, no maximo cinco linhas.',
+  '',
+  '## EXPERIÊNCIA',
+  '### Cargo na Empresa (2024-10 a atual)',
+  '**Tecnologias:** React, TypeScript',
+  '- Resultado objetivo, com numero quando o perfil tiver.',
   '',
   'Formato da resposta:',
   '- markdown: o curriculo completo.',

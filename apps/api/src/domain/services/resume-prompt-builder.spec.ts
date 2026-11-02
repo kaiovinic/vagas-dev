@@ -26,6 +26,49 @@ describe('ResumePromptBuilder', () => {
     expect(RESUME_RULES).toContain('SOMENTE fatos presentes no perfil');
   });
 
+  /**
+   * O painel so tem o que estilizar se o Markdown chegar com os niveis certos:
+   * uma geracao em texto plano vira um PDF sem hierarquia nenhuma. Por isso a
+   * estrutura e contrato testado, e nao uma sugestao no meio do prompt.
+   */
+  describe('contrato de estrutura do Markdown', () => {
+    const { rules } = build();
+
+    it('exige um unico nome no topo, seguido dos contatos', () => {
+      expect(rules).toContain('Um unico "# Nome Completo" no topo');
+      expect(rules).toContain('contatos separados por " | "');
+    });
+
+    it('exige as secoes em caixa alta, na ordem do curriculo', () => {
+      expect(rules).toContain('Cada secao e um "## " em CAIXA ALTA');
+      expect(rules).toContain('RESUMO, EXPERIÊNCIA,');
+      expect(rules).toContain('COMPETÊNCIAS, PROJETOS, FORMAÇÃO');
+    });
+
+    /** Fora dos parenteses o `splitPeriod` do painel nao acha a data. */
+    it('exige o periodo entre parenteses no fim do titulo da entrada', () => {
+      expect(rules).toContain('Cada cargo, projeto ou curso e um "### Titulo (periodo)"');
+      expect(rules).toContain('nunca fora deles');
+      expect(rules).toContain('a atual');
+    });
+
+    it('fixa a linha de tecnologias, que vira as etiquetas do PDF', () => {
+      expect(rules).toContain('"**Tecnologias:** item1, item2"');
+      expect(rules).toContain('Em nenhum outro lugar');
+    });
+
+    /** `####` o leitor de Markdown do painel nao reconhece: viraria texto. */
+    it('proibe nivel de titulo que o painel nao renderiza', () => {
+      expect(rules).toContain('Nunca use "####" ou mais fundo');
+    });
+
+    it('mostra o esqueleto, e nao so descreve', () => {
+      expect(rules).toContain('### Cargo na Empresa (2024-10 a atual)');
+      expect(rules).toContain('**Tecnologias:** React, TypeScript');
+      expect(rules).toContain('## EXPERIÊNCIA');
+    });
+  });
+
   it('leva o perfil inteiro para o bloco estavel', () => {
     const { profile } = build();
 
