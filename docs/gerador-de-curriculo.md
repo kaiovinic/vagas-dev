@@ -4,7 +4,9 @@ Desenho da feature antes da primeira linha de código. O objetivo é adaptar um
 perfil único — o seu — à descrição de uma vaga específica já capturada pelo
 radar, devolvendo um currículo em Markdown pronto para revisar, copiar e enviar.
 
-> **Status:** proposta, aguardando aval. Nada implementado.
+> **Status:** fases 1, 2 e 3 implementadas — perfil, porta, `ResumePromptBuilder`,
+> caso de uso, adaptador da Anthropic e `POST /api/resume/generate`. Falta a
+> fase 4: o botao na vaga e a tela do currículo.
 
 ---
 
@@ -237,9 +239,9 @@ entendeu a vaga ou só repetiu o perfil.
 
 | Fase | Entrega | Por que nesta ordem |
 |---|---|---|
-| 1 | Entidade, migration e aba `Perfil` | Sem perfil não há o que gerar; e essa fase não gasta um token |
-| 2 | Porta, `ResumePromptBuilder` e caso de uso com dublê | O miolo testável, inteiro, antes de falar com a Anthropic |
-| 3 | `AnthropicResumeGenerator` + `ANTHROPIC_API_KEY` | A ponta cara, já com tudo em volta verificado |
+| 1 | ✅ Entidade, migration e aba `Perfil` | Sem perfil não há o que gerar; e essa fase não gasta um token |
+| 2 | ✅ Porta, `ResumePromptBuilder` e caso de uso com dublê | O miolo testável, inteiro, antes de falar com a Anthropic |
+| 3 | ✅ `AnthropicResumeGenerator` + `ANTHROPIC_API_KEY` | A ponta cara, já com tudo em volta verificado |
 | 4 | Botão na vaga, Markdown, gaps e histórico | A tela, com o backend provado |
 
 A fase 1 entrega valor sozinha (seu perfil versionado e editável) e as fases 2 e 3
@@ -249,9 +251,13 @@ podem ser verificadas sem UI nenhuma.
 
 ## 9. Pontos em aberto
 
-- **`ANTHROPIC_API_KEY`** precisa entrar no `.env.example`, no `.env.prod.example`
-  e nos secrets do deploy. É a primeira chave paga do projeto: vale um teto de
-  gerações por dia para o caso de um bug entrar em laço.
+- **`ANTHROPIC_API_KEY`** já está no `.env.example`, no `.env.prod.example` e no
+  `docker-compose.prod.yml`; falta pôr o valor no `.env` da VPS. Sem ela a API
+  sobe igual e só a rota de geração responde 502. É a primeira chave paga do
+  projeto: vale um teto de gerações por dia para o caso de um bug entrar em laço.
+- **Teto diário de gerações**: ainda não existe. Hoje a proteção é só o
+  reaproveitamento da última versão salva por vaga — regerar é sempre um clique
+  deliberado.
 - **Um perfil ou vários?** O desenho assume um. Se um dia você quiser um perfil
   "Frontend" e outro "Fullstack", a tabela já aceita — falta só o seletor na UI.
 - **Idioma**: as vagas internacionais já são descartadas pelo filtro, então a saída

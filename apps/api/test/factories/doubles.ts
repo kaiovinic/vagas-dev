@@ -52,7 +52,21 @@ import type {
 
 import type { IJobClosureProvider } from '@/domain/providers/job-closure-provider';
 import type { IJobClosureWriter } from '@/domain/repositories/job-closure-repository';
-import { hoursAgo } from './make-job';
+import type { CandidateProfile } from '@/domain/entities/candidate-profile';
+import type { ICandidateProfileReader } from '@/domain/repositories/candidate-profile-repository';
+import { ResumeGenerationFailedError } from '@/domain/errors/resume-errors';
+import type {
+  GeneratedResumeContent,
+  IResumeGenerator,
+  ResumeRequest,
+  ResumeTargetJob,
+} from '@/domain/providers/resume-generator';
+import type {
+  IResumeRepository,
+  IResumeTargetJobReader,
+  StoredResume,
+} from '@/domain/repositories/resume-repository';
+import { FIXED_NOW, hoursAgo } from './make-job';
 
 export function rawJob(overrides: Partial<RawJobProps> = {}): RawJobProps {
   return {
@@ -455,5 +469,78 @@ export class InMemoryMissingDescriptionRepository implements IMissingDescription
     this.filled.set(url, description);
 
     return 1;
+  }
+}
+
+export class InMemoryResumeTargetJobReader implements IResumeTargetJobReader {
+  public jobs: ResumeTargetJob[] = [];
+
+  async findById(jobId: string): Promise<ResumeTargetJob | null> {
+    return this.jobs.find((job) => job.id === jobId) ?? null;
+  }
+}
+
+export class InMemoryCandidateProfileReader implements ICandidateProfileReader {
+  public profile: CandidateProfile | null = null;
+
+  async find(): Promise<CandidateProfile | null> {
+    return this.profile;
+  }
+}
+
+export class InMemoryResumeRepository implements IResumeRepository {
+  public saved: StoredResume[] = [];
+
+  async save(jobId: string, content: GeneratedResumeContent): Promise<StoredResume> {
+    const stored: StoredResume = {
+      id: `resume-${this.saved.length + 1}`,
+      jobId,
+      markdown: content.markdown,
+      rationale: content.rationale,
+      gaps: content.gaps,
+      model: content.usage.model,
+      inputTokens: content.usage.inputTokens,
+      outputTokens: content.usage.outputTokens,
+      createdAt: FIXED_NOW,
+    };
+
+    this.saved.push(stored);
+
+    return stored;
+  }
+
+  async findLatestByJob(jobId: string): Promise<StoredResume | null> {
+    return [...this.saved].reverse().find((resume) => resume.jobId === jobId) ?? null;
+  }
+}
+
+/**
+ * Gerador dublado: devolve um curriculo fixo e registra o que recebeu, para o
+ * teste conferir que o perfil e a vaga certos chegaram a porta.
+ */
+export class StubResumeGenerator implements IResumeGenerator {
+  public requests: ResumeRequest[] = [];
+  public shouldFail = false;
+  public content: GeneratedResumeContent = {
+    markdown: '# Kaio Vinicius',
+    rationale: ['Destaquei React porque a vaga pede React.'],
+    gaps: ['Nao tem experiencia com Angular.'],
+    usage: {
+      model: 'claude-opus-5-5',
+      inputTokens: 2_900,
+      outputTokens: 1_800,
+      cacheReadTokens: 2_600,
+      cacheCreationTokens: 0,
+    },
+  };
+
+  async generate(request: ResumeRequest): Promise<GeneratedResumeContent> {
+    this.requests.push(request);
+
+    if (this.shouldFail) {
+      throw new ResumeGenerationFailedError('provedor indisponivel');
+    }
+
+    return this.content;
   }
 }

@@ -61,6 +61,7 @@ model Job {
   lastSeenAt        DateTime          @default(now())
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
+  resumes           GeneratedResume[]
 
   @@index([publishedAt])
   @@index([source, publishedAt])
@@ -73,6 +74,29 @@ model Job {
   /// Fila do despachante de alertas: as pendentes, da mais antiga para a mais nova.
   @@index([notifiedAt, publishedAt])
   @@map("jobs")
+}
+
+/// Historico: cada curriculo gerado, preso a vaga que o originou.
+///
+/// Guardar nao e luxo. E o que permite comparar o que foi enviado com o retorno
+/// que a vaga deu, e o que evita pagar duas vezes pela mesma vaga sem querer.
+model GeneratedResume {
+  id           String   @id @default(uuid())
+  jobId        String
+  job          Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  markdown     String
+  /// Por que o modelo destacou cada bloco.
+  rationale    String[] @default([])
+  /// Requisitos da vaga que o perfil nao cobre.
+  gaps         String[] @default([])
+  /// Qual modelo gerou: o historico sobrevive a troca de modelo.
+  model        String
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([jobId, createdAt])
+  @@map("generated_resumes")
 }
 
 /// Resultado de UMA fonte dentro de uma captura.

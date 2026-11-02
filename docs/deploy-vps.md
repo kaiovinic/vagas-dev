@@ -132,6 +132,7 @@ nano .env.prod
 | `TELEGRAM_BOT_TOKEN` | token do [@BotFather](https://t.me/BotFather) — opcional |
 | `TELEGRAM_CHAT_ID` | de `https://api.telegram.org/bot<TOKEN>/getUpdates` — opcional |
 | `SERP_API_KEY` | chave do [Serper](https://serper.dev), para o coletor de publicações — opcional |
+| `ANTHROPIC_API_KEY` | chave do [console da Anthropic](https://console.anthropic.com), para o gerador de currículo — opcional |
 
 Sem os dois do Telegram a aplicação sobe e funciona: ela avisa em `WARN` no
 boot e simplesmente não manda alerta de vaga nova. Sem `SERP_API_KEY`, o

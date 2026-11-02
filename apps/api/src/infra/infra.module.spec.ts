@@ -14,6 +14,13 @@ import {
   JOB_SCRAPERS,
   type IJobScraperProvider,
 } from '@/domain/providers/job-scraper-provider';
+import { RESUME_GENERATOR, type IResumeGenerator } from '@/domain/providers/resume-generator';
+import {
+  RESUME_REPOSITORY,
+  RESUME_TARGET_JOB_READER,
+} from '@/domain/repositories/resume-repository';
+import { AnthropicResumeGenerator } from '@/infra/ai/anthropic-resume-generator';
+import { PrismaResumeRepository } from '@/infra/prisma/prisma-resume-repository';
 import { InfraModule } from '@/infra/infra.module';
 import { RetryingHttpClient } from '@/infra/http/retrying-http-client';
 import { InhireScraperProvider } from '@/infra/scrapers/inhire-scraper-provider';
@@ -74,5 +81,20 @@ describe('InfraModule', () => {
     const providers = moduleRef.get<IJobClosureProvider[]>(JOB_CLOSURE_PROVIDERS);
 
     expect(providers.map((provider) => provider.source)).toEqual(['github']);
+  });
+
+  it('monta o gerador de curriculo com o cliente da Anthropic ja embutido', async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [InfraModule] }).compile();
+
+    const generator = moduleRef.get<IResumeGenerator>(RESUME_GENERATOR);
+
+    expect(generator).toBeInstanceOf(AnthropicResumeGenerator);
+  });
+
+  it('serve historico e leitura da vaga alvo pela mesma classe', async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [InfraModule] }).compile();
+
+    expect(moduleRef.get(RESUME_REPOSITORY)).toBe(moduleRef.get(RESUME_TARGET_JOB_READER));
+    expect(moduleRef.get(RESUME_REPOSITORY)).toBeInstanceOf(PrismaResumeRepository);
   });
 });

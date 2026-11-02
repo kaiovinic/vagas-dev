@@ -9,6 +9,7 @@ import { NestFactory } from '@nestjs/core';
 
 import { AppModule } from '@/app.module';
 import { DomainExceptionFilter } from '@/http/filters/domain-exception.filter';
+import { ResumeExceptionFilter } from '@/http/filters/resume-exception.filter';
 
 const DEFAULT_PORT = 3333;
 
@@ -17,7 +18,7 @@ async function bootstrap(): Promise<void> {
 
   // Encerra cron e conexoes do Prisma antes do processo morrer.
   app.enableShutdownHooks();
-  app.useGlobalFilters(new DomainExceptionFilter());
+  app.useGlobalFilters(new DomainExceptionFilter(), new ResumeExceptionFilter());
   app.enableCors({ origin: process.env.WEB_ORIGIN ?? '*' });
 
   await app.listen(process.env.PORT ?? DEFAULT_PORT);

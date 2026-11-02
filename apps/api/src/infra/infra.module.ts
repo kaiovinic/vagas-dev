@@ -36,6 +36,17 @@ import {
   MISSING_DESCRIPTION_REPOSITORY,
 } from '@/domain/repositories/job-description-repository';
 import { JOB_QUERY_REPOSITORY } from '@/domain/repositories/job-query-repository';
+import { RESUME_GENERATOR } from '@/domain/providers/resume-generator';
+import {
+  RESUME_REPOSITORY,
+  RESUME_TARGET_JOB_READER,
+} from '@/domain/repositories/resume-repository';
+import { ResumePromptBuilder } from '@/domain/services/resume-prompt-builder';
+import {
+  AnthropicResumeGenerator,
+  createResumeMessagesClient,
+} from '@/infra/ai/anthropic-resume-generator';
+import { PrismaResumeRepository } from '@/infra/prisma/prisma-resume-repository';
 import { JOB_WRITE_REPOSITORY } from '@/domain/repositories/job-write-repository';
 import { AxiosHttpClient } from '@/infra/http/axios-http-client';
 import {
@@ -117,6 +128,7 @@ const SCRAPERS = [
     PrismaSourceHealthRepository,
     PrismaInhireTenantReader,
     PrismaCandidateProfileRepository,
+    PrismaResumeRepository,
     { provide: INHIRE_TENANT_DISCOVERY_READER, useExisting: PrismaInhireTenantReader },
     // A InHire e a unica fonte cuja lista de empresas o radar mantem a mao;
     // esta classe le os anuncios ja gravados para que ela nao envelheca.
@@ -190,6 +202,19 @@ const SCRAPERS = [
     // Mesma classe nos dois lados do contrato segregado: a linha e uma so, mas
     // o gerador de curriculo so vai receber o lado de leitura.
     { provide: CANDIDATE_PROFILE_READER, useExisting: PrismaCandidateProfileRepository },
+    // A mesma classe serve o historico e a leitura da vaga alvo, mas cada caso
+    // de uso recebe so o seu contrato (ISP).
+    { provide: RESUME_REPOSITORY, useExisting: PrismaResumeRepository },
+    { provide: RESUME_TARGET_JOB_READER, useExisting: PrismaResumeRepository },
+    // O construtor recebe o cliente ja montado: a porta nao conhece o SDK, e o
+    // teste do adaptador dubla este unico ponto.
+    ResumePromptBuilder,
+    {
+      provide: RESUME_GENERATOR,
+      useFactory: (promptBuilder: ResumePromptBuilder): AnthropicResumeGenerator =>
+        new AnthropicResumeGenerator(createResumeMessagesClient(), promptBuilder),
+      inject: [ResumePromptBuilder],
+    },
     { provide: CANDIDATE_PROFILE_WRITER, useExisting: PrismaCandidateProfileRepository },
     { provide: WEEKLY_DIGEST_REPOSITORY, useExisting: PrismaWeeklyDigestRepository },
     { provide: SOURCE_HEALTH_WRITER, useExisting: PrismaSourceHealthRepository },
@@ -212,6 +237,9 @@ const SCRAPERS = [
     PENDING_ALERT_REPOSITORY,
     CANDIDATE_PROFILE_READER,
     CANDIDATE_PROFILE_WRITER,
+    RESUME_GENERATOR,
+    RESUME_REPOSITORY,
+    RESUME_TARGET_JOB_READER,
     WEEKLY_DIGEST_REPOSITORY,
     SOURCE_HEALTH_WRITER,
     SOURCE_HEALTH_REPOSITORY,

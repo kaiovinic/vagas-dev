@@ -47,6 +47,8 @@ services:
       # as outras sete fontes seguem normalmente.
       SERP_API_KEY: ${SERP_API_KEY:-}
       SERP_ENDPOINT: ${SERP_ENDPOINT:-}
+      # Sem esta, a geracao de curriculo responde 502 e o resto segue igual.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # Tenants da InHire. Vazio usa a lista semente do coletor.
       INHIRE_TENANTS: ${INHIRE_TENANTS:-}
       # Mesma origem via Nginx; so precisa de valor se a API for exposta direto.
