@@ -3,6 +3,12 @@ import { createPortal } from 'react-dom';
 
 import { MarkdownInline } from '@/components/resume/markdown-inline';
 import { parseMarkdown, type MarkdownBlock } from '@/lib/markdown';
+import {
+  techItems,
+  toResumeSections,
+  type ResumeEntry,
+  type ResumeSection,
+} from '@/lib/resume-sections';
 
 /**
  * O curriculo como documento proprio, fora do `#root`, so para a impressao.
@@ -15,21 +21,50 @@ import { parseMarkdown, type MarkdownBlock } from '@/lib/markdown';
  * vaga, nao conteudo do curriculo que vai ser enviado.
  */
 export function ResumeDocument({ markdown }: { readonly markdown: string }): ReactNode {
-  const blocks = useMemo(() => parseMarkdown(markdown), [markdown]);
+  const sections = useMemo(() => toResumeSections(parseMarkdown(markdown)), [markdown]);
 
   return createPortal(
     // `aria-hidden`: na tela o documento e `display: none`, mas a copia do
     // texto nao tem nada a dizer ao leitor de tela nem aqui nem no papel.
     <article className="resume-print" aria-hidden="true" data-testid="resume-document">
-      {blocks.map((block, index) => (
-        <PrintBlock key={index} block={block} />
+      {sections.map((section, index) => (
+        <Section key={index} section={section} />
       ))}
     </article>,
     document.body,
   );
 }
 
+function Section({ section }: { readonly section: ResumeSection }): ReactNode {
+  if (section.kind === 'entry') {
+    return <Entry entry={section.entry} />;
+  }
+
+  return <PrintBlock block={section.block} />;
+}
+
+/** Cargo, projeto ou curso inteiro: o `avoid` da folha mantem tudo junto. */
+function Entry({ entry }: { readonly entry: ResumeEntry }): ReactNode {
+  return (
+    <section className="resume-entry" data-testid="resume-entry">
+      <h3>
+        <span className="resume-entry-title">{entry.title}</span>
+        {entry.period !== null && <span className="resume-entry-period">{entry.period}</span>}
+      </h3>
+      {entry.blocks.map((block, index) => (
+        <PrintBlock key={index} block={block} />
+      ))}
+    </section>
+  );
+}
+
 function PrintBlock({ block }: { readonly block: MarkdownBlock }): ReactNode {
+  const techs = techItems(block);
+
+  if (techs !== null) {
+    return <TechList items={techs} />;
+  }
+
   if (block.kind === 'rule') {
     return <hr />;
   }
@@ -54,6 +89,22 @@ function PrintBlock({ block }: { readonly block: MarkdownBlock }): ReactNode {
     <p>
       <MarkdownInline text={block.text} />
     </p>
+  );
+}
+
+/**
+ * As tecnologias do cargo viram etiquetas.
+ *
+ * Numa leitura de trinta segundos, a pilha e o que o recrutador procura
+ * primeiro: separada do texto corrido, ela se acha de relance.
+ */
+function TechList({ items }: { readonly items: readonly string[] }): ReactNode {
+  return (
+    <ul className="resume-techs" data-testid="resume-techs">
+      {items.map((item, index) => (
+        <li key={index}>{item}</li>
+      ))}
+    </ul>
   );
 }
 
