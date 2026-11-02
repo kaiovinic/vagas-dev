@@ -92,3 +92,41 @@ async function readErrorMessage(response: Response): Promise<string> {
 
   return `Falha na requisicao (${response.status})`;
 }
+
+/**
+ * POST com corpo JSON, validado pelo mesmo caminho do `fetchJson`.
+ *
+ * O `ApiError` leva o `status`: e por ele que a tela distingue vaga que sumiu
+ * (404), perfil incompleto (422) e falha do provedor (502) — tres situacoes com
+ * saidas diferentes para o usuario.
+ */
+export async function postJson<TSchema extends ZodTypeAny>(
+  path: string,
+  body: unknown,
+  schema: TSchema,
+): Promise<z.infer<TSchema>> {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new ApiError(await readErrorMessage(response), response.status);
+  }
+
+  const parsed = schema.safeParse((await response.json()) as unknown);
+
+  if (!parsed.success) {
+    throw new ApiContractError(
+      path,
+      parsed.error.issues.map((issue) => `${issue.path.join('.') || 'raiz'}: ${issue.message}`),
+    );
+  }
+
+  // Mesmo motivo do `fetchJson`: o generico colapsa para `any` aos olhos do
+  // lint, mas o valor acabou de passar pelo `safeParse`.
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  return parsed.data;
+}
+

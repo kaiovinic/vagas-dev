@@ -3,6 +3,7 @@ import { ExternalLink } from 'lucide-react';
 
 import type { JobListItem } from '@/api/schemas';
 import { PlaceBadge } from '@/components/jobs/job-feed-card';
+import { ResumePanel } from '@/components/resume/resume-panel';
 import { StateMessage } from '@/components/ui/panel';
 import { formatDateTime, formatElapsed } from '@/lib/brasilia-time';
 import { sourceLabel } from '@/lib/sources';
@@ -75,6 +76,8 @@ export function JobDetail({ job }: { readonly job: JobListItem | null }): ReactN
           <Meta label="Data" value="Estimada na captura: a fonte nao publica a data" />
         )}
       </dl>
+
+      <ResumePanel job={job} />
 
       <section className="flex flex-col gap-1.5">
         <h3 className="text-xs font-medium tracking-wide text-content-muted uppercase">

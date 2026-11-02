@@ -6,6 +6,7 @@ import type { JobListItem } from '@/api/schemas';
 import { JobDetail } from '@/components/jobs/job-detail';
 import { JobDetailDrawer } from '@/components/jobs/job-detail-drawer';
 import { AgeBadge, JobFeedCard } from '@/components/jobs/job-feed-card';
+import { renderWithProviders } from '../../../test/render';
 import {
   DEFAULT_TIME_WINDOW,
   JobsControlBar,
@@ -188,13 +189,13 @@ describe('JobFeedCard', () => {
 
 describe('JobDetail', () => {
   it('convida a escolher uma vaga quando nao ha selecao', () => {
-    render(<JobDetail job={null} />);
+    renderWithProviders(<JobDetail job={null} />);
 
     expect(screen.getByText('Selecione uma vaga')).toBeInTheDocument();
   });
 
   it('leva o botao de candidatura para a fonte original', () => {
-    render(<JobDetail job={job()} />);
+    renderWithProviders(<JobDetail job={job()} />);
 
     const link = screen.getByRole('link', { name: /Candidatar-se na fonte original/ });
 
@@ -204,7 +205,7 @@ describe('JobDetail', () => {
   });
 
   it('organiza os metadados da vaga', () => {
-    render(<JobDetail job={job()} />);
+    renderWithProviders(<JobDetail job={job()} />);
 
     const detalhe = screen.getByTestId('job-detail');
 
@@ -214,25 +215,25 @@ describe('JobDetail', () => {
   });
 
   it('mostra a descricao da vaga', () => {
-    render(<JobDetail job={job()} />);
+    renderWithProviders(<JobDetail job={job()} />);
 
     expect(screen.getByText('Trabalhar com React no time de produto.')).toBeInTheDocument();
   });
 
   it('explica a ausencia da descricao em vez de deixar vazio', () => {
-    render(<JobDetail job={job({ description: '   ' })} />);
+    renderWithProviders(<JobDetail job={job({ description: '   ' })} />);
 
     expect(screen.getByText(/nao publica a descricao na listagem/)).toBeInTheDocument();
   });
 
   it('avisa quando a data foi estimada na captura', () => {
-    render(<JobDetail job={job({ publishedAtSource: 'CAPTURE' })} />);
+    renderWithProviders(<JobDetail job={job({ publishedAtSource: 'CAPTURE' })} />);
 
     expect(screen.getByText(/Estimada na captura/)).toBeInTheDocument();
   });
 
   it('mostra quem publicou, quando a fonte informa', () => {
-    render(<JobDetail job={job({ recruiterName: 'Ana Souza' })} />);
+    renderWithProviders(<JobDetail job={job({ recruiterName: 'Ana Souza' })} />);
 
     expect(screen.getByText('Ana Souza')).toBeInTheDocument();
   });
@@ -240,13 +241,13 @@ describe('JobDetail', () => {
 
 describe('JobDetailDrawer', () => {
   it('fica fora do ar quando nao ha vaga selecionada', () => {
-    render(<JobDetailDrawer job={null} onClose={vi.fn()} />);
+    renderWithProviders(<JobDetailDrawer job={null} onClose={vi.fn()} />);
 
     expect(screen.queryByTestId('job-drawer')).not.toBeInTheDocument();
   });
 
   it('abre como dialogo com o nome da vaga', () => {
-    render(<JobDetailDrawer job={job()} onClose={vi.fn()} />);
+    renderWithProviders(<JobDetailDrawer job={job()} onClose={vi.fn()} />);
 
     expect(screen.getByRole('dialog')).toHaveAccessibleName(
       /Detalhes da vaga Pessoa Desenvolvedora React/,
@@ -256,7 +257,7 @@ describe('JobDetailDrawer', () => {
   it('fecha pelo botao', async () => {
     const onClose = vi.fn();
 
-    render(<JobDetailDrawer job={job()} onClose={onClose} />);
+    renderWithProviders(<JobDetailDrawer job={job()} onClose={onClose} />);
     await userEvent.click(screen.getByRole('button', { name: 'Fechar' }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -265,7 +266,7 @@ describe('JobDetailDrawer', () => {
   it('fecha pelo fundo escurecido', async () => {
     const onClose = vi.fn();
 
-    render(<JobDetailDrawer job={job()} onClose={onClose} />);
+    renderWithProviders(<JobDetailDrawer job={job()} onClose={onClose} />);
     await userEvent.click(screen.getByRole('button', { name: 'Fechar detalhes' }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -274,7 +275,7 @@ describe('JobDetailDrawer', () => {
   it('fecha com Esc, que e a saida esperada de um overlay', async () => {
     const onClose = vi.fn();
 
-    render(<JobDetailDrawer job={job()} onClose={onClose} />);
+    renderWithProviders(<JobDetailDrawer job={job()} onClose={onClose} />);
     await userEvent.keyboard('{Escape}');
 
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -282,7 +283,7 @@ describe('JobDetailDrawer', () => {
 
   it('nao escuta o teclado depois de fechado', async () => {
     const onClose = vi.fn();
-    const { rerender } = render(<JobDetailDrawer job={job()} onClose={onClose} />);
+    const { rerender } = renderWithProviders(<JobDetailDrawer job={job()} onClose={onClose} />);
 
     rerender(<JobDetailDrawer job={null} onClose={onClose} />);
     await userEvent.keyboard('{Escape}');

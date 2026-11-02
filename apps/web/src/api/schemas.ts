@@ -246,3 +246,16 @@ export type ProfileSkillGroup = z.infer<typeof profileSkillGroupSchema>;
 export type ProfileProject = z.infer<typeof profileProjectSchema>;
 export type CandidateProfile = z.infer<typeof candidateProfileSchema>;
 export type CandidateProfileResponse = z.infer<typeof candidateProfileResponseSchema>;
+
+/** Curriculo gerado para uma vaga. `generated: false` veio do historico. */
+export const generatedResumeSchema = z.object({
+  markdown: z.string(),
+  rationale: z.array(z.string()),
+  gaps: z.array(z.string()),
+  model: z.string(),
+  generatedAt: z.string(),
+  generated: z.boolean(),
+});
+
+export type GeneratedResume = z.infer<typeof generatedResumeSchema>;
+

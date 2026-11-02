@@ -4,9 +4,8 @@ Desenho da feature antes da primeira linha de código. O objetivo é adaptar um
 perfil único — o seu — à descrição de uma vaga específica já capturada pelo
 radar, devolvendo um currículo em Markdown pronto para revisar, copiar e enviar.
 
-> **Status:** fases 1, 2 e 3 implementadas — perfil, porta, `ResumePromptBuilder`,
-> caso de uso, adaptador da Anthropic e `POST /api/resume/generate`. Falta a
-> fase 4: o botao na vaga e a tela do currículo.
+> **Status:** implementado, da aba `Perfil` ao botão na vaga. Falta só pôr a
+> `ANTHROPIC_API_KEY` no ambiente para a geração sair do 502.
 
 ---
 
@@ -199,7 +198,8 @@ menos ainda nas gerações seguintes. Cem candidaturas custam menos que um café
 Zod, listas dinâmicas para experiências, formação, skills e projetos. É a única
 tela de escrita do painel até hoje, então vale caprichar na validação.
 
-**Na vaga**: botão `Gerar currículo` no `JobDetailDrawer`. Abre um painel com três
+**Na vaga**: botão `Gerar currículo sob medida` no `JobDetail` — o mesmo
+componente serve o painel fixo do desktop e o drawer do celular. Abre um painel com três
 seções:
 
 - o Markdown renderizado, com botão de copiar;
@@ -242,7 +242,7 @@ entendeu a vaga ou só repetiu o perfil.
 | 1 | ✅ Entidade, migration e aba `Perfil` | Sem perfil não há o que gerar; e essa fase não gasta um token |
 | 2 | ✅ Porta, `ResumePromptBuilder` e caso de uso com dublê | O miolo testável, inteiro, antes de falar com a Anthropic |
 | 3 | ✅ `AnthropicResumeGenerator` + `ANTHROPIC_API_KEY` | A ponta cara, já com tudo em volta verificado |
-| 4 | Botão na vaga, Markdown, gaps e histórico | A tela, com o backend provado |
+| 4 | ✅ Botão na vaga, Markdown, gaps e histórico | A tela, com o backend provado |
 
 A fase 1 entrega valor sozinha (seu perfil versionado e editável) e as fases 2 e 3
 podem ser verificadas sem UI nenhuma.
