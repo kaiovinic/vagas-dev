@@ -36,23 +36,14 @@ describe('ResumeDocument', () => {
   });
 
   /**
-   * As faixas repetidas sao o que da margem as paginas 2 em diante: com
-   * `@page { margin: 0 }`, sem elas o texto encosta na borda do papel.
+   * Sem tabela em volta: dentro de uma celula o Chromium ignora o
+   * `break-inside` dos filhos, e era o bloco do cargo que se partia.
    */
-  it('o conteudo vai no corpo da tabela, entre as duas faixas repetidas', () => {
+  it('as entradas sao filhas diretas do documento, sem tabela de layout', () => {
     const printable = renderDocument();
-    const sheet = printable.querySelector('table.resume-sheet');
 
-    expect(sheet?.querySelector('thead .resume-gap')).toBeInTheDocument();
-    expect(sheet?.querySelector('tfoot .resume-gap')).toBeInTheDocument();
-    expect(sheet?.querySelector('tbody h1')?.textContent).toBe('Kaio Vinicius Silva');
-  });
-
-  it('as faixas sao vazias: so ocupam altura', () => {
-    renderDocument();
-
-    expect(screen.getByTestId('resume-gap-top')).toBeEmptyDOMElement();
-    expect(screen.getByTestId('resume-gap-bottom')).toBeEmptyDOMElement();
+    expect(printable.querySelector('table')).toBeNull();
+    expect(screen.getByTestId('resume-entry').parentElement).toBe(printable);
   });
 
   it('o periodo sai do titulo e vira a coluna da direita', () => {

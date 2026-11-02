@@ -27,50 +27,11 @@ export function ResumeDocument({ markdown }: { readonly markdown: string }): Rea
     // `aria-hidden`: na tela o documento e `display: none`, mas a copia do
     // texto nao tem nada a dizer ao leitor de tela nem aqui nem no papel.
     <article className="resume-print" aria-hidden="true" data-testid="resume-document">
-      <PageSheet>
-        {sections.map((section, index) => (
-          <Section key={index} section={section} />
-        ))}
-      </PageSheet>
+      {sections.map((section, index) => (
+        <Section key={index} section={section} />
+      ))}
     </article>,
     document.body,
-  );
-}
-
-/**
- * Tabela de uma coluna so, pelas faixas de cima e de baixo.
- *
- * Com `@page { margin: 0 }` - o unico jeito de o Chrome nao imprimir a data e a
- * URL do painel - o `padding` vertical do conteiner so vale no alto da primeira
- * pagina e no pe da ultima: a pagina 2 comecaria colada na borda do papel, onde
- * a impressora nao imprime. `thead` e `tfoot` o navegador repete em cada
- * pagina, e duas faixas vazias viram a margem que a `@page` nao pode dar.
- *
- * E tabela de layout, sim. A alternativa seria aceitar o corte na impressao.
- */
-function PageSheet({ children }: { readonly children: ReactNode }): ReactNode {
-  return (
-    <table className="resume-sheet">
-      <thead>
-        <tr>
-          <td>
-            <div className="resume-gap" data-testid="resume-gap-top" />
-          </td>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>{children}</td>
-        </tr>
-      </tbody>
-      <tfoot>
-        <tr>
-          <td>
-            <div className="resume-gap" data-testid="resume-gap-bottom" />
-          </td>
-        </tr>
-      </tfoot>
-    </table>
   );
 }
 

@@ -71,14 +71,17 @@ body {
 
 @media print {
   /*
-   * Margem zero de proposito: com qualquer margem de pagina o Chrome imprime
-   * cabecalho e rodape proprios na faixa que sobra, com a data e a URL do
-   * painel. Sem faixa, nao ha onde desenha-los. A margem real do documento vira
-   * o `padding` do conteiner abaixo.
+   * A margem volta para a `@page`, onde vale em todas as paginas.
+   *
+   * Margem zero suprimia o cabecalho do Chrome, mas a margem das paginas 2 em
+   * diante dependia de uma tabela de paginacao - e dentro de uma celula o
+   * Chromium ignora o `break-inside` dos filhos, partindo um cargo ao meio.
+   * Entre o rodape (um clique em "Cabecalhos e rodapes" no dialogo) e o cargo
+   * partido, o cargo inteiro vale mais.
    */
   @page {
     size: A4 portrait;
-    margin: 0;
+    margin: 14mm 16mm;
   }
 
   /* So o documento vai para o papel: painel, drawer, toasts e o resto saem. */
@@ -94,10 +97,8 @@ body {
 
   body > .resume-print {
     display: block !important;
-    /* So as laterais: as faixas de cima e de baixo vem do `thead`/`tfoot` da
-       tabela, que o navegador repete em cada pagina. Padding vertical aqui
-       valeria so na primeira e na ultima. */
-    padding: 0 18mm;
+    /* Sem padding: a margem do papel e a da `@page`, igual em toda pagina. */
+    padding: 0;
     color: #15181d;
     font-family: var(--font-sans);
     font-size: 10.5pt;
@@ -107,38 +108,16 @@ body {
     -webkit-print-color-adjust: exact;
   }
 
-  /* A tabela e so paginacao: nenhuma borda, nenhum espacamento proprio. */
-  .resume-sheet {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  .resume-sheet td {
-    padding: 0;
-    vertical-align: top;
-  }
-
-  /* A linha do conteudo precisa poder quebrar; as faixas, nao. */
-  .resume-sheet tbody tr,
-  .resume-sheet tbody td {
-    break-inside: auto;
-    page-break-inside: auto;
-  }
-
-  /* A margem que a `@page` nao pode dar, repetida a cada pagina. */
-  .resume-gap {
-    height: 16mm;
-  }
-
-  .resume-sheet td > *:first-child {
+  .resume-print > *:first-child {
     margin-top: 0;
   }
 
   /* Nome do candidato. */
   .resume-print h1 {
     margin: 0 0 1.5mm;
+    color: #0f172a;
     font-size: 19pt;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: -0.01em;
   }
 
@@ -146,10 +125,10 @@ body {
   .resume-print h2 {
     margin: 6mm 0 2.5mm;
     padding-bottom: 1.2mm;
-    border-bottom: 0.5pt solid #e2e8f0;
-    color: #334155;
-    font-size: 9.5pt;
-    font-weight: 600;
+    border-bottom: 0.5pt solid #cbd5e1;
+    color: #0f172a;
+    font-size: 10pt;
+    font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
   }
@@ -161,8 +140,9 @@ body {
     justify-content: space-between;
     gap: 6mm;
     margin: 0 0 1.2mm;
+    color: #0f172a;
     font-size: 10.5pt;
-    font-weight: 600;
+    font-weight: 700;
   }
 
   .resume-entry-period {
@@ -175,10 +155,16 @@ body {
   }
 
   .resume-entry {
+    display: block;
     margin-bottom: 3.5mm;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 
+  /* `block` explicito: a descricao que segue as etiquetas comeca em linha
+     propria, e nao encostada na ultima delas. */
   .resume-print p {
+    display: block;
     margin: 0 0 2mm;
     white-space: pre-line;
   }
@@ -197,8 +183,8 @@ body {
   .resume-print ul.resume-techs {
     display: flex;
     flex-wrap: wrap;
-    gap: 1.2mm;
-    margin: 0 0 1.8mm;
+    gap: 4px;
+    margin: 0 0 6px;
     padding: 0;
     list-style: none;
   }
@@ -220,7 +206,7 @@ body {
   }
 
   .resume-print strong {
-    font-weight: 600;
+    font-weight: 700;
   }
 
   /* Titulo orfao no pe da pagina e cargo partido ao meio sao o que mais estraga
@@ -232,7 +218,6 @@ body {
     page-break-after: avoid;
   }
 
-  .resume-entry,
   .resume-print p,
   .resume-print li,
   .resume-techs {
