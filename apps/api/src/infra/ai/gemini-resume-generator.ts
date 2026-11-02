@@ -15,8 +15,25 @@ import { ResumePromptBuilder, type ResumePrompt } from '@/domain/services/resume
  * O `3.8-flash` e o Flash estavel que a Google indica para projetos novos; a
  * familia 2.5 segue servida, mas so para quem ja a usava.
  */
-export const RESUME_MODEL = 'gemini-3.8-flash';
+export const DEFAULT_RESUME_MODEL = 'gemini-3.8-flash';
 export const RESUME_MAX_TOKENS = 8_192;
+
+/**
+ * O id do modelo, com `GEMINI_MODEL` na frente do padrao.
+ *
+ * A Google aposenta um Flash de tempo em tempo, e a troca nao muda uma linha do
+ * dominio: a variavel faz da proxima um valor no `.env` e um restart, em vez de
+ * commit, CI e deploy.
+ */
+export function resumeModel(): string {
+  const configured = process.env.GEMINI_MODEL?.trim();
+
+  if (configured === undefined || configured.length === 0) {
+    return DEFAULT_RESUME_MODEL;
+  }
+
+  return configured;
+}
 
 /**
  * O contrato da saida, validado pela propria API.
@@ -88,7 +105,7 @@ export class GeminiResumeGenerator implements IResumeGenerator {
   private async ask(prompt: ResumePrompt): Promise<GenerateContentResponse> {
     try {
       return await this.models.generateContent({
-        model: RESUME_MODEL,
+        model: resumeModel(),
         contents: prompt.job,
         config: {
           systemInstruction: `${prompt.rules}\n\n${prompt.profile}`,
@@ -136,7 +153,7 @@ function toUsage(response: GenerateContentResponse): GeneratedResumeContent['usa
   const usage = response.usageMetadata;
 
   return {
-    model: response.modelVersion ?? RESUME_MODEL,
+    model: response.modelVersion ?? resumeModel(),
     inputTokens: usage?.promptTokenCount ?? 0,
     outputTokens: usage?.candidatesTokenCount ?? 0,
     // O cache do Gemini e implicito: ele conta o que foi servido, mas nao cobra

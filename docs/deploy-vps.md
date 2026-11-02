@@ -135,6 +135,7 @@ nano .env.prod
 | `TELEGRAM_CHAT_ID` | de `https://api.telegram.org/bot<TOKEN>/getUpdates` — opcional |
 | `SERP_API_KEY` | chave do [Serper](https://serper.dev), para o coletor de publicações — opcional |
 | `GEMINI_API_KEY` | chave do [Google AI Studio](https://aistudio.google.com/apikey), para o gerador de currículo — opcional |
+| `GEMINI_MODEL` | id do modelo do Gemini — opcional; vazio usa o padrão do código (`gemini-3.8-flash`) |
 
 ### A senha do painel
 

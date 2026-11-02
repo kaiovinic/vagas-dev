@@ -4,8 +4,8 @@ Desenho da feature antes da primeira linha de código. O objetivo é adaptar um
 perfil único — o seu — à descrição de uma vaga específica já capturada pelo
 radar, devolvendo um currículo em Markdown pronto para revisar, copiar e enviar.
 
-> **Status:** implementado, da aba `Perfil` ao botão na vaga. Falta só pôr a
-> `GEMINI_API_KEY` no ambiente para a geração sair do 502.
+> **Status:** implementado e em produção, da aba `Perfil` ao botão na vaga, com a
+> `GEMINI_API_KEY` no ambiente da VPS.
 
 ---
 
@@ -27,7 +27,7 @@ e com que vocabulário. Isso é o eixo de todo o desenho abaixo — a regra núm
 |---|---|---|
 | Base do perfil | Tabela `CandidateProfile` + aba no painel | Perfil vira dado de primeira classe: editável sem deploy, e reaproveitável por features futuras (carta de apresentação, match score) |
 | Saída | Markdown renderizado na tela | Zero dependência nova; o texto fica editável antes do envio, e `Ctrl+P` do navegador já gera PDF |
-| Modelo | `gemini-3.8-flash`, via Google AI Studio | Nível gratuito cobre o uso do painel com folga; a porta `IResumeGenerator` existe justamente para a troca de provedor custar um arquivo |
+| Modelo | `gemini-3.8-flash`, via Google AI Studio, com `GEMINI_MODEL` na frente do padrão | Nível gratuito cobre o uso do painel com folga; a porta `IResumeGenerator` existe justamente para a troca de provedor custar um arquivo, e a variável faz da próxima aposentadoria de modelo um valor no `.env` em vez de um deploy |
 | Disparo | Sob demanda, a partir da vaga | Gerar em lote queimaria tokens em vagas que você nunca vai aplicar |
 
 ---
@@ -171,7 +171,7 @@ Configuração do pedido:
 
 ```ts
 const response = await models.generateContent({
-  model: 'gemini-3.8-flash',
+  model: resumeModel(), // GEMINI_MODEL, ou 'gemini-3.8-flash'
   contents: jobText,
   config: {
     systemInstruction: `${RULES}
@@ -252,9 +252,10 @@ podem ser verificadas sem UI nenhuma.
 
 ## 9. Pontos em aberto
 
-- **`GEMINI_API_KEY`** já está no `.env.example`, no `.env.prod.example` e no
-  `docker-compose.prod.yml`; falta pôr o valor no `.env` da VPS. Sem ela a API
-  sobe igual e só a rota de geração responde 502.
+- **Aposentadoria de modelo**: o `gemini-2.0-flash` foi desligado em junho de
+  2026 e a rota passou a responder 502 com um 404 da Google no log. O id vive em
+  `GEMINI_MODEL`, com `gemini-3.8-flash` como padrão do código: a próxima troca é
+  uma linha no `.env` da VPS e um restart da API, sem commit nem CI.
 - **Teto diário de gerações**: ainda não existe. Enquanto a geração for gratuita o
   risco é bater na cota do nível gratuito, não na fatura; a proteção de hoje é o
   reaproveitamento da última versão salva por vaga — regerar é sempre um clique

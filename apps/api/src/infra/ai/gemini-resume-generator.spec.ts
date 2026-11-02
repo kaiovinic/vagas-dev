@@ -1,5 +1,5 @@
 import { ApiError } from '@google/genai';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   ProfileNotReadyForResumeError,
@@ -9,7 +9,8 @@ import { ResumePromptBuilder } from '@/domain/services/resume-prompt-builder';
 import {
   GeminiResumeGenerator,
   RESUME_MAX_TOKENS,
-  RESUME_MODEL,
+  DEFAULT_RESUME_MODEL,
+  resumeModel,
   type ResumeModelsClient,
 } from '@/infra/ai/gemini-resume-generator';
 import { makeProfile, makeResumeTargetJob } from '../../../test/factories/make-candidate-profile';
@@ -45,6 +46,10 @@ describe('GeminiResumeGenerator', () => {
     );
   });
 
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   function generate(): Promise<unknown> {
     return generator.generate({ profile: makeProfile(), job: makeResumeTargetJob() });
   }
@@ -60,7 +65,7 @@ describe('GeminiResumeGenerator', () => {
   it('pede ao modelo configurado, com o teto de saida do desenho', async () => {
     await generate();
 
-    expect(bodyOf().model).toBe(RESUME_MODEL);
+    expect(bodyOf().model).toBe(resumeModel());
     expect(configOf().maxOutputTokens).toBe(RESUME_MAX_TOKENS);
   });
 
@@ -123,7 +128,7 @@ describe('GeminiResumeGenerator', () => {
     });
 
     expect(content.usage).toEqual({
-      model: RESUME_MODEL,
+      model: resumeModel(),
       inputTokens: 0,
       outputTokens: 0,
       cacheReadTokens: 0,
@@ -158,10 +163,43 @@ describe('GeminiResumeGenerator', () => {
     await expect(generate()).rejects.toThrow(ResumeGenerationFailedError);
   });
 
+  it('pede o modelo que o ambiente escolheu, quando ha um', async () => {
+    vi.stubEnv('GEMINI_MODEL', 'gemini-3.6-flash');
+
+    await generate();
+
+    expect(bodyOf().model).toBe('gemini-3.6-flash');
+  });
+
   it('nao chama a API quando o perfil ainda nao serve', async () => {
     await expect(
       generator.generate({ profile: makeProfile({ skills: [] }), job: makeResumeTargetJob() }),
     ).rejects.toThrow(ProfileNotReadyForResumeError);
     expect(generateContent).not.toHaveBeenCalled();
+  });
+});
+
+describe('resumeModel', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('usa o padrao do codigo quando o ambiente nao diz nada', () => {
+    vi.stubEnv('GEMINI_MODEL', undefined);
+
+    expect(resumeModel()).toBe(DEFAULT_RESUME_MODEL);
+  });
+
+  it('troca de modelo sem deploy: o ambiente tem a palavra final', () => {
+    vi.stubEnv('GEMINI_MODEL', 'gemini-3.5-flash-lite');
+
+    expect(resumeModel()).toBe('gemini-3.5-flash-lite');
+  });
+
+  /** Variavel declarada e vazia no `.env` nao vale como escolha. */
+  it('ignora valor em branco e volta ao padrao', () => {
+    vi.stubEnv('GEMINI_MODEL', '   ');
+
+    expect(resumeModel()).toBe(DEFAULT_RESUME_MODEL);
   });
 });
