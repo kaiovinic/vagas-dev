@@ -19,7 +19,7 @@ import {
   RESUME_REPOSITORY,
   RESUME_TARGET_JOB_READER,
 } from '@/domain/repositories/resume-repository';
-import { AnthropicResumeGenerator } from '@/infra/ai/anthropic-resume-generator';
+import { GeminiResumeGenerator } from '@/infra/ai/gemini-resume-generator';
 import { PrismaResumeRepository } from '@/infra/prisma/prisma-resume-repository';
 import { InfraModule } from '@/infra/infra.module';
 import { RetryingHttpClient } from '@/infra/http/retrying-http-client';
@@ -83,12 +83,12 @@ describe('InfraModule', () => {
     expect(providers.map((provider) => provider.source)).toEqual(['github']);
   });
 
-  it('monta o gerador de curriculo com o cliente da Anthropic ja embutido', async () => {
+  it('monta o gerador de curriculo com o cliente do Gemini ja embutido', async () => {
     const moduleRef = await Test.createTestingModule({ imports: [InfraModule] }).compile();
 
     const generator = moduleRef.get<IResumeGenerator>(RESUME_GENERATOR);
 
-    expect(generator).toBeInstanceOf(AnthropicResumeGenerator);
+    expect(generator).toBeInstanceOf(GeminiResumeGenerator);
   });
 
   it('serve historico e leitura da vaga alvo pela mesma classe', async () => {

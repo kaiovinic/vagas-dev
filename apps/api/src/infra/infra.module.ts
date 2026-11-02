@@ -43,9 +43,9 @@ import {
 } from '@/domain/repositories/resume-repository';
 import { ResumePromptBuilder } from '@/domain/services/resume-prompt-builder';
 import {
-  AnthropicResumeGenerator,
-  createResumeMessagesClient,
-} from '@/infra/ai/anthropic-resume-generator';
+  GeminiResumeGenerator,
+  createResumeModelsClient,
+} from '@/infra/ai/gemini-resume-generator';
 import { PrismaResumeRepository } from '@/infra/prisma/prisma-resume-repository';
 import { JOB_WRITE_REPOSITORY } from '@/domain/repositories/job-write-repository';
 import { AxiosHttpClient } from '@/infra/http/axios-http-client';
@@ -211,8 +211,8 @@ const SCRAPERS = [
     ResumePromptBuilder,
     {
       provide: RESUME_GENERATOR,
-      useFactory: (promptBuilder: ResumePromptBuilder): AnthropicResumeGenerator =>
-        new AnthropicResumeGenerator(createResumeMessagesClient(), promptBuilder),
+      useFactory: (promptBuilder: ResumePromptBuilder): GeminiResumeGenerator =>
+        new GeminiResumeGenerator(createResumeModelsClient(), promptBuilder),
       inject: [ResumePromptBuilder],
     },
     { provide: CANDIDATE_PROFILE_WRITER, useExisting: PrismaCandidateProfileRepository },

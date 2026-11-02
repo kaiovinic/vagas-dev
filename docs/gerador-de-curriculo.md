@@ -5,7 +5,7 @@ perfil único — o seu — à descrição de uma vaga específica já capturada
 radar, devolvendo um currículo em Markdown pronto para revisar, copiar e enviar.
 
 > **Status:** implementado, da aba `Perfil` ao botão na vaga. Falta só pôr a
-> `ANTHROPIC_API_KEY` no ambiente para a geração sair do 502.
+> `GEMINI_API_KEY` no ambiente para a geração sair do 502.
 
 ---
 
@@ -27,7 +27,7 @@ e com que vocabulário. Isso é o eixo de todo o desenho abaixo — a regra núm
 |---|---|---|
 | Base do perfil | Tabela `CandidateProfile` + aba no painel | Perfil vira dado de primeira classe: editável sem deploy, e reaproveitável por features futuras (carta de apresentação, match score) |
 | Saída | Markdown renderizado na tela | Zero dependência nova; o texto fica editável antes do envio, e `Ctrl+P` do navegador já gera PDF |
-| Modelo | `claude-opus-5-5` | Padrão atual da API; o raciocínio adaptativo é o que faz a seleção de experiências ficar boa |
+| Modelo | `gemini-2.0-flash`, via Google AI Studio | Nível gratuito cobre o uso do painel com folga; a porta `IResumeGenerator` existe justamente para a troca de provedor custar um arquivo |
 | Disparo | Sob demanda, a partir da vaga | Gerar em lote queimaria tokens em vagas que você nunca vai aplicar |
 
 ---
@@ -35,8 +35,8 @@ e com que vocabulário. Isso é o eixo de todo o desenho abaixo — a regra núm
 ## 3. Camadas
 
 A feature respeita a mesma separação do resto do projeto: o domínio não conhece
-a Anthropic, o caso de uso depende só de interfaces, e a implementação concreta
-fica na infraestrutura.
+o provedor de IA, o caso de uso depende só de interfaces, e a implementação
+concreta fica na infraestrutura.
 
 ```
 domain/
@@ -52,7 +52,7 @@ application/use-cases/
   save-candidate-profile.use-case.ts
 
 infra/
-  ai/anthropic-resume-generator.ts      Implementa IResumeGenerator com @anthropic-ai/sdk
+  ai/gemini-resume-generator.ts         Implementa IResumeGenerator com @google/genai
   prisma/prisma-candidate-profile-repository.ts
   prisma/prisma-resume-repository.ts
 
@@ -62,7 +62,7 @@ http/controllers/
 
 ### A porta
 
-O contrato que isola a Anthropic do resto do sistema. Trocar de provedor — ou
+O contrato que isola o provedor de IA do resto do sistema. Trocar de provedor — ou
 dublar nos testes — é implementar esta interface:
 
 ```ts
@@ -147,48 +147,48 @@ geração.
 
 Três blocos, nesta ordem — e a ordem importa pelo cache:
 
-1. **System (estável, com `cache_control`)** — as regras do jogo: só usar fatos do
-   perfil, nunca inflar senioridade, nunca inventar empresa ou tecnologia, escrever
-   em português do Brasil, devolver os campos no formato pedido. Esse bloco não muda
-   entre gerações.
-2. **Perfil (estável, com `cache_control`)** — o seu histórico serializado. Também
-   idêntico em toda geração, até você editar a aba de perfil.
+1. **Regras (estável)** — as regras do jogo: só usar fatos do perfil, nunca inflar
+   senioridade, nunca inventar empresa ou tecnologia, escrever em português do
+   Brasil, devolver os campos no formato pedido. Esse bloco não muda entre gerações.
+2. **Perfil (estável)** — o seu histórico serializado. Também idêntico em toda
+   geração, até você editar a aba de perfil.
 3. **Vaga (volátil)** — título, empresa, descrição e tags da vaga alvo.
 
 Os dois primeiros blocos somam algo como 2–3 mil tokens e se repetem em **toda**
-geração. Com os dois breakpoints de cache, a partir da segunda geração eles custam
-cerca de um décimo. É o mesmo princípio do `generate_series`: a estrutura do pedido
-é o que decide o custo, não o volume.
+geração: por isso vão na instrução de sistema, e a vaga vai no conteúdo. Com o
+prefixo idêntico, o cache implícito do Gemini reconhece a repetição sozinho. Quem
+monta os três blocos é o `ResumePromptBuilder`, no domínio — o adaptador só os
+coloca onde o SDK espera, e é essa divisão que faz a troca de provedor não mexer
+em nada do conteúdo.
 
-A saída vem por **structured outputs** (`output_config.format`), não por "me
-devolva um JSON" no texto: o schema de `{ markdown, rationale, gaps }` é validado
-pela própria API, então o painel nunca recebe um bloco meio escrito.
+A saída vem por **structured output** (`responseMimeType: 'application/json'` mais
+o schema), não por "me devolva um JSON" no texto: o formato de
+`{ markdown, rationale, gaps }` é garantido pela própria API, então o painel nunca
+recebe um bloco meio escrito. O adaptador ainda valida o payload com Zod antes de
+devolvê-lo — a API garante o formato, quem lê confere.
 
-Configuração do pedido, seguindo o guia atual da API:
+Configuração do pedido:
 
 ```ts
-const response = await client.messages.create({
-  model: 'claude-opus-5-5',
-  max_tokens: 16000,
-  output_config: { effort: 'high', format: resumeSchema },
-  system: [
-    { type: 'text', text: RULES, cache_control: { type: 'ephemeral' } },
-    { type: 'text', text: profileText, cache_control: { type: 'ephemeral' } },
-  ],
-  messages: [{ role: 'user', content: jobText }],
+const response = await models.generateContent({
+  model: 'gemini-2.0-flash',
+  contents: jobText,
+  config: {
+    systemInstruction: `${RULES}
+
+${profileText}`,
+    responseMimeType: 'application/json',
+    responseSchema: RESUME_OUTPUT_SCHEMA,
+    maxOutputTokens: 8192,
+  },
 });
 ```
 
-Sem `thinking` explícito e sem `temperature`: no `claude-opus-5-5` o raciocínio é
-sempre ativo e os parâmetros de amostragem foram removidos — quem controla a
-profundidade é o `effort`. O `high` se justifica aqui porque a tarefa é de
-julgamento, não de formatação.
-
 ### Custo por currículo
 
-Entrada ~3k tokens (quase toda em cache depois da primeira), saída ~2k. A $4/MTok
-de entrada e $20/MTok de saída, dá por volta de **US$ 0,05 por currículo** — e
-menos ainda nas gerações seguintes. Cem candidaturas custam menos que um café.
+Zero, dentro do nível gratuito do Google AI Studio, que é o motivo da escolha. O
+que resta como limite é a cota diária de requisições — e ela é folgada para um
+painel usado por uma pessoa.
 
 ---
 
@@ -223,9 +223,10 @@ A regra do projeto continua valendo — domínio e aplicação com cobertura tot
 - **`GenerateResumeUseCase`**: com um `StubResumeGenerator`, nos moldes dos dublês
   que já existem em `test/factories/doubles.ts`. Cobre vaga inexistente, perfil não
   preenchido, falha do provedor e gravação do histórico.
-- **`AnthropicResumeGenerator`** (infra): com o SDK dublado, verificando que os
-  dois `cache_control` vão no lugar certo, que o schema é enviado, e que erro da
-  API vira erro de domínio em vez de vazar `APIError` para o controller.
+- **`GeminiResumeGenerator`** (infra): com o SDK dublado, verificando que regras e
+  perfil vão para a instrução de sistema e a vaga para o conteúdo, que o schema é
+  enviado, que resposta fora do formato é recusada, e que erro da API vira erro de
+  domínio em vez de vazar `ApiError` para o controller.
 - **E2E**: `POST /api/resume/generate` devolvendo 404 para vaga desconhecida, 422
   para perfil vazio e 200 com o Markdown.
 
@@ -240,8 +241,8 @@ entendeu a vaga ou só repetiu o perfil.
 | Fase | Entrega | Por que nesta ordem |
 |---|---|---|
 | 1 | ✅ Entidade, migration e aba `Perfil` | Sem perfil não há o que gerar; e essa fase não gasta um token |
-| 2 | ✅ Porta, `ResumePromptBuilder` e caso de uso com dublê | O miolo testável, inteiro, antes de falar com a Anthropic |
-| 3 | ✅ `AnthropicResumeGenerator` + `ANTHROPIC_API_KEY` | A ponta cara, já com tudo em volta verificado |
+| 2 | ✅ Porta, `ResumePromptBuilder` e caso de uso com dublê | O miolo testável, inteiro, antes de falar com o provedor |
+| 3 | ✅ `GeminiResumeGenerator` + `GEMINI_API_KEY` | A ponta externa, já com tudo em volta verificado |
 | 4 | ✅ Botão na vaga, Markdown, gaps e histórico | A tela, com o backend provado |
 
 A fase 1 entrega valor sozinha (seu perfil versionado e editável) e as fases 2 e 3
@@ -251,13 +252,17 @@ podem ser verificadas sem UI nenhuma.
 
 ## 9. Pontos em aberto
 
-- **`ANTHROPIC_API_KEY`** já está no `.env.example`, no `.env.prod.example` e no
+- **`GEMINI_API_KEY`** já está no `.env.example`, no `.env.prod.example` e no
   `docker-compose.prod.yml`; falta pôr o valor no `.env` da VPS. Sem ela a API
-  sobe igual e só a rota de geração responde 502. É a primeira chave paga do
-  projeto: vale um teto de gerações por dia para o caso de um bug entrar em laço.
-- **Teto diário de gerações**: ainda não existe. Hoje a proteção é só o
+  sobe igual e só a rota de geração responde 502.
+- **Teto diário de gerações**: ainda não existe. Enquanto a geração for gratuita o
+  risco é bater na cota do nível gratuito, não na fatura; a proteção de hoje é o
   reaproveitamento da última versão salva por vaga — regerar é sempre um clique
   deliberado.
+- **Qualidade por modelo**: a seleção de experiências é tarefa de julgamento, e um
+  modelo `flash` é mais fraco nela que um modelo de raciocínio. Se o `rationale`
+  mostrar que a adaptação ficou rasa, trocar o id do modelo é uma constante — e
+  trocar de provedor é um arquivo, por causa da porta.
 - **Um perfil ou vários?** O desenho assume um. Se um dia você quiser um perfil
   "Frontend" e outro "Fullstack", a tabela já aceita — falta só o seletor na UI.
 - **Idioma**: as vagas internacionais já são descartadas pelo filtro, então a saída

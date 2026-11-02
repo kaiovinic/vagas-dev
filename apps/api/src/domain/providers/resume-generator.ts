@@ -42,7 +42,7 @@ export interface GeneratedResumeContent {
 /**
  * Porta do gerador de curriculo.
  *
- * Isola a Anthropic do resto do sistema: trocar de provedor, ou dublar no
+ * Isola o provedor de IA do resto do sistema: trocar de provedor, ou dublar no
  * teste, e implementar esta interface. Como nos coletores, a implementacao nao
  * deixa vazar excecao do SDK — falha vira erro de dominio tipado, e quem chama
  * decide o que o painel ve.
