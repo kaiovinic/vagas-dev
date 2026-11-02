@@ -35,6 +35,26 @@ describe('ResumeDocument', () => {
     expect(printable.querySelector('h2')?.textContent).toBe('Experiencia');
   });
 
+  /**
+   * As faixas repetidas sao o que da margem as paginas 2 em diante: com
+   * `@page { margin: 0 }`, sem elas o texto encosta na borda do papel.
+   */
+  it('o conteudo vai no corpo da tabela, entre as duas faixas repetidas', () => {
+    const printable = renderDocument();
+    const sheet = printable.querySelector('table.resume-sheet');
+
+    expect(sheet?.querySelector('thead .resume-gap')).toBeInTheDocument();
+    expect(sheet?.querySelector('tfoot .resume-gap')).toBeInTheDocument();
+    expect(sheet?.querySelector('tbody h1')?.textContent).toBe('Kaio Vinicius Silva');
+  });
+
+  it('as faixas sao vazias: so ocupam altura', () => {
+    renderDocument();
+
+    expect(screen.getByTestId('resume-gap-top')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('resume-gap-bottom')).toBeEmptyDOMElement();
+  });
+
   it('o periodo sai do titulo e vira a coluna da direita', () => {
     renderDocument();
 

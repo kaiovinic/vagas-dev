@@ -94,7 +94,10 @@ body {
 
   body > .resume-print {
     display: block !important;
-    padding: 16mm 18mm;
+    /* So as laterais: as faixas de cima e de baixo vem do `thead`/`tfoot` da
+       tabela, que o navegador repete em cada pagina. Padding vertical aqui
+       valeria so na primeira e na ultima. */
+    padding: 0 18mm;
     color: #15181d;
     font-family: var(--font-sans);
     font-size: 10.5pt;
@@ -104,7 +107,30 @@ body {
     -webkit-print-color-adjust: exact;
   }
 
-  .resume-print > *:first-child {
+  /* A tabela e so paginacao: nenhuma borda, nenhum espacamento proprio. */
+  .resume-sheet {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .resume-sheet td {
+    padding: 0;
+    vertical-align: top;
+  }
+
+  /* A linha do conteudo precisa poder quebrar; as faixas, nao. */
+  .resume-sheet tbody tr,
+  .resume-sheet tbody td {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  /* A margem que a `@page` nao pode dar, repetida a cada pagina. */
+  .resume-gap {
+    height: 16mm;
+  }
+
+  .resume-sheet td > *:first-child {
     margin-top: 0;
   }
 
