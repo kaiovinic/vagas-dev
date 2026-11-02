@@ -23,7 +23,7 @@ const PAYLOAD = {
 function reply(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     text: JSON.stringify(PAYLOAD),
-    modelVersion: 'gemini-2.0-flash',
+    modelVersion: 'gemini-3.8-flash',
     usageMetadata: {
       promptTokenCount: 3_000,
       candidatesTokenCount: 1_800,
@@ -105,7 +105,7 @@ describe('GeminiResumeGenerator', () => {
     expect(content).toEqual({
       ...PAYLOAD,
       usage: {
-        model: 'gemini-2.0-flash',
+        model: 'gemini-3.8-flash',
         inputTokens: 3_000,
         outputTokens: 1_800,
         cacheReadTokens: 2_600,

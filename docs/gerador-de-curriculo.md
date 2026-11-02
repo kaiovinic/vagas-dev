@@ -27,7 +27,7 @@ e com que vocabulário. Isso é o eixo de todo o desenho abaixo — a regra núm
 |---|---|---|
 | Base do perfil | Tabela `CandidateProfile` + aba no painel | Perfil vira dado de primeira classe: editável sem deploy, e reaproveitável por features futuras (carta de apresentação, match score) |
 | Saída | Markdown renderizado na tela | Zero dependência nova; o texto fica editável antes do envio, e `Ctrl+P` do navegador já gera PDF |
-| Modelo | `gemini-2.0-flash`, via Google AI Studio | Nível gratuito cobre o uso do painel com folga; a porta `IResumeGenerator` existe justamente para a troca de provedor custar um arquivo |
+| Modelo | `gemini-3.8-flash`, via Google AI Studio | Nível gratuito cobre o uso do painel com folga; a porta `IResumeGenerator` existe justamente para a troca de provedor custar um arquivo |
 | Disparo | Sob demanda, a partir da vaga | Gerar em lote queimaria tokens em vagas que você nunca vai aplicar |
 
 ---
@@ -171,7 +171,7 @@ Configuração do pedido:
 
 ```ts
 const response = await models.generateContent({
-  model: 'gemini-2.0-flash',
+  model: 'gemini-3.8-flash',
   contents: jobText,
   config: {
     systemInstruction: `${RULES}

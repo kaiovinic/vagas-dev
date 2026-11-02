@@ -10,7 +10,12 @@ import type {
 } from '@/domain/providers/resume-generator';
 import { ResumePromptBuilder, type ResumePrompt } from '@/domain/services/resume-prompt-builder';
 
-export const RESUME_MODEL = 'gemini-2.0-flash';
+/**
+ * O `gemini-2.0-flash` foi desligado em junho de 2026 e passou a responder 404.
+ * O `3.8-flash` e o Flash estavel que a Google indica para projetos novos; a
+ * familia 2.5 segue servida, mas so para quem ja a usava.
+ */
+export const RESUME_MODEL = 'gemini-3.8-flash';
 export const RESUME_MAX_TOKENS = 8_192;
 
 /**
