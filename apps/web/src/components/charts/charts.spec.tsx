@@ -6,10 +6,12 @@ import type { CaptureBlock, DailyStack, SourceSlice } from '@/api/schemas';
 import {
   CapturesTimelineChart,
   TimelineTooltip,
+  formatBarLabel,
   toRow,
 } from '@/components/charts/captures-timeline-chart';
 import { DailyStackedBarChart } from '@/components/charts/daily-stacked-bar-chart';
 import { SourceDonutChart } from '@/components/charts/source-donut-chart';
+import { formatInteger } from '@/lib/sources';
 
 const SLICES: SourceSlice[] = [
   { source: 'linkedin', total: 6, percentage: 60 },
@@ -323,6 +325,33 @@ describe('CapturesTimelineChart', () => {
 
     expect(screen.getByText('Nao foi possivel carregar o grafico')).toBeInTheDocument();
     expect(screen.getByText('API fora do ar')).toBeInTheDocument();
+  });
+
+  describe('rotulo fixo sobre a barra', () => {
+    it('mostra a quantidade de cada bloco sem depender do hover', () => {
+      const container = renderTimeline();
+
+      const rotulos = [...container.querySelectorAll('.recharts-label-list text')].map(
+        (rotulo) => rotulo.textContent,
+      );
+
+      // Os dois ciclos vazios (indices 3 e 7) entram como rotulo em branco.
+      expect(rotulos).toEqual(['1', '2', '3', '', '5', '6', '7', '', '9', '10', '11', '12']);
+    });
+
+    it('nao escreve zero sobre o tracinho do bloco vazio', () => {
+      expect(formatBarLabel(0)).toBe('');
+    });
+
+    it('formata a quantidade como o resto do painel', () => {
+      expect(formatBarLabel(1)).toBe('1');
+      expect(formatBarLabel(1_200)).toBe(formatInteger(1_200));
+    });
+
+    it('ignora valor que nao e numero, em vez de escrever lixo na barra', () => {
+      expect(formatBarLabel(undefined)).toBe('');
+      expect(formatBarLabel('3')).toBe('');
+    });
   });
 
   describe('tooltip', () => {

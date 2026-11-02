@@ -3,6 +3,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -119,11 +120,31 @@ function renderBody({
             minPointSize={2}
             isAnimationActive={false}
             radius={[2, 2, 0, 0]}
-          />
+          >
+            {/* O numero fica a vista: a leitura mais comum do grafico e
+                "quanto rendeu este horario", e passar o mouse em 12 barras
+                para descobrir isso nao e leitura, e garimpo. */}
+            <LabelList
+              dataKey="count"
+              position="top"
+              offset={6}
+              formatter={formatBarLabel}
+              fill="var(--color-content-secondary)"
+              fontSize={11}
+            />
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
   );
+}
+
+/**
+ * Bloco zerado nao ganha rotulo: um "0" pairando sobre o tracinho do
+ * `minPointSize` so suja o grafico, e a ausencia de barra ja diz o que houve.
+ */
+export function formatBarLabel(value: unknown): string {
+  return typeof value === 'number' && value > 0 ? formatInteger(value) : '';
 }
 
 interface TimelineTooltipProps {
