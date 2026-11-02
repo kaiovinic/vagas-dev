@@ -9,8 +9,29 @@
 	email {$ACME_EMAIL}
 }
 
+# Autenticacao basica, na borda.
+#
+# A aplicacao nao tem login proprio, e agora ha o que proteger: `PUT
+# /api/profile` grava dados de contato, e `POST /api/resume/generate` consome
+# cota de IA de uma chave que e sua. Enquanto nao houver autenticacao dentro da
+# aplicacao, a borda protege as duas de uma vez — e o painel inteiro, que e de
+# uso pessoal.
+#
+# O hash sai de `caddy hash-password`; a senha em claro nunca entra no
+# repositorio nem no .env.
+(devradar-auth) {
+	# `/api/health` fica de fora: monitoramento externo precisa alcancar sem
+	# credencial, e a resposta nao diz mais que "o banco responde".
+	@privado not path /api/health
+	basicauth @privado {
+		{$DEVRADAR_AUTH_USER} {$DEVRADAR_AUTH_HASH}
+	}
+}
+
 {$DEVRADAR_DOMAIN} {
 	encode zstd gzip
+
+	import devradar-auth
 
 	# Politica de resposta concentrada na borda, e nao no nginx: aqui vale para
 	# tudo de uma vez, inclusive o fallback do SPA. No nginx, um `add_header`

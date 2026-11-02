@@ -129,10 +129,34 @@ nano .env.prod
 | `POSTGRES_PASSWORD` | senha forte e **única** — `openssl rand -base64 24` gera uma |
 | `DEVRADAR_DOMAIN` | o domínio que você apontou no DNS, sem `https://` |
 | `ACME_EMAIL` | seu e-mail, para o Let's Encrypt avisar de expiração |
+| `DEVRADAR_AUTH_USER` | o usuário do painel — **obrigatório** |
+| `DEVRADAR_AUTH_HASH` | o hash da senha do painel — **obrigatório**, veja abaixo |
 | `TELEGRAM_BOT_TOKEN` | token do [@BotFather](https://t.me/BotFather) — opcional |
 | `TELEGRAM_CHAT_ID` | de `https://api.telegram.org/bot<TOKEN>/getUpdates` — opcional |
 | `SERP_API_KEY` | chave do [Serper](https://serper.dev), para o coletor de publicações — opcional |
 | `GEMINI_API_KEY` | chave do [Google AI Studio](https://aistudio.google.com/apikey), para o gerador de currículo — opcional |
+
+### A senha do painel
+
+O DevRadar não tem login próprio: quem protege é o Caddy, na borda. Isso vale
+para o painel e para a API inteira — inclusive `PUT /api/profile`, que guarda
+seus dados de contato, e `POST /api/resume/generate`, que consome a cota da sua
+chave de IA. Só `/api/health` fica aberto, para monitoramento externo.
+
+O hash sai do próprio Caddy, e o `sed` dobra os cifrões — que é como o compose
+lê um `$` literal num `.env`:
+
+```bash
+docker run --rm caddy:2.8-alpine caddy hash-password --plaintext 'sua-senha' | sed 's/[$]/$$/g'
+```
+
+Cole a saída inteira em `DEVRADAR_AUTH_HASH`. Sem os cifrões dobrados o compose
+engole parte do hash e a senha nunca confere. A senha em claro não entra no
+`.env.prod` nem no repositório.
+
+Se as duas variáveis faltarem, o `docker compose up` para com a mensagem antes
+de tocar em qualquer container — a versão no ar continua de pé, e nenhum painel
+aberto vai para a internet.
 
 Sem os dois do Telegram a aplicação sobe e funciona: ela avisa em `WARN` no
 boot e simplesmente não manda alerta de vaga nova. Sem `SERP_API_KEY`, o
@@ -223,20 +247,28 @@ o Caddy assina com uma CA local e não chama o Let's Encrypt.
 
 ### Checagem fim a fim
 
+A primeira responde `401` sem credencial — é a autenticação básica fazendo o
+trabalho dela:
+
 ```bash
 curl -I https://devradar.exemplo.com.br
 ```
 
 ```bash
+curl -u kaio:sua-senha -I https://devradar.exemplo.com.br
+```
+
+O health é a única rota aberta, e deve responder `{"status":"ok","database":"up"}`:
+
+```bash
 curl https://devradar.exemplo.com.br/api/health
 ```
 
-A segunda deve responder `{"status":"ok","database":"up"}`.
-
-A primeira captura roda na próxima hora par. Para não esperar:
+A primeira captura roda na próxima hora par. Para não esperar (com credencial,
+porque a rota é de escrita):
 
 ```bash
-curl -X POST https://devradar.exemplo.com.br/api/capture/run
+curl -u kaio:sua-senha -X POST https://devradar.exemplo.com.br/api/capture/run
 ```
 
 ---

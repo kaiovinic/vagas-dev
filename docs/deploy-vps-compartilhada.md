@@ -86,7 +86,14 @@ No `.env.prod`, além das senhas e do token do Telegram:
 ```ini
 DEVRADAR_DOMAIN=vagas.printimpressoes.com.br
 ACME_EMAIL=seu-email@printimpressoes.com.br
+DEVRADAR_AUTH_USER=kaio
+DEVRADAR_AUTH_HASH=<saida de `caddy hash-password`, com os cifroes dobrados>
 ```
+
+As duas últimas protegem **só** o DevRadar: a autenticação básica entra no bloco
+de `{$DEVRADAR_DOMAIN}` do `Caddyfile.edge`, e os domínios do PrintGest seguem
+sem credencial nenhuma. Como gerar o hash está em
+[deploy-vps.md](deploy-vps.md#a-senha-do-painel).
 
 `DEVRADAR_DOMAIN` é usado pelo `Caddyfile.edge`; os domínios do PrintGest estão
 escritos dentro do arquivo, em `infra/caddy/Caddyfile.edge`. Confira se a lista

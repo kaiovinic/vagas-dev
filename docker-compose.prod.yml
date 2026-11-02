@@ -88,6 +88,12 @@ services:
       # diretiva `email`, que nao aceita valor vazio e derruba o proxy em loop
       # de parse se ACME_EMAIL ficar em branco.
       ACME_EMAIL: ${ACME_EMAIL:-admin@${DEVRADAR_DOMAIN}}
+      # Autenticacao basica do painel. Sem as duas o compose para aqui, com a
+      # mensagem abaixo, em vez de publicar um painel aberto: a falha acontece
+      # antes de qualquer container ser tocado, entao a versao no ar continua
+      # de pe enquanto o .env.prod nao recebe os valores.
+      DEVRADAR_AUTH_USER: ${DEVRADAR_AUTH_USER:?defina DEVRADAR_AUTH_USER no .env.prod}
+      DEVRADAR_AUTH_HASH: ${DEVRADAR_AUTH_HASH:?defina DEVRADAR_AUTH_HASH no .env.prod - hash do caddy hash-password, com os cifroes dobrados}
     ports:
       - '80:80'
       - '443:443'
