@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from 'react';
 
-import { parseInline, parseMarkdown, type MarkdownBlock } from '@/lib/markdown';
+import { MarkdownInline } from '@/components/resume/markdown-inline';
+import { parseMarkdown, type MarkdownBlock } from '@/lib/markdown';
 
 const HEADING_CLASS: Readonly<Record<1 | 2 | 3, string>> = {
   1: 'text-lg font-semibold text-content-primary',
@@ -41,7 +42,7 @@ function Block({ block }: { readonly block: MarkdownBlock }): ReactNode {
       <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-content-secondary">
         {block.items.map((item, index) => (
           <li key={index}>
-            <Inline text={item} />
+            <Strong text={item} />
           </li>
         ))}
       </ul>
@@ -50,7 +51,7 @@ function Block({ block }: { readonly block: MarkdownBlock }): ReactNode {
 
   return (
     <p className="text-sm leading-relaxed whitespace-pre-line text-content-secondary">
-      <Inline text={block.text} />
+      <Strong text={block.text} />
     </p>
   );
 }
@@ -69,18 +70,7 @@ function Heading({ level, text }: { readonly level: 1 | 2 | 3; readonly text: st
   return <h5 className={className}>{text}</h5>;
 }
 
-function Inline({ text }: { readonly text: string }): ReactNode {
-  return (
-    <>
-      {parseInline(text).map((segment, index) =>
-        segment.isStrong ? (
-          <strong key={index} className="font-semibold text-content-primary">
-            {segment.text}
-          </strong>
-        ) : (
-          <span key={index}>{segment.text}</span>
-        ),
-      )}
-    </>
-  );
+/** Negrito com as cores do tema; a impressao usa o mesmo texto sem classe. */
+function Strong({ text }: { readonly text: string }): ReactNode {
+  return <MarkdownInline text={text} strongClassName="font-semibold text-content-primary" />;
 }

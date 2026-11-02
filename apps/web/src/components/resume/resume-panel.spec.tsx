@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import type { JobListItem } from '@/api/schemas';
@@ -91,8 +91,11 @@ describe('ResumePanel', () => {
 
     await waitFor(() => expect(screen.getByTestId('resume-result')).toBeInTheDocument());
 
-    expect(screen.getByRole('heading', { name: 'Kaio Vinicius' })).toBeInTheDocument();
-    expect(screen.getByText('Frontend na Acme')).toBeInTheDocument();
+    // Escopo na arvore da tela: a mesma linha existe no documento imprimivel.
+    const rendered = within(screen.getByTestId('resume-markdown'));
+
+    expect(rendered.getByRole('heading', { name: 'Kaio Vinicius' })).toBeInTheDocument();
+    expect(rendered.getByText('Frontend na Acme')).toBeInTheDocument();
     expect(screen.getByText('O que ficou de fora')).toBeInTheDocument();
     expect(screen.getByText('Nao tem experiencia com Angular.')).toBeInTheDocument();
     expect(screen.getByText(/claude-opus-5-5/)).toBeInTheDocument();
@@ -178,6 +181,53 @@ describe('ResumePanel', () => {
     const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
 
     expect(sentBody(init)).toEqual({ jobId: 'job-1', regenerate: true });
+  });
+
+  it('exporta o PDF pelo dialogo nativo, com o nome do arquivo no titulo', async () => {
+    const titlesSeen: string[] = [];
+    const print = vi.fn(() => titlesSeen.push(document.title));
+
+    vi.stubGlobal('print', print);
+    document.title = 'DevRadar';
+    setup();
+    await generate();
+
+    await waitFor(() => expect(screen.getByTestId('resume-result')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: /Exportar PDF/ }));
+
+    expect(print).toHaveBeenCalledOnce();
+    expect(titlesSeen).toEqual(['Curriculo - Kaio Vinicius - Acme Corp']);
+    expect(document.title).toBe('DevRadar');
+  });
+
+  /** O papel recebe o curriculo, nao a tela: o documento tem arvore propria. */
+  it('monta o documento imprimivel com o curriculo, sem as lacunas', async () => {
+    setup();
+    await generate();
+
+    const printable = await screen.findByTestId('resume-document');
+
+    expect(printable).toHaveTextContent('Kaio Vinicius');
+    expect(printable).toHaveTextContent('Frontend na Acme');
+    expect(printable).not.toHaveTextContent('Angular');
+    expect(printable.querySelector('h1')?.textContent).toBe('Kaio Vinicius');
+  });
+
+  it('o documento imprimivel fica fora do painel, irmao do #root', async () => {
+    setup();
+    await generate();
+
+    const printable = await screen.findByTestId('resume-document');
+
+    expect(printable.parentElement).toBe(document.body);
+    expect(printable.closest('[data-testid="resume-panel"]')).toBeNull();
+  });
+
+  it('sem geracao nenhuma nao ha o que imprimir', () => {
+    setup();
+
+    expect(screen.queryByTestId('resume-document')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Exportar PDF/ })).not.toBeInTheDocument();
   });
 
   it('404: a vaga saiu do radar', async () => {

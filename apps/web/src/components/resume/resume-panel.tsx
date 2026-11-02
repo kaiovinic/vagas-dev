@@ -1,14 +1,16 @@
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Copy, RefreshCw, Sparkles, TriangleAlert } from 'lucide-react';
+import { Copy, FileDown, RefreshCw, Sparkles, TriangleAlert } from 'lucide-react';
 
 import { ApiError } from '@/api/http';
 import type { GeneratedResume, JobListItem } from '@/api/schemas';
 import { MarkdownView } from '@/components/resume/markdown-view';
+import { ResumeDocument } from '@/components/resume/resume-document';
 import { Skeleton } from '@/components/ui/panel';
 import { Toast } from '@/components/ui/toast';
 import { useGenerateResume } from '@/hooks/use-generate-resume';
 import { formatDateTime } from '@/lib/brasilia-time';
+import { printWithTitle, resumeDocumentTitle } from '@/lib/resume-print';
 
 /**
  * Geracao do curriculo da vaga aberta.
@@ -54,7 +56,7 @@ export function ResumePanel({ job }: { readonly job: JobListItem }): ReactNode {
         <GenerationError error={generation.error} />
       )}
       {generation.data !== undefined && !generation.isPending && (
-        <Result resume={generation.data} onCopy={copy} />
+        <Result resume={generation.data} company={job.company} onCopy={copy} />
       )}
 
       <Toast token={copyToken} message="Curriculo copiado para a area de transferencia" />
@@ -149,10 +151,15 @@ export function errorTitle(status: number): string {
 
 interface ResultProps {
   readonly resume: GeneratedResume;
+  readonly company: string | null;
   readonly onCopy: (markdown: string) => Promise<void>;
 }
 
-function Result({ resume, onCopy }: ResultProps): ReactNode {
+function Result({ resume, company, onCopy }: ResultProps): ReactNode {
+  const exportPdf = (): void => {
+    printWithTitle(resumeDocumentTitle(resume.markdown, company));
+  };
+
   return (
     <div className="flex flex-col gap-4" data-testid="resume-result">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle pb-2">
@@ -160,17 +167,30 @@ function Result({ resume, onCopy }: ResultProps): ReactNode {
           {resume.generated ? 'Gerado agora' : 'Versao salva'} em{' '}
           {formatDateTime(new Date(resume.generatedAt))} pelo {resume.model}
         </p>
-        <button
-          type="button"
-          onClick={() => void onCopy(resume.markdown)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle px-2.5 py-1.5 text-xs text-content-secondary hover:text-content-primary"
-        >
-          <Copy aria-hidden="true" className="size-3.5" />
-          Copiar Markdown
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void onCopy(resume.markdown)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle px-2.5 py-1.5 text-xs text-content-secondary hover:text-content-primary"
+          >
+            <Copy aria-hidden="true" className="size-3.5" />
+            Copiar Markdown
+          </button>
+          <button
+            type="button"
+            onClick={exportPdf}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 px-2.5 py-1.5 text-xs font-medium text-accent hover:bg-accent/20"
+          >
+            <FileDown aria-hidden="true" className="size-3.5" />
+            Exportar PDF
+          </button>
+        </div>
       </div>
 
       <MarkdownView markdown={resume.markdown} />
+
+      {/* Fora da tela: so o papel ve. E o que o "Exportar PDF" imprime. */}
+      <ResumeDocument markdown={resume.markdown} />
 
       <GapList gaps={resume.gaps} />
 

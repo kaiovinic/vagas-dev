@@ -56,3 +56,114 @@ body {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
+
+/*
+ * Folha de impressao do curriculo (`ResumeDocument`).
+ *
+ * O painel e escuro, rola dentro de dois contenedores e tem botoes em volta:
+ * mandar a tela para o papel daria uma pagina preta e cortada. Entao o curriculo
+ * tem uma arvore propria, irma do `#root`, invisivel na tela e a unica visivel na
+ * impressao. Medidas em mm e pt porque o destino e papel, nao viewport.
+ */
+.resume-print {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 16mm 15mm;
+  }
+
+  /* So o documento vai para o papel: painel, drawer, toasts e o resto saem. */
+  body > * {
+    display: none !important;
+  }
+
+  html,
+  body {
+    min-height: 0;
+    background: #fff;
+  }
+
+  body > .resume-print {
+    display: block !important;
+    color: #15181d;
+    font-family: var(--font-sans);
+    font-size: 10.5pt;
+    line-height: 1.5;
+    /* Fundo branco de verdade, mesmo com "imprimir graficos de fundo" ligado. */
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .resume-print > *:first-child {
+    margin-top: 0;
+  }
+
+  /* Nome do candidato. */
+  .resume-print h1 {
+    margin: 0 0 1.5mm;
+    font-size: 19pt;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  /* Secoes do curriculo: "Experiencia", "Formacao". */
+  .resume-print h2 {
+    margin: 6mm 0 2mm;
+    padding-bottom: 1mm;
+    border-bottom: 0.4pt solid #b9c0cb;
+    font-size: 10pt;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+
+  /* Cargo e empresa dentro de uma secao. */
+  .resume-print h3 {
+    margin: 3.5mm 0 1mm;
+    font-size: 10.5pt;
+    font-weight: 600;
+  }
+
+  .resume-print p {
+    margin: 0 0 2mm;
+    white-space: pre-line;
+  }
+
+  .resume-print ul {
+    margin: 0 0 2mm;
+    padding-left: 5mm;
+    list-style: disc;
+  }
+
+  .resume-print li {
+    margin-bottom: 1mm;
+  }
+
+  .resume-print hr {
+    margin: 4mm 0;
+    border: 0;
+    border-top: 0.4pt solid #b9c0cb;
+  }
+
+  .resume-print strong {
+    font-weight: 600;
+  }
+
+  /* Titulo orfao no pe da pagina e item partido no meio sao o que mais estraga
+     um curriculo de duas paginas. */
+  .resume-print h1,
+  .resume-print h2,
+  .resume-print h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .resume-print p,
+  .resume-print li {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
