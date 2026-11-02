@@ -7,6 +7,7 @@ import { DashboardPage } from '@/pages/dashboard-page';
 import { CompaniesPage } from '@/pages/companies-page';
 import { MarketPage } from '@/pages/market-page';
 import { JobsPage } from '@/pages/jobs-page';
+import { ProfilePage } from '@/pages/profile-page';
 import { RecruitersPage } from '@/pages/recruiters-page';
 import { RulesPage } from '@/pages/rules-page';
 
@@ -28,6 +29,7 @@ export function App(): ReactNode {
           <Route path="/recrutadores" element={<RecruitersPage />} />
           <Route path="/mercado" element={<MarketPage />} />
           <Route path="/regras" element={<RulesPage />} />
+          <Route path="/perfil" element={<ProfilePage />} />
           <Route path="*" element={<Navigate replace to="/dashboard" />} />
         </Routes>
       </main>

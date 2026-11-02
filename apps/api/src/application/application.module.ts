@@ -10,6 +10,8 @@ import { CloseFinishedJobsUseCase } from '@/application/use-cases/close-finished
 import { FillMissingDescriptionsUseCase } from '@/application/use-cases/fill-missing-descriptions.use-case';
 import { GetMarketInsightsUseCase } from '@/application/use-cases/get-market-insights.use-case';
 import { GetSourceHealthUseCase } from '@/application/use-cases/get-source-health.use-case';
+import { GetCandidateProfileUseCase } from '@/application/use-cases/get-candidate-profile.use-case';
+import { SaveCandidateProfileUseCase } from '@/application/use-cases/save-candidate-profile.use-case';
 import { GetDashboardChartsUseCase } from '@/application/use-cases/get-dashboard-charts.use-case';
 import { GetDashboardSummaryUseCase } from '@/application/use-cases/get-dashboard-summary.use-case';
 import { ListJobsUseCase } from '@/application/use-cases/list-jobs.use-case';
@@ -29,6 +31,8 @@ const USE_CASES = [
   GetMarketInsightsUseCase,
   SendWeeklyDigestUseCase,
   GetSourceHealthUseCase,
+  GetCandidateProfileUseCase,
+  SaveCandidateProfileUseCase,
 ];
 
 @Module({

@@ -125,3 +125,32 @@ model JobDescription {
 
   @@map("job_descriptions")
 }
+
+/// Perfil do candidato: a materia-prima verdadeira que o gerador de curriculo
+/// apenas reorganiza por vaga. Hoje e uma linha so, com `id` fixo, mas a chave
+/// existe para o dia em que houver um perfil Frontend e outro Fullstack.
+///
+/// As listas sao `Json` de proposito: experiencias, formacao, competencias e
+/// projetos sao lidos e gravados sempre inteiros, junto com o perfil. Tabela
+/// propria para cada uma acrescentaria quatro joins sem responder pergunta
+/// nenhuma que o painel faca. Quem garante a forma e a entidade de dominio.
+model CandidateProfile {
+  id           String   @id @default("default")
+  fullName     String
+  headline     String
+  summary      String
+  email        String
+  phone        String?
+  city         String
+  linkedinUrl  String?
+  githubUrl    String?
+  portfolioUrl String?
+  experiences  Json     @default("[]")
+  education    Json     @default("[]")
+  skills       Json     @default("[]")
+  projects     Json     @default("[]")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("candidate_profiles")
+}

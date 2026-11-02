@@ -11,4 +11,5 @@ export const NAVIGATION_TABS: readonly NavigationTab[] = [
   { label: 'Recrutadores', path: '/recrutadores' },
   { label: 'Mercado', path: '/mercado' },
   { label: 'Regras', path: '/regras' },
+  { label: 'Perfil', path: '/perfil' },
 ];

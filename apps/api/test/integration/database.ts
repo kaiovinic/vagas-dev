@@ -20,5 +20,5 @@ export function createTestPrisma(): PrismaService {
 
 /** Zera as tabelas entre os casos, reiniciando qualquer sequencia. */
 export async function resetDatabase(prisma: PrismaService): Promise<void> {
-  await prisma.$executeRawUnsafe('TRUNCATE TABLE "jobs", "job_descriptions", "capture_logs", "capture_source_logs" RESTART IDENTITY CASCADE');
+  await prisma.$executeRawUnsafe('TRUNCATE TABLE "jobs", "job_descriptions", "capture_logs", "capture_source_logs", "candidate_profiles" RESTART IDENTITY CASCADE');
 }

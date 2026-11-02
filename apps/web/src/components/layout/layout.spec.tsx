@@ -93,7 +93,7 @@ describe('AppHeader', () => {
     expect(screen.getByText('Frontend e Fullstack na Bahia e 100% remotas')).toBeInTheDocument();
   });
 
-  it('mostra as seis abas em pilulas, na ordem do painel', () => {
+  it('mostra as sete abas em pilulas, na ordem do painel', () => {
     renderWithProviders(<AppHeader capture={capture()} />);
 
     const links = screen.getAllByRole('link');
@@ -105,6 +105,7 @@ describe('AppHeader', () => {
       'Recrutadores',
       'Mercado',
       'Regras',
+      'Perfil',
     ]);
   });
 

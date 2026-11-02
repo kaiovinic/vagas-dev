@@ -187,3 +187,62 @@ export const sourceHealthSchema = z.object({
 export type SourceStatus = z.infer<typeof sourceStatusSchema>;
 export type SourceHealthRow = z.infer<typeof sourceHealthRowSchema>;
 export type SourceHealth = z.infer<typeof sourceHealthSchema>;
+
+const profileMonthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
+
+export const profileExperienceSchema = z.object({
+  company: z.string(),
+  role: z.string(),
+  startedAt: profileMonthSchema,
+  endedAt: profileMonthSchema.nullable(),
+  description: z.string(),
+  techs: z.array(z.string()),
+});
+
+export const profileEducationSchema = z.object({
+  institution: z.string(),
+  degree: z.string(),
+  startedAt: profileMonthSchema,
+  endedAt: profileMonthSchema.nullable(),
+});
+
+export const profileSkillGroupSchema = z.object({
+  category: z.string(),
+  items: z.array(z.string()),
+});
+
+export const profileProjectSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  url: z.string().nullable(),
+  techs: z.array(z.string()),
+});
+
+export const candidateProfileSchema = z.object({
+  fullName: z.string(),
+  headline: z.string(),
+  summary: z.string(),
+  email: z.string(),
+  city: z.string(),
+  phone: z.string().nullable(),
+  linkedinUrl: z.string().nullable(),
+  githubUrl: z.string().nullable(),
+  portfolioUrl: z.string().nullable(),
+  experiences: z.array(profileExperienceSchema),
+  education: z.array(profileEducationSchema),
+  skills: z.array(profileSkillGroupSchema),
+  projects: z.array(profileProjectSchema),
+});
+
+/** `profile: null` e a primeira visita da aba, nao erro. */
+export const candidateProfileResponseSchema = z.object({
+  profile: candidateProfileSchema.nullable(),
+  isUsableForResume: z.boolean(),
+});
+
+export type ProfileExperience = z.infer<typeof profileExperienceSchema>;
+export type ProfileEducation = z.infer<typeof profileEducationSchema>;
+export type ProfileSkillGroup = z.infer<typeof profileSkillGroupSchema>;
+export type ProfileProject = z.infer<typeof profileProjectSchema>;
+export type CandidateProfile = z.infer<typeof candidateProfileSchema>;
+export type CandidateProfileResponse = z.infer<typeof candidateProfileResponseSchema>;

@@ -6,6 +6,7 @@ import { DashboardController } from '@/http/controllers/dashboard.controller';
 import { HealthController } from '@/http/controllers/health.controller';
 import { MarketController } from '@/http/controllers/market.controller';
 import { JobsController } from '@/http/controllers/jobs.controller';
+import { ProfileController } from '@/http/controllers/profile.controller';
 import { RulesController } from '@/http/controllers/rules.controller';
 import { InfraModule } from '@/infra/infra.module';
 
@@ -19,6 +20,7 @@ import { InfraModule } from '@/infra/infra.module';
     HealthController,
     JobsController,
     MarketController,
+    ProfileController,
     RulesController,
   ],
 })
