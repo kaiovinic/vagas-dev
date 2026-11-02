@@ -17,10 +17,12 @@ import {
   StubJobDescriptionFetcher,
   InMemoryMissingDescriptionRepository,
   InMemoryJobDescriptionWriter,
+  InMemoryPendingAlertRepository,
 } from '../../../test/factories/doubles';
 import { CloseFinishedJobsUseCase } from '@/application/use-cases/close-finished-jobs.use-case';
+import { DispatchPendingAlertsUseCase } from '@/application/use-cases/dispatch-pending-alerts.use-case';
 import { FillMissingDescriptionsUseCase } from '@/application/use-cases/fill-missing-descriptions.use-case';
-import { FIXED_NOW, hoursAgo } from '../../../test/factories/make-job';
+import { FIXED_NOW, hoursAgo, makeJob } from '../../../test/factories/make-job';
 
 describe('RunJobCollectionUseCase', () => {
   let jobs: InMemoryJobWriteRepository;
@@ -30,6 +32,7 @@ describe('RunJobCollectionUseCase', () => {
   let sourceHealth: InMemorySourceHealthWriter;
   let closures: InMemoryJobClosureWriter;
   let semDescricao: InMemoryMissingDescriptionRepository;
+  let pendentes: InMemoryPendingAlertRepository;
 
   beforeEach(() => {
     jobs = new InMemoryJobWriteRepository();
@@ -39,6 +42,7 @@ describe('RunJobCollectionUseCase', () => {
     sourceHealth = new InMemorySourceHealthWriter();
     closures = new InMemoryJobClosureWriter();
     semDescricao = new InMemoryMissingDescriptionRepository();
+    pendentes = new InMemoryPendingAlertRepository();
   });
 
   function buildUseCase(
@@ -51,7 +55,6 @@ describe('RunJobCollectionUseCase', () => {
       new JobRuleEngine(),
       jobs,
       captureLogs,
-      notifier,
       schedule,
       sourceHealth,
       new CloseFinishedJobsUseCase(closureProviders, closures),
@@ -60,6 +63,7 @@ describe('RunJobCollectionUseCase', () => {
         semDescricao,
         new InMemoryJobDescriptionWriter(),
       ),
+      new DispatchPendingAlertsUseCase(pendentes, notifier),
     );
   }
 
@@ -434,7 +438,6 @@ describe('RunJobCollectionUseCase', () => {
 
     it('nao reenvia vagas que o banco ja conhece', async () => {
       await buildUseCase([new StubScraperProvider('gupy', [rawJob()])]).execute(FIXED_NOW);
-      notifier.notified.length = 0;
 
       const report = await buildUseCase([new StubScraperProvider('gupy', [rawJob()])]).execute(
         FIXED_NOW,
@@ -442,27 +445,48 @@ describe('RunJobCollectionUseCase', () => {
 
       expect(report.totalPersisted).toBe(0);
       expect(report.totalDuplicated).toBe(1);
-      expect(notifier.notified).toHaveLength(0);
       expect(jobs.saveCalls[1]).toEqual([]);
     });
   });
 
-  describe('notificacao no Telegram', () => {
-    it('notifica cada vaga inedita', async () => {
-      await buildUseCase([
-        new StubScraperProvider('gupy', [
-          rawJob(),
-          rawJob({ company: 'Globex', url: 'https://gupy.io/vagas/2' }),
-        ]),
-      ]).execute(FIXED_NOW);
+  describe('despacho dos alertas', () => {
+    function pendente(company: string): void {
+      pendentes.pending.push({
+        jobId: company,
+        alert: { job: makeJob({ company }), tags: [], scope: 'NATIONAL' },
+      });
+    }
 
+    it('manda despachar o que estiver pendente e informa quantos sairam', async () => {
+      pendente('Acme Corp');
+      pendente('Globex');
+
+      const report = await buildUseCase([new StubScraperProvider('gupy', [rawJob()])]).execute(
+        FIXED_NOW,
+      );
+
+      expect(report.totalNotified).toBe(2);
       expect(notifier.notified.map((alerta) => alerta.job.company)).toEqual([
         'Acme Corp',
         'Globex',
       ]);
     });
 
+    it('despacha depois de fechar o log: alerta nao segura mais a captura em RUNNING', async () => {
+      pendente('Acme Corp');
+      let logsFechadosNoEnvio = 0;
+
+      notifier.onNotify = () => {
+        logsFechadosNoEnvio = captureLogs.finished.length;
+      };
+
+      await buildUseCase([new StubScraperProvider('gupy', [rawJob()])]).execute(FIXED_NOW);
+
+      expect(logsFechadosNoEnvio).toBe(1);
+    });
+
     it('conclui a captura mesmo com o Telegram fora do ar', async () => {
+      pendente('Acme Corp');
       notifier.shouldFail = true;
 
       const report = await buildUseCase([
@@ -471,7 +495,18 @@ describe('RunJobCollectionUseCase', () => {
 
       expect(report.status).toBe('SUCCESS');
       expect(report.totalPersisted).toBe(1);
+      expect(report.totalNotified).toBe(0);
       expect(jobs.saved).toHaveLength(1);
+    });
+
+    it('deixa pendente a vaga cujo alerta falhou, para o proximo despacho', async () => {
+      pendente('Acme Corp');
+      notifier.shouldFail = true;
+
+      await buildUseCase([new StubScraperProvider('gupy', [rawJob()])]).execute(FIXED_NOW);
+
+      expect(pendentes.pending).toHaveLength(1);
+      expect(pendentes.notifiedAt.size).toBe(0);
     });
   });
 

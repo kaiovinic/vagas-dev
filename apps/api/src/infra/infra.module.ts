@@ -21,6 +21,7 @@ import {
   CANDIDATE_PROFILE_WRITER,
 } from '@/domain/repositories/candidate-profile-repository';
 import { DASHBOARD_METRICS_REPOSITORY } from '@/domain/repositories/dashboard-metrics-repository';
+import { PENDING_ALERT_REPOSITORY } from '@/domain/repositories/job-alert-repository';
 import { MARKET_INSIGHTS_REPOSITORY } from '@/domain/repositories/market-insights-repository';
 import { WEEKLY_DIGEST_REPOSITORY } from '@/domain/repositories/weekly-digest-repository';
 import {
@@ -37,9 +38,17 @@ import {
 import { JOB_QUERY_REPOSITORY } from '@/domain/repositories/job-query-repository';
 import { JOB_WRITE_REPOSITORY } from '@/domain/repositories/job-write-repository';
 import { AxiosHttpClient } from '@/infra/http/axios-http-client';
-import { RetryingHttpClient } from '@/infra/http/retrying-http-client';
-import { TelegramHttpNotifier } from '@/infra/notifications/telegram-http-notifier';
+import {
+  HTTP_RETRY_ATTEMPTS,
+  HTTP_RETRY_BASE_DELAY_IN_MS,
+  RetryingHttpClient,
+} from '@/infra/http/retrying-http-client';
+import {
+  TelegramHttpNotifier,
+  TELEGRAM_MAX_RETRY_DELAY_MS,
+} from '@/infra/notifications/telegram-http-notifier';
 import { PrismaCandidateProfileRepository } from '@/infra/prisma/prisma-candidate-profile-repository';
+import { PrismaJobAlertRepository } from '@/infra/prisma/prisma-job-alert-repository';
 import { PrismaCaptureLogRepository } from '@/infra/prisma/prisma-capture-log-repository';
 import { PrismaJobClosureRepository } from '@/infra/prisma/prisma-job-closure-repository';
 import { PrismaInhireTenantReader } from '@/infra/prisma/prisma-inhire-tenant-reader';
@@ -120,7 +129,25 @@ const SCRAPERS = [
       useFactory: (axios: AxiosHttpClient): IHttpClient => new RetryingHttpClient(axios),
       inject: [AxiosHttpClient],
     },
-    { provide: TELEGRAM_NOTIFIER, useClass: TelegramHttpNotifier },
+    // O notificador NAO usa o mesmo cliente dos coletores: ali o `Retry-After`
+    // e cortado em 30s para nao atrasar o ciclo, e era justamente esse corte que
+    // fazia a repeticao bater no 429 do Telegram de novo e perder a mensagem.
+    {
+      provide: TELEGRAM_NOTIFIER,
+      useFactory: (axios: AxiosHttpClient): TelegramHttpNotifier =>
+        new TelegramHttpNotifier(
+          new RetryingHttpClient(
+            axios,
+            undefined,
+            HTTP_RETRY_ATTEMPTS,
+            HTTP_RETRY_BASE_DELAY_IN_MS,
+            TELEGRAM_MAX_RETRY_DELAY_MS,
+          ),
+        ),
+      inject: [AxiosHttpClient],
+    },
+    PrismaJobAlertRepository,
+    { provide: PENDING_ALERT_REPOSITORY, useExisting: PrismaJobAlertRepository },
     ...SCRAPERS,
     {
       provide: JOB_SCRAPERS,
@@ -182,6 +209,7 @@ const SCRAPERS = [
     JOB_DESCRIPTION_FETCHERS,
     CAPTURE_LOG_REPOSITORY,
     MARKET_INSIGHTS_REPOSITORY,
+    PENDING_ALERT_REPOSITORY,
     CANDIDATE_PROFILE_READER,
     CANDIDATE_PROFILE_WRITER,
     WEEKLY_DIGEST_REPOSITORY,

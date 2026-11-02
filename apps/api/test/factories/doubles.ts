@@ -21,6 +21,10 @@ import type {
   WeeklyDigest,
 } from '@/domain/providers/telegram-notifier';
 import type {
+  IPendingAlertRepository,
+  PendingJobAlert,
+} from '@/domain/repositories/job-alert-repository';
+import type {
   FinishCaptureInput,
   ICaptureLogRepository,
   LastCaptureSnapshot,
@@ -198,8 +202,12 @@ export class FakeTelegramNotifier implements ITelegramNotifier {
   readonly notified: JobAlert[] = [];
   readonly digests: WeeklyDigest[] = [];
   shouldFail = false;
+  /** Gancho para o teste observar o que ja tinha acontecido na hora do envio. */
+  onNotify: (() => void) | undefined = undefined;
 
   async notifyNewJob(alert: JobAlert): Promise<void> {
+    this.onNotify?.();
+
     if (this.shouldFail) {
       throw new Error('telegram indisponivel');
     }
@@ -213,6 +221,24 @@ export class FakeTelegramNotifier implements ITelegramNotifier {
     }
 
     this.digests.push(digest);
+  }
+}
+
+/**
+ * Fila de alertas pendentes em memoria. `markNotified` tira da fila, como a
+ * coluna `notifiedAt` faz no banco: o que saiu nao volta no proximo despacho.
+ */
+export class InMemoryPendingAlertRepository implements IPendingAlertRepository {
+  pending: PendingJobAlert[] = [];
+  readonly notifiedAt = new Map<string, Date>();
+
+  async findPendingAlerts(_reference: Date, limit: number): Promise<PendingJobAlert[]> {
+    return this.pending.slice(0, limit);
+  }
+
+  async markNotified(jobId: string, notifiedAt: Date): Promise<void> {
+    this.notifiedAt.set(jobId, notifiedAt);
+    this.pending = this.pending.filter((entry) => entry.jobId !== jobId);
   }
 }
 

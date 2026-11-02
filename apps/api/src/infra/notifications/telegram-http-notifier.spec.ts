@@ -72,18 +72,18 @@ describe('TelegramHttpNotifier', () => {
       expect(http.requestedUrls).toEqual([]);
     });
 
-    it('nao propaga falha da api do Telegram', async () => {
+    it('propaga a falha da api do Telegram, para a vaga seguir pendente', async () => {
       const telegram = new TelegramHttpNotifier(failingHttpClient('429'), CONFIG, 0);
 
-      await expect(telegram.notifyNewJob(alert())).resolves.toBeUndefined();
+      await expect(telegram.notifyNewJob(alert())).rejects.toThrow('429');
     });
 
-    it('nao propaga falha que nao e Error', async () => {
+    it('propaga tambem a falha que nao e Error', async () => {
       const http = new FakeHttpClient(() => {
         throw 'ECONNRESET cru';
       });
 
-      await expect(notifier(http).notifyNewJob(alert())).resolves.toBeUndefined();
+      await expect(notifier(http).notifyNewJob(alert())).rejects.toBe('ECONNRESET cru');
     });
 
     it('le token e chat das variaveis de ambiente por padrao', async () => {
@@ -156,8 +156,22 @@ describe('TelegramHttpNotifier', () => {
   });
 
   describe('controle de ritmo', () => {
-    it('declara o intervalo compativel com o limite da Bot API', () => {
-      expect(TELEGRAM_MIN_INTERVAL_MS).toBeGreaterThanOrEqual(1_000);
+    it('declara o intervalo compativel com o limite de grupo da Bot API', () => {
+      // 20 mensagens por minuto no mesmo grupo: 3s e o ritmo que cabe nisso.
+      expect(TELEGRAM_MIN_INTERVAL_MS).toBeGreaterThanOrEqual(3_000);
+      expect(60_000 / TELEGRAM_MIN_INTERVAL_MS).toBeLessThanOrEqual(20);
+    });
+
+    it('espera o intervalo tambem depois de uma falha, para nao emendar outro 429', async () => {
+      const esperas: number[] = [];
+      const telegram = new TelegramHttpNotifier(failingHttpClient('429'), CONFIG, 50);
+
+      const antes = Date.now();
+
+      await expect(telegram.notifyNewJob(alert())).rejects.toThrow('429');
+      esperas.push(Date.now() - antes);
+
+      expect(esperas[0]).toBeGreaterThanOrEqual(45);
     });
 
     it('serializa os envios mesmo quando disparados em paralelo', async () => {
@@ -214,11 +228,17 @@ describe('TelegramHttpNotifier', () => {
       });
       const telegram = notifier(http);
 
-      await Promise.all([
+      const resultados = await Promise.allSettled([
         telegram.notifyNewJob(alert()),
         telegram.notifyNewJob(alert({ job: makeJob({ company: 'Globex' }) })),
       ]);
 
+      // A primeira rejeita, a segunda sai assim mesmo: a fila guarda a versao
+      // que nunca rejeita, e so quem chamou recebe o erro.
+      expect(resultados.map((resultado) => resultado.status)).toEqual([
+        'rejected',
+        'fulfilled',
+      ]);
       expect(http.requestedUrls).toHaveLength(2);
     });
   });
@@ -243,10 +263,10 @@ describe('TelegramHttpNotifier', () => {
       expect(http.requestedUrls).toEqual([]);
     });
 
-    it('nao propaga falha da api', async () => {
+    it('propaga a falha da api, como no alerta de vaga', async () => {
       const telegram = new TelegramHttpNotifier(failingHttpClient('500'), CONFIG, 0);
 
-      await expect(telegram.notifyWeeklyDigest(digest())).resolves.toBeUndefined();
+      await expect(telegram.notifyWeeklyDigest(digest())).rejects.toThrow('500');
     });
 
     it('entra na mesma fila dos alertas de vaga', async () => {

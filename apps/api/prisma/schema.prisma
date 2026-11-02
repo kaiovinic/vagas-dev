@@ -54,6 +54,9 @@ model Job {
   publishedAtSource PublishedAtSource @default(SOURCE)
   /// Encerrada na fonte (issue fechada no GitHub). Nulo significa aberta.
   closedAt          DateTime?
+  /// Quando o alerta desta vaga saiu no Telegram. Nulo significa pendente, e e
+  /// o que o despachante procura — inclusive depois de um reinicio.
+  notifiedAt        DateTime?
   firstSeenAt       DateTime          @default(now())
   lastSeenAt        DateTime          @default(now())
   createdAt         DateTime          @default(now())
@@ -67,6 +70,8 @@ model Job {
   @@index([company])
   /// Volumetria de captura do dashboard: blocos de 2h sobre a data de ingestao.
   @@index([createdAt])
+  /// Fila do despachante de alertas: as pendentes, da mais antiga para a mais nova.
+  @@index([notifiedAt, publishedAt])
   @@map("jobs")
 }
 

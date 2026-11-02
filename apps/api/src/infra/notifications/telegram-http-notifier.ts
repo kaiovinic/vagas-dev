@@ -14,11 +14,22 @@ const MAX_TAGS = 5;
 const MAX_TITLE_LENGTH = 120;
 
 /**
- * A Bot API aceita cerca de 1 mensagem por segundo no mesmo chat (e ~20/minuto
- * em grupo). Uma captura com 18 vagas novas dispararia 18 envios de uma vez e
- * levaria 429 — por isso os envios sao enfileirados com este intervalo.
+ * O limite que vale aqui e o do GRUPO: ~20 mensagens por minuto. O intervalo
+ * antigo de 1,1s dava ~54 por minuto — passava do teto na segunda dezena e o
+ * resto voltava 429. Tres segundos dao 20 por minuto, com a margem do proprio
+ * tempo de requisicao.
  */
-export const TELEGRAM_MIN_INTERVAL_MS = 1_100;
+export const TELEGRAM_MIN_INTERVAL_MS = 3_000;
+
+/**
+ * Teto da espera entre tentativas DESTE adaptador.
+ *
+ * O cliente dos coletores corta o `Retry-After` em 30s, e com razao: esperar
+ * mais atrasaria as outras fontes dentro do ciclo. Aqui o calculo e o oposto —
+ * quando o Telegram diz "volte em 60 segundos", obedecer e o unico jeito de a
+ * mensagem sair, e o despacho nao segura mais captura nenhuma.
+ */
+export const TELEGRAM_MAX_RETRY_DELAY_MS = 180_000;
 
 export interface TelegramConfig {
   readonly botToken: string;
@@ -68,11 +79,7 @@ export class TelegramHttpNotifier implements ITelegramNotifier, OnModuleInit {
       return;
     }
 
-    this.queue = this.queue.then(() =>
-      this.sendThrottled(buildMessage(alert), `"${alert.job.title}"`),
-    );
-
-    return this.queue;
+    return this.enqueue(buildMessage(alert), `"${alert.job.title}"`);
   }
 
   /**
@@ -86,9 +93,25 @@ export class TelegramHttpNotifier implements ITelegramNotifier, OnModuleInit {
       return;
     }
 
-    this.queue = this.queue.then(() => this.sendThrottled(buildDigestMessage(digest), 'resumo semanal'));
+    return this.enqueue(buildDigestMessage(digest), 'resumo semanal');
+  }
 
-    return this.queue;
+  /**
+   * Enfileira o envio e devolve SO o resultado desta mensagem.
+   *
+   * A fila guarda a versao que nunca rejeita; se ela carregasse a rejeicao, um
+   * envio falho quebraria o encadeamento e nenhuma mensagem posterior sairia.
+   * Quem chamou recebe a promessa de verdade, com o erro.
+   */
+  private enqueue(text: string, subject: string): Promise<void> {
+    const sent = this.queue.then(() => this.sendThrottled(text, subject));
+
+    this.queue = sent.then(
+      () => undefined,
+      () => undefined,
+    );
+
+    return sent;
   }
 
   /** Envia uma mensagem avulsa, usada pelo comando de teste. */
@@ -102,7 +125,16 @@ export class TelegramHttpNotifier implements ITelegramNotifier, OnModuleInit {
     await this.http.get(this.buildUrl(text), { headers: { Accept: 'application/json' } });
   }
 
-  /** `subject` so aparece no log de falha, para dizer o que nao foi enviado. */
+  /**
+   * `subject` so aparece no log de falha, para dizer o que nao foi enviado.
+   *
+   * A falha e registrada E propagada: quem chama precisa saber que a mensagem
+   * nao saiu para deixar a vaga pendente. Antes o erro morria aqui, e a captura
+   * fechava como sucesso com os alertas perdidos.
+   *
+   * O intervalo e respeitado nos dois caminhos: depois de um 429, emendar a
+   * proxima mensagem seria pedir outro.
+   */
   private async sendThrottled(text: string, subject: string): Promise<void> {
     try {
       await this.http.get(this.buildUrl(text), {
@@ -112,6 +144,10 @@ export class TelegramHttpNotifier implements ITelegramNotifier, OnModuleInit {
       const message = error instanceof Error ? error.message : String(error);
 
       this.logger.warn(`Falha ao notificar ${subject} no Telegram: ${message}`);
+
+      await delay(this.minIntervalMs);
+
+      throw error;
     }
 
     await delay(this.minIntervalMs);

@@ -4,9 +4,11 @@ import { JobRuleEngine } from '@/domain/services/job-rule-engine';
 import { CAPTURE_SCHEDULE } from '@/domain/providers/capture-schedule';
 import { CronCaptureSchedule } from '@/application/schedulers/cron-capture-schedule';
 import { CaptureCoordinator } from '@/application/services/capture-coordinator.service';
+import { AlertDispatchScheduler } from '@/application/schedulers/alert-dispatch.scheduler';
 import { JobCronScheduler } from '@/application/schedulers/job-cron.scheduler';
 import { WeeklyDigestScheduler } from '@/application/schedulers/weekly-digest.scheduler';
 import { CloseFinishedJobsUseCase } from '@/application/use-cases/close-finished-jobs.use-case';
+import { DispatchPendingAlertsUseCase } from '@/application/use-cases/dispatch-pending-alerts.use-case';
 import { FillMissingDescriptionsUseCase } from '@/application/use-cases/fill-missing-descriptions.use-case';
 import { GetMarketInsightsUseCase } from '@/application/use-cases/get-market-insights.use-case';
 import { GetSourceHealthUseCase } from '@/application/use-cases/get-source-health.use-case';
@@ -23,6 +25,7 @@ import { InfraModule } from '@/infra/infra.module';
 const USE_CASES = [
   RunJobCollectionUseCase,
   CloseFinishedJobsUseCase,
+  DispatchPendingAlertsUseCase,
   FillMissingDescriptionsUseCase,
   GetDashboardSummaryUseCase,
   GetDashboardChartsUseCase,
@@ -43,6 +46,7 @@ const USE_CASES = [
     ...USE_CASES,
     CaptureCoordinator,
     JobCronScheduler,
+    AlertDispatchScheduler,
     WeeklyDigestScheduler,
   ],
   exports: [...USE_CASES, CaptureCoordinator],

@@ -32,8 +32,12 @@ export interface WeeklyDigest {
 }
 
 /**
- * Porta de notificacao. Implementacoes nunca propagam excecao: uma falha no
- * Telegram nao pode derrubar a captura nem impedir a persistencia da vaga.
+ * Porta de notificacao.
+ *
+ * O envio REJEITA quando a mensagem nao sai. Quem chama precisa saber disso
+ * para deixar a vaga pendente e tentar de novo; engolir o erro aqui foi o que
+ * fez alertas se perderem em silencio enquanto a captura fechava como sucesso.
+ * Quem protege a captura e o despachante, que roda fora dela.
  *
  * Cabe a implementacao respeitar o limite de envio da plataforma; quem chama
  * pode disparar os alertas de uma vez.

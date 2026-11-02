@@ -11,10 +11,6 @@ import {
   type ICaptureSchedule,
 } from '@/domain/providers/capture-schedule';
 import {
-  TELEGRAM_NOTIFIER,
-  type ITelegramNotifier,
-} from '@/domain/providers/telegram-notifier';
-import {
   SOURCE_HEALTH_WRITER,
   type ISourceHealthWriter,
 } from '@/domain/repositories/source-health-repository';
@@ -31,6 +27,7 @@ import {
 } from '@/domain/repositories/job-write-repository';
 import { JobRuleEngine } from '@/domain/services/job-rule-engine';
 import { CloseFinishedJobsUseCase } from '@/application/use-cases/close-finished-jobs.use-case';
+import { DispatchPendingAlertsUseCase } from '@/application/use-cases/dispatch-pending-alerts.use-case';
 import { FillMissingDescriptionsUseCase } from '@/application/use-cases/fill-missing-descriptions.use-case';
 
 export type CaptureReport = FinishCaptureInput & {
@@ -44,6 +41,8 @@ export type CaptureReport = FinishCaptureInput & {
   readonly totalClosed: number;
   /** Vagas que estavam gravadas sem descricao e passaram a ter, neste ciclo. */
   readonly totalFilled: number;
+  /** Alertas que sairam no Telegram depois deste ciclo. */
+  readonly totalNotified: number;
 };
 
 interface SourceOutcome {
@@ -64,7 +63,7 @@ interface CollectedJobs {
 /**
  * Orquestra uma rodada de captura: executa todos os coletores em paralelo,
  * aplica as regras do dominio, deduplica, persiste somente o que e inedito,
- * notifica no Telegram e registra a execucao no CaptureLog.
+ * registra a execucao no CaptureLog e manda despachar os alertas pendentes.
  *
  * Depende apenas de abstracoes do dominio (DIP) e nao conhece nenhuma fonte
  * concreta: adicionar um coletor novo e registrar mais um provider em
@@ -79,11 +78,11 @@ export class RunJobCollectionUseCase {
     private readonly ruleEngine: JobRuleEngine,
     @Inject(JOB_WRITE_REPOSITORY) private readonly jobs: IJobWriteRepository,
     @Inject(CAPTURE_LOG_REPOSITORY) private readonly captureLogs: ICaptureLogRepository,
-    @Inject(TELEGRAM_NOTIFIER) private readonly notifier: ITelegramNotifier,
     @Inject(CAPTURE_SCHEDULE) private readonly schedule: ICaptureSchedule,
     @Inject(SOURCE_HEALTH_WRITER) private readonly sourceHealth: ISourceHealthWriter,
     private readonly closeFinishedJobs: CloseFinishedJobsUseCase,
     private readonly fillMissingDescriptions: FillMissingDescriptionsUseCase,
+    private readonly dispatchPendingAlerts: DispatchPendingAlertsUseCase,
   ) {}
 
   async execute(reference: Date = new Date()): Promise<CaptureReport> {
@@ -99,8 +98,6 @@ export class RunJobCollectionUseCase {
     const approved = this.selectApproved(raw, reference);
     const fresh = await this.selectUnpublished(approved);
     const { created } = await this.jobs.saveMany(fresh);
-
-    await this.notifyAll(fresh);
 
     // Depois de persistir, e nao antes: a vaga que acabou de entrar e a que
     // acabou de fechar sao eventos independentes, e encerrar primeiro deixaria
@@ -126,7 +123,19 @@ export class RunJobCollectionUseCase {
 
     await this.captureLogs.finish(outcome);
 
-    return { ...outcome, startedAt: reference, nextRunAt, totalClosed, totalFilled };
+    // Os alertas saem DEPOIS de fechar o log, e nao dentro do ciclo: a fila de
+    // envio e lenta por limite do Telegram, e enquanto ela estava aqui dentro
+    // uma captura inteira ficava em RUNNING esperando mensagem sair.
+    const { totalSent } = await this.dispatchPendingAlerts.execute(new Date());
+
+    return {
+      ...outcome,
+      startedAt: reference,
+      nextRunAt,
+      totalClosed,
+      totalFilled,
+      totalNotified: totalSent,
+    };
   }
 
   /**
@@ -265,25 +274,6 @@ export class RunJobCollectionUseCase {
     );
 
     return unique.filter((entry) => !known.has(entry.job.fingerprint.value));
-  }
-
-  /** Uma falha no Telegram nao invalida a captura: a vaga ja esta persistida. */
-  private async notifyAll(jobs: readonly PersistableJob[]): Promise<void> {
-    const settled = await Promise.allSettled(
-      jobs.map((entry) =>
-        this.notifier.notifyNewJob({
-          job: entry.job,
-          tags: entry.tags,
-          scope: entry.scope,
-        }),
-      ),
-    );
-
-    const failures = settled.filter((result) => result.status === 'rejected').length;
-
-    if (failures > 0) {
-      this.logger.warn(`${failures} notificacao(oes) do Telegram falharam`);
-    }
   }
 
   /**
