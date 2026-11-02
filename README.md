@@ -2,8 +2,10 @@
 
 Agregador de vagas para **Desenvolvedor Frontend e Fullstack** em qualquer município da Bahia ou 100% remotas. Coleta de oito fontes a cada 2 horas, descarta o que não é vaga de verdade, deduplica entre plataformas, avisa no Telegram e apresenta tudo em um dashboard analítico.
 
+Da vaga até a candidatura: a partir de um perfil único, o DevRadar escreve com o Gemini um **currículo sob medida para cada vaga** e o exporta em PDF A4 direto do navegador.
+
 [![CI](https://github.com/kaiovinic/vagas-dev/actions/workflows/ci.yml/badge.svg)](https://github.com/kaiovinic/vagas-dev/actions/workflows/ci.yml)
-[![Cobertura](https://img.shields.io/badge/cobertura-97%25-brightgreen)](#qualidade)
+[![Cobertura](https://img.shields.io/badge/cobertura-96%25-brightgreen)](#qualidade)
 [![Domínio e Aplicação](https://img.shields.io/badge/dom%C3%ADnio%20e%20aplica%C3%A7%C3%A3o-100%25-brightgreen)](#qualidade)
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -152,6 +154,60 @@ Hoje o orquestrador pergunta `isDue(reference)` a cada coletor **antes** de visi
 
 Perguntar antes não é detalhe de implementação: é o que torna a leitura possível. Se a fonte adiada ainda assim fosse registrada no ciclo, o próprio registro do adiamento seria lido como "rodou agora" e a vez dela não chegaria nunca. Fonte adiada não é visitada, não entra na saúde da coleta e não conta para o status da captura — não está falhando nem parada, só não chegou a hora.
 
+### Currículo sob medida
+
+O perfil profissional é cadastrado **uma vez**, na aba `Perfil`: contatos, resumo, experiências com período e tecnologias, competências agrupadas, projetos e formação. A partir dele, cada vaga ganha um botão que escreve o currículo daquela candidatura.
+
+O botão chama `POST /api/resume/generate` com o id da vaga. A geração é um clique deliberado, nunca automática — e a rota devolve a última versão salva quando ela já existe, gravada em `generated_resumes` com o modelo e o consumo de tokens. Pagar de novo pela mesma vaga exige `Gerar outra versão`.
+
+O retorno não é só o texto:
+
+| campo | o que traz |
+|---|---|
+| `markdown` | o currículo completo, pronto para revisar e copiar |
+| `rationale` | por que cada bloco foi destacado ou deixado de lado |
+| `gaps` | requisitos da vaga que o perfil **não** cobre, do mais ao menos grave |
+
+Os `gaps` são a parte mais útil do retorno e ficam numa caixa própria, fora do currículo: dizem na hora se vale aplicar e o que estudar. Como são análise sobre a vaga, e não conteúdo a enviar, também não entram no PDF.
+
+A saída vem por **structured output** (`responseMimeType: 'application/json'` mais o JSON Schema), validada de novo com Zod no adaptador: o painel nunca recebe um bloco meio escrito. Regras e perfil vão na instrução de sistema e só a vaga no conteúdo — o prefixo idêntico é o que o cache implícito do Gemini procura para cobrar menos.
+
+Erro do provedor não vira tela branca: a rota responde `404` para vaga que saiu do radar, `422` para perfil incompleto (com link para a aba `Perfil`) e `502` quando a falha é do Gemini.
+
+#### O contrato de Markdown
+
+O prompt não pede "um currículo em Markdown": ele **fixa os níveis**, com um esqueleto exato.
+
+| nível | exigência |
+|---|---|
+| `# Nome Completo` | um único, no topo, seguido da linha de contatos |
+| `## SEÇÃO` | em caixa alta: `RESUMO`, `EXPERIÊNCIA`, `COMPETÊNCIAS`, `PROJETOS`, `FORMAÇÃO` |
+| `### Título (período)` | um por cargo, projeto ou curso, com o período entre parênteses no fim |
+| `**Tecnologias:** item1, item2` | logo abaixo do `###`, em nenhum outro lugar |
+
+Não é preciosismo de formato. O PDF só sabe engrossar um nome, versalear uma seção, alinhar o período à direita e manter um cargo inteiro na mesma página se eles chegarem nesses níveis. Uma geração saiu em texto plano e virou um PDF com **dois tamanhos de fonte e nenhuma hierarquia** — o layout dependia da forma que o modelo escolhesse no dia. Pedir a estrutura na origem custa alguns tokens no bloco que o cache já cobre; adivinhá-la no frontend custaria heurística sobre heurística.
+
+#### O PDF sem Chromium no servidor
+
+A exportação usa `@media print` e o `window.print()` do navegador. As alternativas foram descartadas por motivo medido:
+
+| opção | por que não |
+|---|---|
+| `html2pdf.js` (html2canvas) | rasteriza a página: o PDF vira **imagem**, sem texto selecionável — ilegível para o ATS que lê currículo |
+| `@react-pdf/renderer` | obrigaria a escrever o currículo duas vezes, em HTML e na linguagem da lib, e somaria ~400 kB ao bundle |
+| Puppeteer na API | um Chromium disputando RAM e CPU na VPS por algo que o navegador do candidato faz de graça |
+
+Imprimir a tela também não serve: o painel é escuro, rola dentro de dois contêineres e tem botões em volta. Então o currículo ganha **árvore própria**, montada por portal como irmã do `#root` — invisível na tela, a única visível na impressão, com medidas em `mm` e `pt` porque o destino é papel.
+
+O que a folha de impressão resolve:
+
+- **Paginação por bloco** — cada cargo, projeto ou curso é agrupado com tudo que vem sob ele e marcado com `break-inside: avoid`, para o título não ficar no pé de uma página e as tecnologias no alto da seguinte.
+- **Hierarquia tipográfica** — nome em 19 pt, seções em versalete 10 pt com fio sutil, cargos em 10,5 pt, todos em peso 700: `600` em Segoe UI sai quase igual ao corpo no papel.
+- **Etiquetas de tecnologia** — a linha `**Tecnologias:**` vira badges, que é o que o recrutador procura primeiro numa leitura de trinta segundos.
+- **Nome do arquivo** — o diálogo nativo tira o nome sugerido do título da aba, então ele vira `Curriculo - Nome - Empresa` durante a impressão e volta ao normal depois; sem isso, todo PDF chegaria à pasta de downloads como `DevRadar.pdf`, sobrescrevendo o anterior.
+
+O Chrome imprime cabeçalho e rodapé próprios — com a data e a URL do painel — na faixa de margem da página. Dá para suprimi-los com `@page { margin: 0 }`, mas aí a margem das páginas seguintes depende de uma tabela de paginação, e **dentro de uma célula o Chromium ignora o `break-inside` dos filhos**: o cargo volta a se partir ao meio. Entre o rodapé, que um clique em "Cabeçalhos e rodapés" no diálogo resolve, e o cargo partido, o cargo inteiro vale mais.
+
 ### Alertas no Telegram
 
 Cada vaga inédita vira uma mensagem com cargo, empresa, modalidade, mercado, stack e link direto da candidatura:
@@ -205,6 +261,14 @@ Os coletores são testados contra **fixtures reais**, capturados dos endpoints d
 
 O cron de 2h e o botão `Capturar agora` compartilham um `CaptureCoordinator` com trava de execução única. Clicar no botão durante uma captura em andamento **não dispara uma segunda** — a chamada se junta à que já está rodando e recebe o mesmo relatório. Sem isso, duas varreduras simultâneas disputariam as mesmas inserções.
 
+### O provedor de IA atrás de uma porta
+
+O gerador entra pelo domínio como contrato — `IResumeGenerator`, injetado pelo token `RESUME_GENERATOR` — e o caso de uso não sabe quem responde do outro lado.
+
+A conta veio depressa. A primeira implementação falava com a Anthropic; trocar para o Gemini, por custo, **tocou um arquivo de infraestrutura e o módulo que o injeta**. Domínio, caso de uso, controller, filtro de exceção e todo o frontend ficaram intactos, e os mesmos testes continuaram valendo — o dublê de teste implementa a porta, não o SDK.
+
+O id do modelo sai de `GEMINI_MODEL`, com `gemini-3.8-flash` como padrão do código. A Google aposenta um Flash de tempo em tempo — o `gemini-2.0-flash` foi desligado em junho de 2026 e a rota passou a responder 502 com um 404 da Google no log. Com a variável, a próxima troca é uma linha no `.env` e um restart, em vez de commit, CI e deploy.
+
 ### Rate limit do Telegram
 
 A API da Bot aceita cerca de 1 mensagem por segundo no mesmo chat. Uma captura com 18 vagas inéditas dispararia 18 envios no mesmo instante e levaria `429`.
@@ -240,7 +304,16 @@ cp .env.example .env
 cp apps/api/.env.example apps/api/.env
 ```
 
-O Telegram é opcional: sem `TELEGRAM_BOT_TOKEN` e `TELEGRAM_CHAT_ID` a API sobe normalmente e só avisa em `WARN` que os alertas estão desligados. Para ligar, pegue o token com o [@BotFather](https://t.me/BotFather).
+Nada disso bloqueia o boot — cada variável ausente desliga **só** o seu recurso:
+
+| variável | para quê | sem ela |
+|---|---|---|
+| `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` | alertas e resumo semanal | a API sobe e avisa em `WARN` que os alertas estão desligados |
+| `SERP_API_KEY` | coletor de publicações do LinkedIn | o coletor vira no-op silencioso; as outras sete fontes seguem |
+| `GEMINI_API_KEY` | gerador de currículo | só `POST /api/resume/generate` falha, com `502` |
+| `GEMINI_MODEL` | id do modelo do Gemini | usa o padrão do código, `gemini-3.8-flash` |
+
+O token do Telegram sai do [@BotFather](https://t.me/BotFather); a chave do Gemini, do [Google AI Studio](https://aistudio.google.com/apikey) — o nível gratuito cobre o uso do painel com folga.
 
 **3. Aplique as migrations**
 
@@ -270,6 +343,23 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ```
 
 Sobe PostgreSQL com volume persistente, a API (que aplica as migrations no entrypoint antes de servir), o Nginx com os estáticos e o Caddy como proxy reverso, **com certificado TLS emitido e renovado automaticamente**. Só o proxy publica porta; o banco fica em rede sem saída para a internet.
+
+#### Acesso ao painel
+
+O painel expõe dados de contato do candidato e uma rota que **gasta cota de IA**. Por isso o acesso é fechado na borda, no próprio Caddy, antes de a requisição chegar à API:
+
+| variável | o que é |
+|---|---|
+| `DEVRADAR_AUTH_USER` | usuário do painel |
+| `DEVRADAR_AUTH_HASH` | hash bcrypt gerado por `caddy hash-password`, **com os cifrões dobrados** |
+
+```bash
+docker run --rm caddy:2.8-alpine caddy hash-password --plaintext 'sua-senha' | sed 's/[$]/$$/g'
+```
+
+O `sed` não é enfeite: o Docker Compose interpola `$` nos valores que vêm do `--env-file`, e um hash sem os cifrões dobrados chega truncado ao contêiner — a autenticação falha com `401` em tudo, sem nenhuma pista no log. As duas variáveis usam `:?` no compose: faltando qualquer uma, o `up` aborta **antes** de tocar nos contêineres, em vez de publicar um painel que recusa todo mundo.
+
+`GET /api/health` fica de fora da proteção, para o monitoramento externo alcançar sem credencial — a resposta não diz mais que "o banco responde".
 
 Para subir numa VPS do zero — Docker, DNS, firewall, TLS e backup — o passo a passo está em [`docs/deploy-vps.md`](docs/deploy-vps.md).
 
@@ -303,14 +393,16 @@ Se a VPS já roda outro projeto nas portas 80 e 443, o Caddy do DevRadar vira a 
 
 ## Qualidade
 
-**1.155 testes** unitários e de E2E — 872 na API e 283 no frontend — mais **60 de integração** contra um PostgreSQL real, somando 1.215. Tudo roda em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração, build dos workspaces e build das duas imagens Docker.
+**1.658 testes** unitários e de E2E — 1.276 na API e 382 no frontend — mais **117 de integração** contra um PostgreSQL real, somando 1.775. Tudo roda em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração, build dos workspaces e build das duas imagens Docker.
+
+O gerador de currículo entrou com a mesma régua: o contrato de Markdown do prompt é testado regra a regra no domínio, o adaptador do Gemini tem caso para cada resposta malformada e para o erro de API, e no frontend o parser de seções e o documento impresso têm specs próprios — período extraído do título, etiquetas a partir da linha `**Tecnologias:**`, e as linhas de competências que **não** podem virar etiqueta.
 
 | Camada | Cobertura | Limite no CI |
 |---|---|---|
 | `domain/` | 100% | 100% — obrigatório |
 | `application/` | 100% | 100% — obrigatório |
-| API, total | 96,8% | 95% |
-| Frontend | 99,4% | 85% |
+| API, total | 96,3% | 95% |
+| Frontend | 99,1% | 85% |
 
 O limite não é enfeite: `npm run test:cov` falha abaixo dele, e é esse comando que o CI roda — não o `npm test`. A diferença já custou caro uma vez, quando um controller inteiro passou meses em 0% de cobertura porque o pipeline rodava a versão sem limite.
 
@@ -330,7 +422,7 @@ Há ainda três comandos de diagnóstico, que existem porque o contador de uma c
 
 ## Stack
 
-**Backend** — Node.js, TypeScript strict, NestJS 11, Prisma, PostgreSQL 16, `@nestjs/schedule`, Axios, Cheerio, Zod
+**Backend** — Node.js, TypeScript strict, NestJS 11, Prisma, PostgreSQL 16, `@nestjs/schedule`, Axios, Cheerio, Zod, `@google/genai`
 **Frontend** — React 19, Vite, TypeScript, Tailwind CSS 4, TanStack Query, React Hook Form + Zod, Recharts, Lucide
 **Testes** — Vitest, Supertest, React Testing Library
 **Infra** — Docker multi-stage, Docker Compose, Nginx, Caddy, GitHub Actions
