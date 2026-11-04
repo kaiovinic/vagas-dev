@@ -38,7 +38,7 @@ export function DailyStackedBarChart(props: DailyStackedBarChartProps): ReactNod
   const [isTableOpen, setTableOpen] = useState(false);
   const tableId = useId();
   const selectId = useId();
-  const safeSources = sources ?? [];
+  const safeSources = collectSources(sources, byDay ?? []);
   const rows = toChartRows(byDay ?? [], safeSources);
 
   return (
@@ -149,13 +149,14 @@ function renderChart({
             axisLine={false}
           />
           <Tooltip
-            formatter={(value: number, name: string) => [formatInteger(value), name]}
-            contentStyle={{
-              background: 'var(--color-surface-overlay)',
-              border: '1px solid var(--color-border-subtle)',
-              borderRadius: '0.75rem',
-              color: 'var(--color-content-primary)',
-            }}
+            cursor={{ fill: 'var(--color-surface-overlay)', fillOpacity: 0.4 }}
+            content={({ active, label, payload }) => (
+              <DailyStackTooltip
+                active={active === true}
+                label={typeof label === 'string' ? label : undefined}
+                entries={payload as readonly TooltipEntry[] | undefined}
+              />
+            )}
           />
           {sources.map((source) => (
             <Bar
@@ -223,6 +224,83 @@ function DailyTable({ rows, sources }: DailyTableProps): ReactNode {
       </table>
     </div>
   );
+}
+
+export interface TooltipEntry {
+  readonly name: string | undefined;
+  readonly value: number | undefined;
+  readonly color: string | undefined;
+}
+
+interface DailyStackTooltipProps {
+  readonly active: boolean;
+  readonly label: string | undefined;
+  readonly entries: readonly TooltipEntry[] | undefined;
+}
+
+/**
+ * Tooltip proprio: mostra apenas as fontes que renderam vaga naquele dia.
+ *
+ * Com uma dezena de fontes no banco, o tooltip padrao do Recharts lista todas as
+ * pilhas do dia, zeradas incluidas, e a linha que importa se perde no meio.
+ */
+export function DailyStackTooltip({ active, label, entries }: DailyStackTooltipProps): ReactNode {
+  const filled = (entries ?? []).filter((entry) => (entry.value ?? 0) > 0);
+
+  if (!active || filled.length === 0) {
+    return null;
+  }
+
+  return (
+    <div
+      data-testid="daily-stack-tooltip"
+      className="rounded-xl border border-border-subtle bg-surface-overlay px-3 py-2 text-xs text-content-primary shadow-lg"
+    >
+      {label !== undefined && <p className="font-medium">{label}</p>}
+      <ul className="mt-1 space-y-0.5">
+        {filled.map((entry) => (
+          <li key={entry.name} className="flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="size-2 shrink-0 rounded-full"
+              style={{ backgroundColor: entry.color }}
+            />
+            <span className="text-content-secondary">{entry.name}</span>
+            <span className="ml-auto tabular-nums">{formatInteger(entry.value ?? 0)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1.5 border-t border-border-subtle pt-1.5 text-content-secondary">
+        Total: <span className="tabular-nums text-content-primary">{formatInteger(sumOf(filled))}</span>
+      </p>
+    </div>
+  );
+}
+
+function sumOf(entries: readonly TooltipEntry[]): number {
+  return entries.reduce((total, entry) => total + (entry.value ?? 0), 0);
+}
+
+/**
+ * Descobre as fontes das pilhas a partir dos proprios dados da API.
+ *
+ * A lista `sources` da resposta define a ordem, mas nao e a unica verdade: se um
+ * dia traz uma fonte fora dela, a fonte entra no fim em vez de desaparecer do
+ * grafico. Assim uma plataforma nova no banco aparece sozinha, sem lista fixa.
+ */
+export function collectSources(
+  sources: readonly string[] | undefined,
+  byDay: readonly DailyStack[],
+): readonly string[] {
+  const discovered = new Set(sources ?? []);
+
+  for (const entry of byDay) {
+    for (const slice of entry.sources) {
+      discovered.add(slice.source);
+    }
+  }
+
+  return [...discovered];
 }
 
 /** Converte `[{day, sources:[{source,total}]}]` nas linhas achatadas do Recharts. */

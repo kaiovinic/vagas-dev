@@ -34,6 +34,20 @@
   --color-source-inhire: oklch(0.71 0.16 285);
   --color-source-other: oklch(0.63 0.02 254);
 
+  /*
+   * Paleta rotativa das fontes sem cor fixa. Uma fonte nova no banco cai aqui
+   * por hash do nome e entra no grafico com cor propria, sem passar por codigo.
+   * Matizes espacados em ~45 graus para que duas fontes novas nao se confundam.
+   */
+  --color-source-fallback-1: oklch(0.74 0.14 15);
+  --color-source-fallback-2: oklch(0.76 0.13 60);
+  --color-source-fallback-3: oklch(0.79 0.14 105);
+  --color-source-fallback-4: oklch(0.75 0.15 150);
+  --color-source-fallback-5: oklch(0.77 0.12 195);
+  --color-source-fallback-6: oklch(0.7 0.14 240);
+  --color-source-fallback-7: oklch(0.71 0.15 285);
+  --color-source-fallback-8: oklch(0.73 0.14 330);
+
   --font-sans:
     'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }

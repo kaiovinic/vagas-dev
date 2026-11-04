@@ -9,9 +9,13 @@ import {
   formatBarLabel,
   toRow,
 } from '@/components/charts/captures-timeline-chart';
-import { DailyStackedBarChart } from '@/components/charts/daily-stacked-bar-chart';
+import {
+  DailyStackTooltip,
+  DailyStackedBarChart,
+  collectSources,
+} from '@/components/charts/daily-stacked-bar-chart';
 import { SourceDonutChart } from '@/components/charts/source-donut-chart';
-import { formatInteger } from '@/lib/sources';
+import { formatInteger, sourceColor } from '@/lib/sources';
 
 const SLICES: SourceSlice[] = [
   { source: 'linkedin', total: 6, percentage: 60 },
@@ -402,5 +406,78 @@ describe('CapturesTimelineChart', () => {
 
       expect(screen.queryByTestId('timeline-tooltip')).not.toBeInTheDocument();
     });
+  });
+});
+
+describe('collectSources', () => {
+  it('mantem a ordem informada pela API', () => {
+    expect(collectSources(['linkedin', 'gupy'], [])).toEqual(['linkedin', 'gupy']);
+  });
+
+  it('descobre no proprio dado a fonte que a API nao listou', () => {
+    const sources = collectSources(['gupy'], BY_DAY);
+
+    expect(sources).toContain('linkedin');
+  });
+
+  it('nao repete a fonte que aparece em varios dias', () => {
+    const sources = collectSources(undefined, BY_DAY);
+
+    expect(sources).toHaveLength(new Set(sources).size);
+    expect(sources).toEqual(expect.arrayContaining(['gupy', 'linkedin']));
+  });
+});
+
+describe('DailyStackTooltip', () => {
+  const entries = [
+    { name: 'Gupy', value: 3, color: 'var(--color-source-gupy)' },
+    { name: 'LinkedIn', value: 0, color: 'var(--color-source-linkedin)' },
+    { name: 'Remotar', value: 2, color: 'var(--color-source-remotar)' },
+  ];
+
+  it('lista apenas as fontes que renderam vaga no dia', () => {
+    render(<DailyStackTooltip active label="25/10" entries={entries} />);
+
+    const tooltip = screen.getByTestId('daily-stack-tooltip');
+
+    expect(tooltip).toHaveTextContent('Gupy');
+    expect(tooltip).toHaveTextContent('Remotar');
+    expect(tooltip).not.toHaveTextContent('LinkedIn');
+  });
+
+  it('soma so o que esta a vista e mostra o dia', () => {
+    render(<DailyStackTooltip active label="25/10" entries={entries} />);
+
+    expect(screen.getByTestId('daily-stack-tooltip')).toHaveTextContent('25/10');
+    expect(screen.getByTestId('daily-stack-tooltip')).toHaveTextContent('Total: 5');
+  });
+
+  it('nao renderiza nada quando o dia inteiro esta zerado', () => {
+    render(<DailyStackTooltip active label="25/10" entries={[entries[1]!]} />);
+
+    expect(screen.queryByTestId('daily-stack-tooltip')).not.toBeInTheDocument();
+  });
+
+  it('nao renderiza nada fora do hover', () => {
+    render(<DailyStackTooltip active={false} label="25/10" entries={entries} />);
+
+    expect(screen.queryByTestId('daily-stack-tooltip')).not.toBeInTheDocument();
+  });
+});
+
+describe('sourceColor', () => {
+  it('usa a cor fixa das fontes conhecidas', () => {
+    expect(sourceColor('linkedin')).toBe('var(--color-source-linkedin)');
+  });
+
+  it('da cor propria, estavel, a uma fonte nova do banco', () => {
+    const color = sourceColor('plataforma-nova');
+
+    expect(color).toMatch(/^var\(--color-source-fallback-\d\)$/);
+    expect(sourceColor('plataforma-nova')).toBe(color);
+  });
+
+  it('nao pinta duas fontes novas com a mesma cor', () => {
+    expect(sourceColor('recrutei')).not.toBe(sourceColor('upvagas'));
   });
 });
