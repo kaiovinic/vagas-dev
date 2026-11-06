@@ -5,10 +5,25 @@ recrutador no LinkedIn com uma conta dedicada do DevRadar, fechando a lacuna que
 nenhuma das fontes atuais cobre: a vaga que o recrutador baiano anuncia num post
 e nunca publica em portal.
 
-> **Status:** aprovado em 05/11/2026. Nada implementado ainda; a Fase 1 é o
-> próximo passo. Aprovadas explicitamente: a separação em `apps/posts-worker`
-> (§4), o `storageState` com `proper-lockfile` (§6, §7) e a resposta por cache
-> no `GET /posts` levando o `harvestedAt` para a tabela de saúde (§5).
+> **Status:** aprovado em 05/11/2026. Aprovadas explicitamente: a separação em
+> `apps/posts-worker` (§4), o `storageState` com `proper-lockfile` (§6, §7) e a
+> resposta por cache no `GET /posts` levando o `harvestedAt` para a tabela de
+> saúde (§5).
+>
+> **Andamento.** Fase 1 feita (workspace, contrato, `session:login`,
+> `session:check`). Fase 2 pela metade: o parser sobre HTML salvo está pronto e
+> com cobertura total; falta o passo de navegador que resolve o link (§5.3).
+>
+> **Bloqueio.** O LinkedIn restringiu a conta no primeiro login automatizado,
+> em `/flagship-web/login/login-restriction/` — conta nova entrando por
+> navegador automatizado. A restrição será resolvida à mão, pelo navegador
+> comum. É a linha "conta restringida" de §14, e ela foi atingida antes de
+> qualquer raspagem; ver a releitura ao fim daquela seção.
+>
+> **Revisões de desenho,** feitas ao implementar e registradas abaixo: §5.3
+> (`ParsedCard` separado de `RawPost`, porque a URL não está no DOM), §9.1
+> (isolamento da urn em post compartilhado) e §5.1 (contrato: `HarvestDiscards`,
+> `links`, `hasJobAction`, e o filtro de *open to work* no worker).
 
 ---
 
@@ -101,10 +116,15 @@ decidem, em ordem de peso:
    que morre é o worker — a API e o painel continuam no ar.
 
 O worker fica no monorepo, como `apps/posts-worker`, seguindo a convenção de
-`/apps`. Compartilha o `package-lock.json` da raiz e reaproveita o
-`decodePostTimestamp` por cópia do módulo ou por um pacote interno pequeno — a
-decidir na implementação, mas a função é pura e sem dependências, então copiar
-com um teste de equivalência é aceitável.
+`/apps`, e compartilha o `package-lock.json` da raiz.
+
+> **Revisão.** Esta seção perguntava como compartilhar o `decodePostTimestamp`
+> entre os dois workspaces — cópia do módulo ou pacote interno. A pergunta se
+> dissolveu ao escrever o contrato: **o worker não precisa dele.** O worker
+> entrega a URL; quem decodifica o snowflake é a API, que já tem a função
+> testada. Logo não há nenhum código comum aos dois, e o worker não deve nada ao
+> Nest nem ao Prisma. O que precisa ficar de acordo são as duas cópias
+> independentes dos tipos do contrato (§5.1).
 
 ## 5. Contrato entre a API e o worker
 
@@ -118,7 +138,20 @@ GET http://posts-worker:4000/posts
 {
   "harvestedAt": "2026-11-05T09:12:44.000Z",
   "status": "ok",
-  "searches": [{ "label": "Bahia", "query": "vaga desenvolvedor bahia", "found": 7 }],
+  "searches": [
+    {
+      "label": "Bahia",
+      "query": "vaga desenvolvedor bahia",
+      "found": 7,
+      "discarded": {
+        "promoted": 3,
+        "openToWork": 2,
+        "unaddressable": 0,
+        "withoutContent": 1,
+        "withoutUrl": 1
+      }
+    }
+  ],
   "posts": [
     {
       "url": "https://www.linkedin.com/feed/update/urn:li:activity:7521262024920764416/",
@@ -126,7 +159,8 @@ GET http://posts-worker:4000/posts
       "authorUrl": "https://www.linkedin.com/in/maria-silva-123abc",
       "headline": "Tech Recruiter",
       "text": "Estamos contratando pessoa desenvolvedora React em Salvador...",
-      "openToWork": false
+      "links": ["https://portal.gupy.io/job/1234", "https://lnkd.in/dAbCdEf"],
+      "hasJobAction": true
     }
   ]
 }
@@ -135,6 +169,36 @@ GET http://posts-worker:4000/posts
 `status` é um de `ok`, `session-lost`, `degraded` (navegou, mas alguma busca
 falhou) ou `never-ran`. Ele é o canal de diagnóstico: a API não tem como saber
 que o navegador perdeu o login, e este campo é como ela descobre.
+
+#### `links` e `hasJobAction`
+
+`links` traz o que o post aponta para fora: página da vaga, formulário,
+encurtador `lnkd.in`. Navegação do próprio LinkedIn (perfil, empresa, feed)
+fica fora, mas `/jobs/` entra — ali o link **é** o anúncio. Para o motor de
+regras isso vale como indício forte de vaga real: curso e propaganda de
+currículo raramente apontam para formulário de candidatura.
+
+`hasJobAction` é separado de `links` porque um botão "Candidate-se" pode não ter
+`href`. A existência dele já é o sinal, independente de para onde leve.
+
+#### `discarded`: por que o worker filtra e ainda assim conta
+
+O filtro de *open to work* — o selo "buscando emprego" na foto do autor —
+**mora no worker**, não na API, e isso é uma mudança em relação à primeira
+versão de §5.2. O motivo é que o sinal só existe no DOM, no texto alternativo
+da imagem. Encaminhar um booleano à API apenas para o outro lado descartar a
+linha é pior que descartar na origem.
+
+A contrapartida é real: descarte no worker é descarte que a aba `Regras`, que
+conta o que o motor barrou, não veria. Daí `HarvestDiscards` — um contador por
+motivo, por busca. Nada desaparece em silêncio; o que o navegador jogou fora
+antes do motor fica mensurável, e uma mudança de critério aparece como mudança
+de número em vez de sumiço inexplicado.
+
+Os motivos são `promoted` (anúncio pago), `openToWork` (quem procura
+recolocação), `unaddressable` (card que não dá para reencontrar na página),
+`withoutContent` (widget do LinkedIn, sem autor ou sem texto) e `withoutUrl`
+(reconhecido, mas o link não foi obtido — ver §5.3).
 
 O endpoint **responde na hora**, com a última colheita gravada em
 `harvest.json`. Ele nunca abre navegador. A alternativa — a API chamar e o
@@ -155,8 +219,9 @@ Um `BaseScraperProvider` como os outros, com um `IHttpClient` injetado. Ele:
 1. Faz um GET no worker (milissegundos; sem custo e sem risco de conta).
 2. Converte cada post em `RawJobProps`, com `origin: 'SOCIAL_POST'`,
    `publishedAtSource: 'SOURCE'` e `publishedAt` vindo do snowflake da URL.
-3. Descarta o que estiver fora da janela de 72 h, o que não tiver URL de post
-   reconhecível e o que tiver `openToWork` (quem procura recolocação).
+3. Descarta o que estiver fora da janela de 72 h e o que não tiver URL de post
+   reconhecível. *Open to work* já não chega aqui: o worker filtra na origem,
+   pelos motivos em §5.1.
 4. Entra no registro `SCRAPERS` do `infra.module.ts`. O orquestrador não muda.
 
 Não há `isDue` sobrescrito: a leitura é gratuita, então ela acontece em toda
@@ -167,6 +232,58 @@ de 7 horas atrás.
 
 Nenhuma exceção escapa: o `BaseScraperProvider` já garante que worker fora do ar
 devolve lista vazia e as outras fontes seguem (LSP).
+
+### 5.3 `ParsedCard` e `RawPost`: a URL não está no DOM
+
+Esta seção não existia na versão aprovada. Ela registra o achado que mais mudou
+a Fase 2.
+
+**No layout novo do LinkedIn, o id da publicação não está no DOM.** O card é
+marcado por `componentkey`, as classes são ofuscadas, e em nenhum atributo
+aparece a urn. É por isso que o `parseNew` do coletor de referência devolve
+`urn: null` e vai buscar o link de outro jeito: abrindo o menu de cada post,
+clicando em "Copiar link da publicação" e lendo a área de transferência.
+
+A consequência é que o parser **não pode** produzir `RawPost`, que exige `url`.
+Então há dois tipos, em dois estágios:
+
+```
+HTML salvo ──parser (puro)──▶ ParsedCard ──passo de navegador──▶ RawPost
+                              cardKey                            url
+                              activityId?                        (demais campos
+                              author, text,                        inalterados)
+                              links, hasJobAction
+```
+
+- **`ParsedCard`** é a saída pura do parser: `string` entra, cards saem. Sem
+  `Page`, sem `evaluate`, sem navegador. É o que torna a fase testável com HTML
+  salvo, e é a diferença deliberada em relação ao referencial, que injeta um
+  bloco grande de JavaScript na página e só dá para conferir contra o LinkedIn
+  de verdade.
+- **`cardKey`** é o valor do atributo que identifica o card — `componentkey` no
+  layout novo, a urn em `data-urn`/`data-id` no clássico. É com ele, e só com
+  ele, que o passo de navegador reencontra o card na página para pedir o link.
+- **`activityId`** vem preenchido apenas quando o HTML o traz, isto é, no
+  layout clássico. Ali o parser resolve a URL sozinho e o passo de navegador é
+  dispensado.
+- **`RawPost`** nasce da junção de um `ParsedCard` com a URL resolvida. Card que
+  não receba URL é descartado, e contado em `discarded.withoutUrl`: sem link
+  não há data, e data aproximada em janela de 72 h é pior que uma vaga a menos.
+
+O preço de parsear HTML em vez de rodar dentro da página: sem `innerText` não
+existe "texto visível". O referencial divide o card em linhas e adivinha pela
+ordem delas; aqui tudo sai de atributo e de container nomeado — mais chato de
+descobrir, muito mais estável, e verificável sem abrir navegador.
+
+Uma limitação conhecida: no layout novo o subtítulo do autor (`headline`) fica
+`undefined`, porque os seletores que o expõem são os do layout clássico. Falta
+descobrir o equivalente, e isso depende de HTML real.
+
+#### O que isso exige do passo de navegador
+
+Resolver link é caro e visível: é clique em menu, por post. Então ele roda
+**depois** do filtro, só sobre os cards que sobraram — nunca sobre os
+descartados. Essa ordem não é otimização, é redução de rastro na conta.
 
 ## 6. Bootstrap da sessão
 
@@ -271,6 +388,28 @@ em nenhum momento**. Um post sem URL reconhecível é descartado em vez de
 carimbado com o instante da captura: em janela de 72 h, data aproximada é pior
 que vaga a menos.
 
+### 9.1 A urn sai do próprio card, nunca do HTML interno
+
+Regra curta, consequência grande, e descoberta como bug ao escrever o teste do
+caso.
+
+**Post compartilhado embute outro card dentro de si**, com a urn do post
+original — que é de outro autor e de outro dia. A primeira versão do parser
+procurava a urn no HTML do card inteiro, descendentes incluídos. Com isso o
+card de fora herdava o id do post compartilhado e, pelo snowflake, **a data de
+publicação do post original**.
+
+Não é um erro cosmético. A data é o único critério da janela de 72 h: um
+compartilhamento de hoje, de um post de duas semanas atrás, seria silenciosamente
+excluído da captura — ou, no sentido inverso, um post velho entraria como novo.
+E o sintoma seria invisível, porque a data continua parecendo plausível.
+
+Então a urn é lida **apenas dos atributos do próprio card** (`data-urn`,
+`data-id`, `componentkey`), nunca do HTML interno. O card aninhado, por sua vez,
+já é descartado antes disso pelo filtro de contêineres mais externos — sem ele,
+o post de dentro viraria uma publicação própria, com o autor errado. São duas
+proteções para o mesmo caso, e as duas têm teste de regressão.
+
 ## 10. Queda de sessão
 
 O sintoma é conhecido: o LinkedIn redireciona para `/login`, `/checkpoint` ou
@@ -364,10 +503,20 @@ Mantendo o TDD do projeto, com a divisão que o worker permite:
   `RawJobProps` certos — data do snowflake, descarte de `openToWork`, descarte
   fora de 72 h, `status: "session-lost"` virando lista vazia mais alerta. Nenhum
   navegador envolvido, nenhuma rede.
-- **Parser do DOM** (Vitest + JSDOM, no worker): a função de extração recebe
-  HTML salvo de uma busca real e devolve os posts. **Fixtures de HTML são o
-  ativo mais importante aqui** — quando o LinkedIn mudar o layout, é o teste
-  que falha primeiro e diz o que mudou, em vez de a produção emudecer.
+- **Parser do DOM** (Vitest + cheerio, no worker): a função de extração recebe
+  HTML de uma busca e devolve os cards. **Fixtures de HTML são o ativo mais
+  importante aqui** — quando o LinkedIn mudar o layout, é o teste que falha
+  primeiro e diz o que mudou, em vez de a produção emudecer. Cobertura total em
+  `src/parser/**`, com limiar no `vitest.config.ts`.
+
+  **As fixtures atuais não são HTML salvo do LinkedIn**, e cada arquivo diz isso
+  no topo. Foram reconstruídas a partir dos seletores que o coletor de
+  referência usa em produção — evidência de um raspador que funciona — mas a
+  marcação em volta é invenção nossa. Logo o parser está correto contra os
+  arquivos e **não verificado contra o LinkedIn**: os 100% medem o rigor dos
+  testes, não a fidelidade ao DOM real. Substituir por HTML de uma busca de
+  verdade (`Ctrl+S` na página de resultados) é o que converte isso em garantia,
+  e é esperado que alguns seletores mudem nesse momento.
 - **Navegação** (manual, com `--show`): não automatizo contra o LinkedIn de
   verdade. Cada execução custa risco de conta, e um teste que bate na fonte real
   a cada CI é exatamente o que derruba a sessão.
@@ -377,20 +526,45 @@ O CI não executa Playwright. O `apps/posts-worker` entra no `typecheck` e no
 
 ## 13. Fases
 
-1. **Worker esqueleto.** `apps/posts-worker` com Fastify, `GET /posts` lendo
-   `harvest.json`, Dockerfile na base do Playwright, trava com
-   `proper-lockfile`, comando `session:login` headed no Windows. Sem navegação de
-   colheita ainda — mas já dá para provar que o login grava `state.json`.
-2. **Colheita.** Busca de publicações, extração do DOM, link, `harvest.json`.
-   Fixtures de HTML e testes do parser. Rodando só na máquina local.
+1. **Worker esqueleto.** ✅ `apps/posts-worker`, tipos do contrato, comandos
+   `session:login` (headed) e `session:check`. Sem navegação de colheita.
+   O `GET /posts`, o Dockerfile e a trava com `proper-lockfile` saíram desta
+   fase para a 2b: construir a imagem antes de saber o que entra nela é iterar
+   em 1 GB sem motivo, e a trava só passa a proteger algo quando existe colheita
+   concorrendo com o login.
+2. **Colheita**, em duas metades, porque a URL não está no DOM (§5.3):
+   - **2a.** ✅ Parser puro sobre HTML salvo, fixtures, cobertura total.
+   - **2b.** Passo de navegador: busca, expansão do texto, resolução de link por
+     card, `harvest.json`, `GET /posts` com Fastify, trava com
+     `proper-lockfile`. Precisa da conta de pé. Rodando só na máquina local.
 3. **Provider na API.** `LinkedinAuthPostsScraperProvider`, registro em
    `SCRAPERS`, `harvestedAt` na tabela de saúde, alerta de sessão caída. Testes
    do provider. Aqui a fonte já aparece no painel, lendo um worker local.
-4. **Produção.** Serviço no compose de produção, volume, bootstrap por noVNC na
-   VPS, `LINKEDIN_POSTS_ENABLED=true`. Observar por uma semana com intervalo de
-   8 h antes de considerar baixar para 6 h.
+4. **Produção.** Dockerfile na base do Playwright, serviço no compose de
+   produção, volume, bootstrap por noVNC na VPS, `LINKEDIN_POSTS_ENABLED=true`.
+   Observar por uma semana com intervalo de 8 h antes de considerar baixar para
+   6 h.
 
 As fases 1 a 3 não tocam em produção e não usam a conta além do login inicial.
+A 2a não usa nem isso: roda inteira sem rede.
+
+### 13.1 A ordem muda enquanto a conta está restringida
+
+A numeração não é a ordem de execução agora. Com a conta barrada (§14.1), o que
+depende dela é só a resolução de link e a navegação — o resto segue:
+
+1. **Fase 3 inteira**, que é a próxima. O provider da API recebe um JSON e
+   produz `RawJobProps`; os testes dele são escritos sobre `harvest.json` feito
+   à mão. Nenhuma linha precisa da conta, e ao fim dela a fonte já aparece no
+   painel.
+2. **A metade de 2b que não navega:** o `GET /posts` com Fastify lendo
+   `harvest.json`, e a trava com `proper-lockfile`.
+3. **O que navega**, quando a conta estiver de pé — e junto dele a troca das
+   fixtures por HTML real, que é o que dá validade aos testes da 2a.
+
+Fazer a Fase 3 agora tem um ganho a mais: ela consome o contrato de ponta a
+ponta e, se algum campo estiver errado, o erro aparece enquanto mexer no
+contrato ainda é barato.
 
 ## 14. Riscos, e o que me faria recuar
 
@@ -405,3 +579,31 @@ E o ponto que sustenta tudo: isto contraria o acordo de uso do LinkedIn. A conta
 dedicada não muda esse fato, só contém a consequência. O Serper permanece a
 fonte primária exatamente para que, no dia em que esta fonte precisar morrer, o
 radar não sinta.
+
+### 14.1 A primeira linha da tabela foi atingida no primeiro login
+
+Registrado para não ser esquecido: no primeiro `session:login`, o LinkedIn
+barrou a conta em `/flagship-web/login/login-restriction/`. Não foi 2FA — foi
+restrição de conta.
+
+O critério de desistência escrito acima é "qualquer restrição na conta". A
+leitura que adotamos é que **ainda não é o mesmo caso**: a restrição veio de
+conta nova entrando por navegador automatizado, e não de raspagem punida — nada
+chegou a ser raspado. Conta recém-criada é o perfil mais vigiado que existe, e o
+Chrome for Testing que o Playwright baixa é um binário distinto do Chrome
+normal, o que é um sinal a mais.
+
+O que fica combinado, então, e vale como critério revisado:
+
+1. A restrição é resolvida à mão, pelo navegador comum, do IP de sempre.
+2. A conta recebe uso humano — foto, cargo, conexões, alguns dias — antes de
+   qualquer nova tentativa automatizada.
+3. A próxima tentativa usa `channel: 'chrome'`, o Chrome instalado na máquina,
+   em vez do Chrome for Testing. Vale também avaliar o inverso do plano: fazer o
+   login no navegador real e exportar os cookies de lá.
+4. **Se a conta for restringida outra vez num login automatizado, depois de
+   aquecida e verificada, o critério se cumpriu e a fonte é desligada.** Não há
+   terceira tentativa.
+
+Enquanto isso, a Fase 2 avança sem a conta: o parser é testado sobre HTML salvo,
+por desenho (§12).
