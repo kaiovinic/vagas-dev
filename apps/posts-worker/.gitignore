@@ -1,0 +1,10 @@
+# A pasta de dados do worker NAO entra no repositorio.
+#
+# `state.json` e a sessao do LinkedIn: quem o tem, entra na conta. Equivale a
+# senha, e nao expira com a troca dela. `harvest.json` guarda texto de post de
+# terceiros, e a trava e lixo de execucao.
+#
+# Em producao nada disso vive na imagem: o volume devradar-linkedin-session e
+# quem persiste.
+data/
+dist/
