@@ -14,7 +14,9 @@ import {
   JOB_SCRAPERS,
   type IJobScraperProvider,
 } from '@/domain/providers/job-scraper-provider';
+import { OPERATIONAL_ALERTER } from '@/domain/providers/operational-alerter';
 import { RESUME_GENERATOR, type IResumeGenerator } from '@/domain/providers/resume-generator';
+import { TELEGRAM_NOTIFIER } from '@/domain/providers/telegram-notifier';
 import {
   RESUME_REPOSITORY,
   RESUME_TARGET_JOB_READER,
@@ -24,6 +26,7 @@ import { PrismaResumeRepository } from '@/infra/prisma/prisma-resume-repository'
 import { InfraModule } from '@/infra/infra.module';
 import { RetryingHttpClient } from '@/infra/http/retrying-http-client';
 import { InhireScraperProvider } from '@/infra/scrapers/inhire-scraper-provider';
+import { LINKEDIN_AUTH_POSTS_SOURCE } from '@/infra/scrapers/linkedin-auth-posts-scraper-provider';
 import { PrismaInhireTenantReader } from '@/infra/prisma/prisma-inhire-tenant-reader';
 import { InhireTenantDiscovery } from '@/infra/scrapers/support/inhire-tenant-discovery';
 
@@ -96,5 +99,24 @@ describe('InfraModule', () => {
 
     expect(moduleRef.get(RESUME_REPOSITORY)).toBe(moduleRef.get(RESUME_TARGET_JOB_READER));
     expect(moduleRef.get(RESUME_REPOSITORY)).toBeInstanceOf(PrismaResumeRepository);
+  });
+
+  it('registra o coletor de publicacoes logadas entre as fontes', async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [InfraModule] }).compile();
+
+    const scrapers = moduleRef.get<IJobScraperProvider[]>(JOB_SCRAPERS);
+
+    expect(scrapers.map((scraper) => scraper.source)).toContain(LINKEDIN_AUTH_POSTS_SOURCE);
+  });
+
+  /**
+   * O alerta operacional sai pelo mesmo notificador das vagas: a porta e
+   * separada por ISP, mas o chat e a fila de envio sao um so. Duas instancias
+   * furariam o espacamento de 3s entre mensagens.
+   */
+  it('serve o alerta operacional pela mesma instancia do notificador', async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [InfraModule] }).compile();
+
+    expect(moduleRef.get(OPERATIONAL_ALERTER)).toBe(moduleRef.get(TELEGRAM_NOTIFIER));
   });
 });

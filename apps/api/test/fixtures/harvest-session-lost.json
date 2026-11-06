@@ -1,0 +1,16 @@
+{
+  "harvestedAt": "2026-11-05T01:00:00.000Z",
+  "status": "session-lost",
+  "searches": [],
+  "posts": [
+    {
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7521262024920764416/",
+      "author": "Maria Silva",
+      "authorUrl": "https://www.linkedin.com/in/maria-silva-123abc",
+      "headline": "Tech Recruiter",
+      "text": "Estamos contratando pessoa desenvolvedora React em Salvador!",
+      "links": ["https://portal.gupy.io/job/1234"],
+      "hasJobAction": true
+    }
+  ]
+}

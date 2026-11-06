@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Logger } from '@nestjs/common';
 
+import type { OperationalAlert } from '@/domain/providers/operational-alerter';
 import type { JobAlert, WeeklyDigest } from '@/domain/providers/telegram-notifier';
 import {
   TELEGRAM_MIN_INTERVAL_MS,
@@ -23,6 +24,16 @@ function alert(overrides: Partial<JobAlert> = {}): JobAlert {
     job: makeJob(),
     tags: [],
     scope: 'UNKNOWN',
+    ...overrides,
+  };
+}
+
+function operationalAlert(overrides: Partial<OperationalAlert> = {}): OperationalAlert {
+  return {
+    source: 'linkedin-auth-posts',
+    title: 'Sessao do LinkedIn caiu',
+    detail: 'O worker perdeu o login e esta servindo a ultima colheita.',
+    action: 'Rode `npm run session:login --workspace @devradar/posts-worker`.',
     ...overrides,
   };
 }
@@ -240,6 +251,59 @@ describe('TelegramHttpNotifier', () => {
         'fulfilled',
       ]);
       expect(http.requestedUrls).toHaveLength(2);
+    });
+  });
+
+  describe('alerta operacional', () => {
+    it('envia o aviso para o mesmo chat das vagas', async () => {
+      const http = new FakeHttpClient(() => ({ ok: true }));
+
+      await notifier(http).notifyOperational(operationalAlert());
+
+      expect(http.requestedUrls).toHaveLength(1);
+      expect(textOf(http)).toContain('Sessao do LinkedIn caiu');
+    });
+
+    /** Um aviso de infra que nao diz o que fazer vira ruido que se ignora. */
+    it('diz o que a pessoa precisa fazer, e de qual fonte se trata', async () => {
+      const http = new FakeHttpClient(() => ({ ok: true }));
+
+      await notifier(http).notifyOperational(operationalAlert());
+
+      expect(textOf(http)).toContain('O que fazer:');
+      expect(textOf(http)).toContain('session:login');
+      expect(textOf(http)).toContain('fonte: linkedin-auth-posts');
+    });
+
+    it('escapa html vindo do detalhe e da acao', async () => {
+      const http = new FakeHttpClient(() => ({ ok: true }));
+
+      await notifier(http).notifyOperational(
+        operationalAlert({ detail: 'caiu <b>tudo</b>', action: 'rode a & b' }),
+      );
+
+      expect(textOf(http)).toContain('caiu &lt;b&gt;tudo&lt;/b&gt;');
+      expect(textOf(http)).toContain('rode a &amp; b');
+    });
+
+    it('vira no-op quando nao ha bot configurado', async () => {
+      const http = new FakeHttpClient(() => ({ ok: true }));
+
+      await new TelegramHttpNotifier(http, { botToken: '', chatId: '' }, 0).notifyOperational(
+        operationalAlert(),
+      );
+
+      expect(http.requestedUrls).toEqual([]);
+    });
+
+    /**
+     * Quem chama decide engolir a falha; a porta nao esconde o erro. O coletor
+     * de publicacoes faz exatamente isso para nao derrubar a captura.
+     */
+    it('propaga a falha da api', async () => {
+      const telegram = new TelegramHttpNotifier(failingHttpClient('500'), CONFIG, 0);
+
+      await expect(telegram.notifyOperational(operationalAlert())).rejects.toThrow('500');
     });
   });
 
