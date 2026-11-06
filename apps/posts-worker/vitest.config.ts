@@ -15,5 +15,25 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.spec.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.spec.ts', 'src/scripts/**'],
+      thresholds: {
+        /**
+         * O parser e a unica parte do worker que nao depende do navegador, e
+         * por isso a unica que da para cobrir de verdade. Cobertura total aqui
+         * nao e vaidade: quando o LinkedIn mudar o layout, e este teste que
+         * falha primeiro e diz o que mudou, em vez de a producao emudecer.
+         */
+        'src/parser/**': {
+          lines: 100,
+          functions: 100,
+          branches: 100,
+          statements: 100,
+        },
+      },
+    },
   },
 });

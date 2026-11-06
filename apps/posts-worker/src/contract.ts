@@ -32,8 +32,8 @@ export type HarvestStatus = (typeof HARVEST_STATUSES)[number];
  * Uma publicacao como o worker a enxerga: texto cru, sem juizo de valor.
  *
  * Nada aqui foi filtrado pelo motor de regras — isso e trabalho da API. O
- * worker so descarta o que nao da para usar: post sem URL reconhecivel e
- * anuncio patrocinado.
+ * worker so descarta o que nao da para usar, e `HarvestDiscards` conta o que
+ * ele descartou para que nada desapareca em silencio.
  */
 export interface RawPost {
   /** Link permanente, sem query de rastreamento. Contem o id do post. */
@@ -47,11 +47,41 @@ export interface RawPost {
   /** Texto da publicacao, ja expandido ("...mais" clicado). */
   readonly text: string;
   /**
-   * Selo "buscando emprego" na foto do autor. A API usa para descartar quem
-   * procura recolocacao, que e justamente o que o motor de regras precisa
-   * barrar em post social.
+   * Links embutidos no post: pagina da vaga, formulario, encurtador `lnkd.in`.
+   *
+   * Navegacao do proprio LinkedIn (perfil, empresa, feed) fica fora; vaga do
+   * LinkedIn (`/jobs/`) entra, porque ali o link E o anuncio. Para o motor de
+   * regras isso vale como indicio forte de anuncio real: curso e propaganda de
+   * curriculo raramente apontam para formulario de candidatura.
    */
-  readonly openToWork: boolean;
+  readonly links: readonly string[];
+  /**
+   * O card traz botao ou link de candidatura ("Candidate-se", "Ver vaga").
+   *
+   * Separado de `links` porque um botao pode nao ter href — e a existencia
+   * dele ja e o sinal, independente de para onde leve.
+   */
+  readonly hasJobAction: boolean;
+}
+
+/**
+ * O que o worker jogou fora nesta busca, por motivo.
+ *
+ * Existe para que descarte no worker nao seja descarte invisivel: a aba
+ * `Regras` conta o que o motor barrou, e sem estes numeros o que o navegador
+ * descartou antes dele nao apareceria em lugar nenhum.
+ */
+export interface HarvestDiscards {
+  /** Anuncio patrocinado. */
+  readonly promoted: number;
+  /** Selo "buscando emprego" na foto: quem procura recolocacao, nao quem oferta. */
+  readonly openToWork: number;
+  /** Card que nao da para endereçar depois (sem componentkey e sem urn). */
+  readonly unaddressable: number;
+  /** Sem autor ou sem texto: widget do LinkedIn, nao publicacao. */
+  readonly withoutContent: number;
+  /** Reconhecido, mas o link do post nao foi obtido: sem link, sem data. */
+  readonly withoutUrl: number;
 }
 
 /** Quanto cada busca rendeu. Diagnostico: diz qual consulta secou. */
@@ -59,6 +89,7 @@ export interface HarvestSearchReport {
   readonly label: string;
   readonly query: string;
   readonly found: number;
+  readonly discarded: HarvestDiscards;
 }
 
 /**
