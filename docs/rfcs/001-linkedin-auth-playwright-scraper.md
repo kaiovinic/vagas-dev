@@ -11,8 +11,12 @@ e nunca publica em portal.
 > saúde (§5).
 >
 > **Andamento.** Fase 1 feita (workspace, contrato, `session:login`,
-> `session:check`). Fase 2 pela metade: o parser sobre HTML salvo está pronto e
-> com cobertura total; falta o passo de navegador que resolve o link (§5.3).
+> `session:check`). Fase 2a feita: o parser sobre HTML salvo está pronto e com
+> cobertura total. Fase 3 feita: o provider lê o worker, decodifica a data do
+> snowflake e alerta a sessão caída. Da 2b, a metade que não navega está feita:
+> `GET /posts`, `GET /health`, encerramento limpo e a trava da colheita (§5.1,
+> §7.1). Falta o passo de navegador que resolve o link (§5.3) — e ele depende da
+> conta.
 >
 > **Bloqueio.** O LinkedIn restringiu a conta no primeiro login automatizado,
 > em `/flagship-web/login/login-restriction/` — conta nova entrando por
@@ -22,8 +26,11 @@ e nunca publica em portal.
 >
 > **Revisões de desenho,** feitas ao implementar e registradas abaixo: §5.3
 > (`ParsedCard` separado de `RawPost`, porque a URL não está no DOM), §9.1
-> (isolamento da urn em post compartilhado) e §5.1 (contrato: `HarvestDiscards`,
-> `links`, `hasJobAction`, e o filtro de *open to work* no worker).
+> (isolamento da urn em post compartilhado), §5.1 (contrato: `HarvestDiscards`,
+> `links`, `hasJobAction`, o filtro de *open to work* no worker, e os códigos de
+> resposta do endpoint), §5.2 (a frescura da colheita chega à tabela de saúde
+> pelo `isDue`, sem migração) e §7.1 (a segunda trava, a da colheita, consultada
+> e nunca adquirida pelo leitor).
 
 ---
 
@@ -170,6 +177,31 @@ GET http://posts-worker:4000/posts
 falhou) ou `never-ran`. Ele é o canal de diagnóstico: a API não tem como saber
 que o navegador perdeu o login, e este campo é como ela descobre.
 
+#### Códigos de resposta, e por que `503` existe
+
+| Estado do `harvest.json` | Resposta |
+| --- | --- |
+| Lido e válido | `200` com o documento, sem transformar nada |
+| Não existe | `200` com `EMPTY_HARVEST` (`never-ran`) |
+| Ilegível (JSON truncado, ou não é uma colheita) | `200` com `EMPTY_HARVEST`, e `GET /health` em `degraded` com o motivo |
+| Travado para gravação | `503` com `Retry-After: 5` |
+
+Nunca `404`: a API precisa de um documento válido dizendo "ainda não há nada"
+para tratar isso como fonte sem vagas, e não como falha.
+
+O `503` do arquivo travado é a decisão menos óbvia aqui. A alternativa seria
+devolver `EMPTY_HARVEST`, e ela é pior: `never-ran` é uma afirmação forte — a
+API a registra, e no painel ela não se distingue de um worker que nunca abriu o
+navegador. Dizer isso porque a gravação durou 200 ms seria mentir sobre um
+worker que acabou de colher. Com `503`, o lado da API cai no caminho que ele já
+tem para worker indisponível: registra em log, não se declara pronto e tenta no
+ciclo seguinte.
+
+O arquivo ilegível vai pelo caminho oposto — `200` com a colheita vazia — porque
+é uma falha **persistente**: um `503` eterno deixaria a fonte sumir do painel com
+a explicação só nos logs da API. Quem conta a verdade nesse caso é o
+`GET /health`, que é onde se olha quando a fonte seca.
+
 #### `links` e `hasJobAction`
 
 `links` traz o que o post aponta para fora: página da vaga, formulário,
@@ -219,16 +251,32 @@ Um `BaseScraperProvider` como os outros, com um `IHttpClient` injetado. Ele:
 1. Faz um GET no worker (milissegundos; sem custo e sem risco de conta).
 2. Converte cada post em `RawJobProps`, com `origin: 'SOCIAL_POST'`,
    `publishedAtSource: 'SOURCE'` e `publishedAt` vindo do snowflake da URL.
-3. Descarta o que estiver fora da janela de 72 h e o que não tiver URL de post
-   reconhecível. *Open to work* já não chega aqui: o worker filtra na origem,
-   pelos motivos em §5.1.
+3. Descarta o que não tiver URL de post reconhecível — sem id não há snowflake,
+   e sem snowflake não há data. *Open to work* já não chega aqui: o worker
+   filtra na origem, pelos motivos em §5.1.
 4. Entra no registro `SCRAPERS` do `infra.module.ts`. O orquestrador não muda.
 
-Não há `isDue` sobrescrito: a leitura é gratuita, então ela acontece em toda
-captura. A cadência protetora está no worker. Em troca, `harvestedAt` sobe para
-a tabela de saúde, para que o painel mostre a idade real da colheita e não a
-idade da leitura — sem isso a aba `Mercado` mentiria, dizendo "agora" para dados
-de 7 horas atrás.
+**A janela de 72 h não é reaplicada aqui.** O `JobRuleEngine` já a aplica, e já
+conta essa rejeição na aba `Regras`; repetir o corte no provider esconderia o
+descarte de quem lê as regras públicas e deixaria duas definições da mesma
+janela para divergirem.
+
+**`isDue` é sobrescrito, e é assim que a frescura chega ao painel.** A ideia
+original era não sobrescrever — a leitura é gratuita, então que ela ocorra em
+toda captura. O problema apareceu na implementação: cada leitura vira uma
+execução em `capture_source_logs`, e o painel passaria a anunciar "última
+captura: agora" para uma colheita de sete horas atrás. Levar o `harvestedAt`
+exato até a tabela exigiria migração no Prisma (uma coluna `observed_at` em
+`CaptureSourceLog`, que hoje só tem `ranAt`) **e** um canal lateral na porta
+`IJobScraperProvider`, cujo `scrape()` devolve apenas `RawJobProps[]` — mudança
+que atinge as oito fontes para resolver uma.
+
+A saída foi inferir a frescura sem migração: a fonte só se declara pronta quando
+o `harvestedAt` do worker é mais recente que a última execução registrada. Assim
+`lastRunAt` passa a significar "última colheita nova", com no máximo um ciclo de
+captura (2 h) de atraso, em vez de mentir. `session-lost` é a exceção: ali a
+fonte se declara pronta uma vez, para que o alerta possa sair, e depois para de
+insistir.
 
 Nenhuma exceção escapa: o `BaseScraperProvider` já garante que worker fora do ar
 devolve lista vazia e as outras fontes seguem (LSP).
@@ -353,6 +401,32 @@ corrompe um perfil de Chromium quando dois processos o abrem.
 Quem não consegue a trava **não enfileira**: registra em log e desiste. Uma
 colheita perdida não custa nada; duas instâncias no mesmo perfil custam a
 sessão.
+
+### 7.1 A segunda trava: a da colheita
+
+São duas travas, com propósitos diferentes, e confundi-las seria um erro:
+
+| Trava | Protege | Quem a adquire |
+| --- | --- | --- |
+| `/data/.lock` | O perfil do navegador: instância única | O cron da colheita, o `session:login` |
+| `/data/harvest.json.lock` | O arquivo durante a gravação | Só quem grava a colheita |
+
+O leitor do `GET /posts` **consulta** a segunda trava e nunca a adquire. A razão
+é que quem chama ali é uma requisição HTTP da API, dentro da captura: esperar o
+navegador terminar de escrever penduraria a esteira inteira no tempo de uma
+colheita. Consultar e desistir (§5.1, o `503`) custa um ciclo; bloquear custa a
+captura.
+
+A trava, porém, é só a precaução barata. A garantia de verdade é a **gravação
+atômica** — arquivo temporário e `rename` —, que faz o leitor ver a colheita
+antiga inteira ou a nova inteira, nunca metade de cada. É por isso que falha ao
+*verificar* a trava vale como "não travado" e a leitura segue: perder a
+precaução não pode valer mais que servir a colheita.
+
+O caminho da trava é declarado em código, nos dois lados, em vez de depender do
+padrão do `proper-lockfile`. Leitor e escritor precisam apontar para o mesmo
+arquivo, e um default implícito nas duas pontas é o tipo de acordo que se quebra
+em silêncio no dia em que uma delas passar `realpath` diferente.
 
 ## 8. Políticas de coleta
 
@@ -495,14 +569,34 @@ A API ganha `LINKEDIN_POSTS_WORKER_URL: http://posts-worker:4000`, e vazio
 desliga o provider — mesmo padrão do `SERP_API_KEY` e da `GEMINI_API_KEY`:
 ambiente sem a variável simplesmente não tem a fonte, sem quebrar nada.
 
+A porta 4000 é o padrão do worker, trocável por `POSTS_WORKER_PORT`; porta
+inválida cai no padrão em vez de derrubar o boot, porque um serviço de pé na
+porta errada aparece no primeiro `GET /health` que falha, e um container em loop
+de restart esconde a causa atrás do ruído.
+
+O `healthcheck` do compose aponta para `GET /health`, que responde `200` sempre
+que o servidor está de pé e põe o diagnóstico no corpo (`status: degraded` sem
+sessão salva ou com colheita ilegível). É deliberado não reprovar o healthcheck
+nesses casos: nenhum restart traz de volta uma sessão perdida, e reiniciar em
+laço trocaria um problema visível por um invisível.
+
 ## 12. Testes
 
 Mantendo o TDD do projeto, com a divisão que o worker permite:
 
 - **Provider da API** (Vitest, puro): dado um JSON de worker, produz os
-  `RawJobProps` certos — data do snowflake, descarte de `openToWork`, descarte
-  fora de 72 h, `status: "session-lost"` virando lista vazia mais alerta. Nenhum
-  navegador envolvido, nenhuma rede.
+  `RawJobProps` certos — data do snowflake, descarte de post sem id,
+  `status: "session-lost"` alertando uma vez e ainda servindo a colheita
+  preservada. Nenhum navegador envolvido, nenhuma rede. As fixtures
+  (`test/fixtures/harvest-*.json`) têm data fixa justamente porque o provider
+  não aplica a janela de 72 h: teste que envelhece é teste que falha sozinho em
+  três dias.
+- **Servidor do worker** (Vitest + `fastify.inject()`): as rotas sem abrir
+  porta, com o leitor da colheita injetado — colheita boa, ausente, ilegível e
+  em gravação. O leitor em si é testado contra o disco de verdade, em pasta
+  temporária, inclusive com o arquivo travado pelo `proper-lockfile`: é o único
+  jeito de provar que a trava é consultada e não adquirida. Cobertura total em
+  `src/server/**`, com limiar no `vitest.config.ts`.
 - **Parser do DOM** (Vitest + cheerio, no worker): a função de extração recebe
   HTML de uma busca e devolve os cards. **Fixtures de HTML são o ativo mais
   importante aqui** — quando o LinkedIn mudar o layout, é o teste que falha
@@ -534,12 +628,16 @@ O CI não executa Playwright. O `apps/posts-worker` entra no `typecheck` e no
    concorrendo com o login.
 2. **Colheita**, em duas metades, porque a URL não está no DOM (§5.3):
    - **2a.** ✅ Parser puro sobre HTML salvo, fixtures, cobertura total.
-   - **2b.** Passo de navegador: busca, expansão do texto, resolução de link por
-     card, `harvest.json`, `GET /posts` com Fastify, trava com
-     `proper-lockfile`. Precisa da conta de pé. Rodando só na máquina local.
-3. **Provider na API.** `LinkedinAuthPostsScraperProvider`, registro em
-   `SCRAPERS`, `harvestedAt` na tabela de saúde, alerta de sessão caída. Testes
-   do provider. Aqui a fonte já aparece no painel, lendo um worker local.
+   - **2b.** Em duas metades também, por causa da conta restringida (§13.1):
+     - ✅ O que não navega: `GET /posts` e `GET /health` com Fastify,
+       encerramento limpo nos sinais do Docker, trava da colheita (§7.1).
+     - Passo de navegador: busca, expansão do texto, resolução de link por
+       card, gravação atômica do `harvest.json`. Precisa da conta de pé.
+       Rodando só na máquina local.
+3. **Provider na API.** ✅ `LinkedinAuthPostsScraperProvider`, registro em
+   `SCRAPERS`, frescura da colheita na tabela de saúde pelo `isDue` (§5.2),
+   alerta de sessão caída no Telegram. Testes do provider. A fonte já aparece no
+   painel, lendo um worker local.
 4. **Produção.** Dockerfile na base do Playwright, serviço no compose de
    produção, volume, bootstrap por noVNC na VPS, `LINKEDIN_POSTS_ENABLED=true`.
    Observar por uma semana com intervalo de 8 h antes de considerar baixar para
@@ -553,14 +651,16 @@ A 2a não usa nem isso: roda inteira sem rede.
 A numeração não é a ordem de execução agora. Com a conta barrada (§14.1), o que
 depende dela é só a resolução de link e a navegação — o resto segue:
 
-1. **Fase 3 inteira**, que é a próxima. O provider da API recebe um JSON e
-   produz `RawJobProps`; os testes dele são escritos sobre `harvest.json` feito
-   à mão. Nenhuma linha precisa da conta, e ao fim dela a fonte já aparece no
-   painel.
-2. **A metade de 2b que não navega:** o `GET /posts` com Fastify lendo
-   `harvest.json`, e a trava com `proper-lockfile`.
+1. ✅ **Fase 3 inteira.** O provider da API recebe um JSON e produz
+   `RawJobProps`; os testes dele são escritos sobre `harvest.json` feito à mão.
+   Nenhuma linha precisou da conta, e a fonte já aparece no painel.
+2. ✅ **A metade de 2b que não navega:** o `GET /posts` com Fastify lendo
+   `harvest.json`, o `GET /health` e a trava com `proper-lockfile`.
 3. **O que navega**, quando a conta estiver de pé — e junto dele a troca das
    fixtures por HTML real, que é o que dá validade aos testes da 2a.
+
+O que sobrou do caminho sem conta é a Fase 4 (imagem e compose), que faz sentido
+só depois que existir colheita para servir.
 
 Fazer a Fase 3 agora tem um ganho a mais: ela consome o contrato de ponta a
 ponta e, se algum campo estiver errado, o erro aparece enquanto mexer no

@@ -33,6 +33,18 @@ export default defineConfig({
           branches: 100,
           statements: 100,
         },
+        /**
+         * A outra parte que nao depende do navegador: o servidor que serve o
+         * cache. Aqui cada caminho e um jeito diferente de a API ser atendida —
+         * colheita boa, ausente, ilegivel, em gravacao — e o que nao estiver
+         * coberto e exatamente o que vai aparecer em producao as 3h da manha.
+         */
+        'src/server/**': {
+          lines: 100,
+          functions: 100,
+          branches: 100,
+          statements: 100,
+        },
       },
     },
   },

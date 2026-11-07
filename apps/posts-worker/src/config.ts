@@ -25,3 +25,33 @@ export const HARVEST_FILE = resolve(DATA_DIR, 'harvest.json');
 
 /** Trava de instancia unica (`proper-lockfile`), ao lado do que ela protege. */
 export const LOCK_FILE = resolve(DATA_DIR, '.lock');
+
+/**
+ * Porta do `GET /posts` quando o ambiente nao diz outra.
+ *
+ * E a mesma que o `LINKEDIN_POSTS_WORKER_URL` da API usa por padrao; fora do
+ * compose ninguem alcanca o worker, que nao e exposto para fora da rede
+ * interna.
+ */
+export const DEFAULT_PORT = 4000;
+
+const MAX_PORT = 65535;
+
+/**
+ * Porta invalida cai no padrao em vez de derrubar o boot.
+ *
+ * O worker so serve cache: um servico de pe na porta errada aparece no primeiro
+ * `GET /health` que a API nao consegue fazer, enquanto um container em loop de
+ * restart esconde a causa atras do ruido.
+ */
+export function parsePort(raw: string | undefined): number {
+  const port = Number(raw);
+
+  if (!Number.isInteger(port) || port < 1 || port > MAX_PORT) {
+    return DEFAULT_PORT;
+  }
+
+  return port;
+}
+
+export const PORT = parsePort(process.env.POSTS_WORKER_PORT);
