@@ -15,8 +15,9 @@ e nunca publica em portal.
 > cobertura total. Fase 3 feita: o provider lê o worker, decodifica a data do
 > snowflake e alerta a sessão caída. Da 2b, a metade que não navega está feita:
 > `GET /posts`, `GET /health`, encerramento limpo e a trava da colheita (§5.1,
-> §7.1). Falta o passo de navegador que resolve o link (§5.3) — e ele depende da
-> conta.
+> §7.1). Da Fase 4, a imagem e o serviço de desenvolvimento estão feitos (§11,
+> §13). Falta o passo de navegador que resolve o link (§5.3) — e ele depende da
+> conta — e o serviço no compose de produção.
 >
 > **Bloqueio.** O LinkedIn restringiu a conta no primeiro login automatizado,
 > em `/flagship-web/login/login-restriction/` — conta nova entrando por
@@ -520,17 +521,26 @@ services:
       context: .
       dockerfile: apps/posts-worker/Dockerfile
     environment:
-      LINKEDIN_POSTS_ENABLED: 'true'
       TZ: America/Bahia
+      POSTS_WORKER_PORT: 4000
+      POSTS_WORKER_DATA_DIR: /data
     ports:
-      - '127.0.0.1:4000:4000'
-    shm_size: '1gb'
+      - '127.0.0.1:${POSTS_WORKER_PORT:-4000}:4000'
     volumes:
-      - devradar-linkedin-session:/data
+      - ./apps/posts-worker/data:/data
+    shm_size: '1gb'
 ```
 
-Sobe com `docker compose --profile linkedin up -d posts-worker`. A API no host
-aponta para `http://127.0.0.1:4000`.
+Sobe com `docker compose --profile linkedin up -d --build posts-worker`. A API
+no host aponta para `http://127.0.0.1:4000`.
+
+**Bind mount em desenvolvimento, e não volume nomeado** — revisão do desenho
+original. O `session:login` roda no host, com janela aberta, porque é lá que
+existe uma tela; é lá, portanto, que o `state.json` nasce. Com volume nomeado, a
+sessão gerada no Windows ficaria invisível para o container, e cada renovação
+exigiria copiá-la à mão para dentro do volume. A pasta está no `.gitignore` e no
+`.dockerignore`: o arquivo é a credencial da conta. Em produção o volume
+nomeado continua certo, porque lá o login acontece dentro do contêiner (§6.1).
 
 `shm_size` não é cosmético: com os 64 MB padrão do Docker o Chromium quebra em
 páginas pesadas. A alternativa é `--disable-dev-shm-usage`, que troca memória
@@ -638,10 +648,14 @@ O CI não executa Playwright. O `apps/posts-worker` entra no `typecheck` e no
    `SCRAPERS`, frescura da colheita na tabela de saúde pelo `isDue` (§5.2),
    alerta de sessão caída no Telegram. Testes do provider. A fonte já aparece no
    painel, lendo um worker local.
-4. **Produção.** Dockerfile na base do Playwright, serviço no compose de
-   produção, volume, bootstrap por noVNC na VPS, `LINKEDIN_POSTS_ENABLED=true`.
-   Observar por uma semana com intervalo de 8 h antes de considerar baixar para
-   6 h.
+4. **Produção.**
+   - ✅ Dockerfile na base oficial do Playwright (`v1.63.0-jammy`, a mesma
+     versão do pacote npm) e serviço no compose de desenvolvimento, atrás do
+     profile `linkedin`. O build entra no CI: a incompatibilidade entre musl e
+     glibc, que criou este serviço, só aparece em build de verdade.
+   - Serviço no compose de produção, volume nomeado, bootstrap por noVNC na
+     VPS. Observar por uma semana com intervalo de 8 h antes de considerar
+     baixar para 6 h.
 
 As fases 1 a 3 não tocam em produção e não usam a conta além do login inicial.
 A 2a não usa nem isso: roda inteira sem rede.

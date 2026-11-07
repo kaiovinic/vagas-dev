@@ -180,6 +180,25 @@ jobs:
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
 
+      # A imagem do worker nao sai da base Alpine como as outras duas: ela vem
+      # da oficial do Playwright, com o Chromium dentro. E justamente por isso
+      # que ela entra aqui — a incompatibilidade entre musl e glibc, que criou
+      # este servico, so aparece em build de verdade.
+      - name: Imagem do coletor de publicacoes
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/posts-worker/Dockerfile
+          push: false
+          cache-from: type=gha,scope=posts-worker
+          cache-to: type=gha,mode=max,scope=posts-worker
+
+      # O compose de desenvolvimento tambem passa pelo validador: o servico do
+      # worker vive atras de um profile, e um erro ali nao apareceria em nenhum
+      # outro passo do CI.
+      - name: Validar a configuracao do compose de desenvolvimento
+        run: docker compose --profile linkedin config --quiet
+
       - name: Validar a configuracao do compose de producao
         run: docker compose -f docker-compose.prod.yml --env-file .env.prod.example config --quiet
 
