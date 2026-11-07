@@ -104,6 +104,8 @@ export class StubScraperProvider implements IJobScraperProvider {
   /** `false` simula a fonte que ainda nao chegou a vez; `Error`, a que nem responde. */
   due: boolean | Error = true;
   dueCalls = 0;
+  /** `false` simula a fonte sem credencial — a que vira no-op silencioso. */
+  configured = true;
 
   constructor(
     readonly source: string,
@@ -119,6 +121,10 @@ export class StubScraperProvider implements IJobScraperProvider {
     }
 
     return this.due;
+  }
+
+  isConfigured(): boolean {
+    return this.configured;
   }
 
   async scrape(): Promise<RawJobProps[]> {

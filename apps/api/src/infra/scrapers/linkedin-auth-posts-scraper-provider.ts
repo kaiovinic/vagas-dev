@@ -250,7 +250,7 @@ export class LinkedinAuthPostsScraperProvider extends BaseScraperProvider {
     ];
   }
 
-  private isConfigured(): boolean {
+  override isConfigured(): boolean {
     return this.workerUrl.length > 0;
   }
 }

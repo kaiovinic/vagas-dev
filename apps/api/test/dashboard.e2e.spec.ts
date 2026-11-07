@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 
+import { StubScraperProvider } from './factories/doubles';
 import { createApiTestContext, type ApiTestContext } from './factories/make-api';
 
 describe('Dashboard (E2E)', () => {
@@ -121,10 +122,54 @@ describe('Dashboard (E2E)', () => {
       ]);
     });
 
-    it('devolve a lista vazia quando nenhum coletor rodou ainda', async () => {
+    it('devolve a lista vazia sem coletor registrado nem execucao', async () => {
       const response = await http().get('/api/dashboard/sources-health').expect(200);
 
       expect(response.body).toEqual({ windowInHours: 24, sources: [] });
+    });
+
+    /**
+     * De ponta a ponta, o conserto do incidente: a fonte sem credencial chega
+     * ao painel marcada, em vez de verde. Antes disto ela nao aparecia — sem
+     * execucao nao havia linha no banco, e a tabela era feita do banco.
+     */
+    it('entrega a fonte sem credencial marcada, mesmo sem nunca ter rodado', async () => {
+      const semChave = new StubScraperProvider('linkedin-posts', []);
+      semChave.configured = false;
+      context.scrapers.push(semChave);
+
+      const response = await http().get('/api/dashboard/sources-health').expect(200);
+
+      expect(response.body.sources).toEqual([
+        {
+          source: 'linkedin-posts',
+          status: 'UNCONFIGURED',
+          lastRunAt: null,
+          nextRunAt: null,
+          intervalInHours: 4,
+          runs: 0,
+          failures: 0,
+          totalFound: 0,
+        },
+      ]);
+    });
+
+    it('marca como parada a fonte configurada que passou da hora', async () => {
+      context.scrapers.push(new StubScraperProvider('gupy', []));
+      context.sourceHealth.health = [
+        {
+          source: 'gupy',
+          lastRunAt: new Date('2026-10-29T06:00:00.000Z'),
+          ok: true,
+          runsInWindow: 0,
+          failuresInWindow: 0,
+          totalFoundInWindow: 0,
+        },
+      ];
+
+      const response = await http().get('/api/dashboard/sources-health').expect(200);
+
+      expect(response.body.sources[0].status).toBe('INACTIVE');
     });
   });
 

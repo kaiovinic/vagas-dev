@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AlertTriangle, Check, Moon } from 'lucide-react';
+import { AlertTriangle, Check, CircleOff, KeyRound, Moon } from 'lucide-react';
 
 import type { SourceHealthRow, SourceStatus } from '@/api/schemas';
 import { Panel, Skeleton, StateMessage } from '@/components/ui/panel';
@@ -112,11 +112,7 @@ function renderBody({
               <td className="py-2.5 pr-3 text-content-secondary">
                 {row.lastRunAt === null ? '—' : formatElapsed(new Date(row.lastRunAt), now)}
               </td>
-              <td className="py-2.5 pr-3 text-content-muted">
-                {row.nextRunAt === null
-                  ? `a cada ${row.intervalInHours} h`
-                  : `${formatRemaining(new Date(row.nextRunAt), now)} (${row.intervalInHours} h)`}
-              </td>
+              <td className="py-2.5 pr-3 text-content-muted">{describeNextRun(row, now)}</td>
               <td className="py-2.5 pr-3 text-right tabular-nums text-content-primary">
                 {formatInteger(row.totalFound)}
               </td>
@@ -135,6 +131,24 @@ function renderBody({
   );
 }
 
+/**
+ * A coluna `Proxima` nao promete execucao para fonte que nao pode executar.
+ *
+ * Sem credencial nao ha proxima: anunciar "a qualquer momento" ali seria
+ * repetir, em outra coluna, a mentira que o status acabou de corrigir.
+ */
+function describeNextRun(row: SourceHealthRow, now: Date): string {
+  if (row.status === 'UNCONFIGURED') {
+    return '—';
+  }
+
+  if (row.nextRunAt === null) {
+    return `a cada ${row.intervalInHours} h`;
+  }
+
+  return `${formatRemaining(new Date(row.nextRunAt), now)} (${row.intervalInHours} h)`;
+}
+
 const STATUS_PRESENTATION: Readonly<
   Record<SourceStatus, { readonly label: string; readonly className: string; readonly Icon: typeof Check }>
 > = {
@@ -142,6 +156,13 @@ const STATUS_PRESENTATION: Readonly<
   // Responde, mas voltou de maos vazias: nao e falha, e tambem nao e saude.
   IDLE: { label: 'sem vagas', className: 'text-content-muted', Icon: Moon },
   FAILING: { label: 'falhando', className: 'text-negative', Icon: AlertTriangle },
+  // Passou da hora e ninguem a visitou. Em amarelo, e nao em cinza, porque
+  // cinza se confunde com "sem vagas" — e foi essa confusao que deixou o
+  // coletor de publicacoes cinco dias parado sem ninguem notar.
+  INACTIVE: { label: 'parada', className: 'text-warning', Icon: CircleOff },
+  // O unico status que diz o que fazer: falta credencial ou endereco no
+  // ambiente, e nenhum outro numero da linha significa nada enquanto faltar.
+  UNCONFIGURED: { label: 'sem credencial', className: 'text-negative', Icon: KeyRound },
 };
 
 function StatusBadge({ status }: { readonly status: SourceStatus }): ReactNode {

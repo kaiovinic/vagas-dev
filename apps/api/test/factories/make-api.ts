@@ -8,6 +8,7 @@ import { ListJobsUseCase } from '@/application/use-cases/list-jobs.use-case';
 import { TestJobRulesUseCase } from '@/application/use-cases/test-job-rules.use-case';
 import { CAPTURE_LOG_REPOSITORY } from '@/domain/repositories/capture-log-repository';
 import { DASHBOARD_METRICS_REPOSITORY } from '@/domain/repositories/dashboard-metrics-repository';
+import { JOB_SCRAPERS } from '@/domain/providers/job-scraper-provider';
 import { JOB_QUERY_REPOSITORY } from '@/domain/repositories/job-query-repository';
 import { SOURCE_HEALTH_REPOSITORY } from '@/domain/repositories/source-health-repository';
 import { JobRuleEngine } from '@/domain/services/job-rule-engine';
@@ -20,6 +21,7 @@ import {
   InMemoryCaptureLogRepository,
   StubDashboardMetricsRepository,
   StubJobQueryRepository,
+  StubScraperProvider,
   StubSourceHealthRepository,
 } from './doubles';
 
@@ -29,6 +31,13 @@ export interface ApiTestContext {
   readonly jobs: StubJobQueryRepository;
   readonly captureLogs: InMemoryCaptureLogRepository;
   readonly sourceHealth: StubSourceHealthRepository;
+  /**
+   * Coletores registrados, como o `JOB_SCRAPERS` de producao.
+   *
+   * A tabela de saude os consulta para saber se falta credencial a alguma
+   * fonte — e para listar a que nunca rodou, que nao tem linha no banco.
+   */
+  readonly scrapers: StubScraperProvider[];
 }
 
 /**
@@ -40,6 +49,7 @@ export async function createApiTestContext(): Promise<ApiTestContext> {
   const jobs = new StubJobQueryRepository();
   const captureLogs = new InMemoryCaptureLogRepository();
   const sourceHealth = new StubSourceHealthRepository();
+  const scrapers: StubScraperProvider[] = [];
 
   const moduleRef = await Test.createTestingModule({
     controllers: [DashboardController, JobsController, RulesController],
@@ -54,6 +64,7 @@ export async function createApiTestContext(): Promise<ApiTestContext> {
       { provide: JOB_QUERY_REPOSITORY, useValue: jobs },
       { provide: CAPTURE_LOG_REPOSITORY, useValue: captureLogs },
       { provide: SOURCE_HEALTH_REPOSITORY, useValue: sourceHealth },
+      { provide: JOB_SCRAPERS, useValue: scrapers },
     ],
   }).compile();
 
@@ -63,5 +74,5 @@ export async function createApiTestContext(): Promise<ApiTestContext> {
 
   await app.init();
 
-  return { app, metrics, jobs, captureLogs, sourceHealth };
+  return { app, metrics, jobs, captureLogs, sourceHealth, scrapers };
 }

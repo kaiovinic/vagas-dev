@@ -248,7 +248,7 @@ export class LinkedinPostsScraperProvider extends BaseScraperProvider {
     ];
   }
 
-  private isConfigured(): boolean {
+  override isConfigured(): boolean {
     return this.config.endpoint.length > 0 && this.config.apiKey.length > 0;
   }
 
@@ -310,12 +310,23 @@ function readString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+/**
+ * `||` e nao `??`, e com `trim` antes.
+ *
+ * O `??` so troca `undefined` e `null`, e o que chega do Docker nao e nenhum
+ * dos dois: `SERP_ENDPOINT: ${SERP_ENDPOINT:-}` sem a linha no `.env.prod`
+ * entrega string VAZIA. Com `??`, o endpoint ficava `''`, o coletor se
+ * considerava nao configurado e a fonte saia da captura sem um unico erro —
+ * cinco dias sem buscar publicacao nenhuma. Variavel de ambiente ausente e
+ * variavel em branco sao a mesma coisa para quem le, e e assim que esta funcao
+ * as trata agora.
+ */
 function readConfigFromEnv(): SerpConfig {
   return {
     // O endpoint do Serper e fixo; a variavel existe so para apontar para
     // outro fornecedor sem mexer no codigo.
-    endpoint: process.env.SERP_ENDPOINT ?? SERPER_ENDPOINT,
-    apiKey: process.env.SERP_API_KEY ?? '',
+    endpoint: process.env.SERP_ENDPOINT?.trim() || SERPER_ENDPOINT,
+    apiKey: process.env.SERP_API_KEY?.trim() ?? '',
   };
 }
 

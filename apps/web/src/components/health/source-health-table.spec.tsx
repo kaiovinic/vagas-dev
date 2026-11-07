@@ -92,6 +92,32 @@ describe('SourceHealthTable', () => {
     expect(screen.getByTestId('source-status')).toHaveTextContent('sem vagas');
   });
 
+  /**
+   * O incidente: o coletor de publicacoes ficou cinco dias sem rodar por causa
+   * de uma variavel vazia no container, e esta tabela o mostrava verde. Em
+   * amarelo, e nao em cinza, porque cinza se confunde com "sem vagas".
+   */
+  it('avisa em amarelo a fonte que passou da hora e nao rodou', () => {
+    setup([row({ status: 'INACTIVE', runs: 0, totalFound: 0 })]);
+
+    expect(screen.getByTestId('source-status')).toHaveTextContent('parada');
+    expect(screen.getByTestId('source-status')).toHaveClass('text-warning');
+  });
+
+  it('diz quando falta credencial, que e o unico status com conserto conhecido', () => {
+    setup([row({ status: 'UNCONFIGURED', runs: 0, totalFound: 0 })]);
+
+    expect(screen.getByTestId('source-status')).toHaveTextContent('sem credencial');
+    expect(screen.getByTestId('source-status')).toHaveClass('text-negative');
+  });
+
+  /** Prometer execucao para fonte sem credencial repetiria a mentira corrigida. */
+  it('nao anuncia proxima execucao para fonte sem credencial', () => {
+    setup([row({ status: 'UNCONFIGURED', nextRunAt: '2026-10-30T13:55:00.000Z' })]);
+
+    expect(screen.getAllByRole('cell')[2]).toHaveTextContent('—');
+  });
+
   it('usa travessao e so o intervalo para a fonte que nunca rodou', () => {
     setup([row({ lastRunAt: null, nextRunAt: null, runs: 0, totalFound: 0 })]);
 
