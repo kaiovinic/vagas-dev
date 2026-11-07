@@ -13,11 +13,17 @@ e nunca publica em portal.
 > **Andamento.** Fase 1 feita (workspace, contrato, `session:login`,
 > `session:check`). Fase 2a feita: o parser sobre HTML salvo está pronto e com
 > cobertura total. Fase 3 feita: o provider lê o worker, decodifica a data do
-> snowflake e alerta a sessão caída. Da 2b, a metade que não navega está feita:
-> `GET /posts`, `GET /health`, encerramento limpo e a trava da colheita (§5.1,
-> §7.1). Da Fase 4, a imagem e o serviço de desenvolvimento estão feitos (§11,
-> §13). Falta o passo de navegador que resolve o link (§5.3) — e ele depende da
-> conta — e o serviço no compose de produção.
+> snowflake e alerta a sessão caída. Fase 2b feita: `GET /posts`, `GET /health`,
+> encerramento limpo, a trava da colheita (§5.1, §7.1) e o orquestrador de
+> navegação — `runHarvest` decide tudo atrás da porta `PostsPage`, com cobertura
+> total, e o adaptador do Playwright só clica e lê atributo. Fase 4 feita:
+> imagem, compose de desenvolvimento e de produção com volume nomeado (§11).
+>
+> **O que falta, dito sem rodeios:** ninguém rodou uma colheita contra o
+> LinkedIn logado, porque a conta está restringida — os seletores de navegação
+> não estão verificados, e nem as fixtures do parser. Falta também o agendador:
+> hoje `npm run harvest` é chamado à mão, e o worker apenas serve a última
+> colheita. E o bootstrap por noVNC na VPS.
 >
 > **Bloqueio.** O LinkedIn restringiu a conta no primeiro login automatizado,
 > em `/flagship-web/login/login-restriction/` — conta nova entrando por
@@ -607,6 +613,15 @@ Mantendo o TDD do projeto, com a divisão que o worker permite:
   temporária, inclusive com o arquivo travado pelo `proper-lockfile`: é o único
   jeito de provar que a trava é consultada e não adquirida. Cobertura total em
   `src/server/**`, com limiar no `vitest.config.ts`.
+- **Orquestrador da colheita** (Vitest, puro): `runHarvest` recebe a página como
+  porta (`PostsPage`) e devolve o `HarvestFile`, então os dias ruins que ninguém
+  consegue encomendar ao LinkedIn cabem num teste — sessão caindo na primeira
+  busca, busca que estoura o prazo, seletor que mudou e não devolve card nenhum,
+  link que volta sem id reconhecível. O desenho existe para isso: toda a decisão
+  fica do lado testável, e o adaptador do Playwright, que não tem teste, só
+  clica e lê atributo. A escrita atômica e a trava de instância única são
+  testadas contra o disco de verdade, em pasta temporária. Cobertura total em
+  `src/harvest/**`, com limiar no `vitest.config.ts`.
 - **Parser do DOM** (Vitest + cheerio, no worker): a função de extração recebe
   HTML de uma busca e devolve os cards. **Fixtures de HTML são o ativo mais
   importante aqui** — quando o LinkedIn mudar o layout, é o teste que falha
@@ -641,9 +656,10 @@ O CI não executa Playwright. O `apps/posts-worker` entra no `typecheck` e no
    - **2b.** Em duas metades também, por causa da conta restringida (§13.1):
      - ✅ O que não navega: `GET /posts` e `GET /health` com Fastify,
        encerramento limpo nos sinais do Docker, trava da colheita (§7.1).
-     - Passo de navegador: busca, expansão do texto, resolução de link por
-       card, gravação atômica do `harvest.json`. Precisa da conta de pé.
-       Rodando só na máquina local.
+     - ✅ Passo de navegador: busca, expansão do texto, resolução de link por
+       card, gravação atômica do `harvest.json` sob a trava. Escrito inteiro
+       com a página injetada, e **ainda não executado contra o LinkedIn**: os
+       seletores do adaptador esperam a conta de pé para valerem como garantia.
 3. **Provider na API.** ✅ `LinkedinAuthPostsScraperProvider`, registro em
    `SCRAPERS`, frescura da colheita na tabela de saúde pelo `isDue` (§5.2),
    alerta de sessão caída no Telegram. Testes do provider. A fonte já aparece no
@@ -653,9 +669,12 @@ O CI não executa Playwright. O `apps/posts-worker` entra no `typecheck` e no
      versão do pacote npm) e serviço no compose de desenvolvimento, atrás do
      profile `linkedin`. O build entra no CI: a incompatibilidade entre musl e
      glibc, que criou este serviço, só aparece em build de verdade.
-   - Serviço no compose de produção, volume nomeado, bootstrap por noVNC na
-     VPS. Observar por uma semana com intervalo de 8 h antes de considerar
-     baixar para 6 h.
+   - ✅ Serviço no compose de produção, com o volume nomeado
+     `devradar-linkedin-session` guardando sessão e colheita, e as variáveis
+     documentadas no `.env.prod.example`.
+   - Bootstrap por noVNC na VPS e o agendador da colheita (hoje `npm run
+     harvest` é manual). Observar por uma semana com intervalo de 8 h antes de
+     considerar baixar para 6 h.
 
 As fases 1 a 3 não tocam em produção e não usam a conta além do login inicial.
 A 2a não usa nem isso: roda inteira sem rede.
@@ -670,11 +689,15 @@ depende dela é só a resolução de link e a navegação — o resto segue:
    Nenhuma linha precisou da conta, e a fonte já aparece no painel.
 2. ✅ **A metade de 2b que não navega:** o `GET /posts` com Fastify lendo
    `harvest.json`, o `GET /health` e a trava com `proper-lockfile`.
-3. **O que navega**, quando a conta estiver de pé — e junto dele a troca das
-   fixtures por HTML real, que é o que dá validade aos testes da 2a.
+3. ✅ **O que navega**, escrito sem a conta: o orquestrador atrás da porta
+   `PostsPage` não precisa dela, e o adaptador do Playwright foi escrito junto
+   porque sem ele o orquestrador não tem como rodar em lugar nenhum.
+4. **A primeira colheita de verdade**, quando a conta estiver de pé — e junto
+   dela a troca das fixtures por HTML real, que é o que dá validade aos testes
+   da 2a e aos seletores do adaptador.
 
-O que sobrou do caminho sem conta é a Fase 4 (imagem e compose), que faz sentido
-só depois que existir colheita para servir.
+O caminho sem conta acabou: a Fase 4 (imagem e compose, nos dois ambientes) está
+feita, e o que resta ou depende da conta ou é o agendador.
 
 Fazer a Fase 3 agora tem um ganho a mais: ela consome o contrato de ponta a
 ponta e, se algum campo estiver errado, o erro aparece enquanto mexer no

@@ -55,3 +55,45 @@ export function parsePort(raw: string | undefined): number {
 }
 
 export const PORT = parsePort(process.env.POSTS_WORKER_PORT);
+
+/**
+ * Limites rigidos da colheita (RFC 001, secao 8).
+ *
+ * Nao sao afinacao de desempenho: sao o que impede uma busca ampla de virar
+ * meia hora de navegador logado dentro do LinkedIn. O que custa aqui e a conta,
+ * nao o tempo de CPU.
+ */
+export const DEFAULT_MAX_SCROLLS = 8;
+
+export const DEFAULT_POSTS_PER_SEARCH = 15;
+
+export const DEFAULT_TIMEOUT_IN_MS = 30_000;
+
+/**
+ * Inteiro positivo do ambiente, com padrao.
+ *
+ * `trim` antes, e ausente e em branco valendo a mesma coisa: foi um
+ * `SERP_ENDPOINT` vazio chegando ao contêiner que deixou o outro coletor cinco
+ * dias fora do ar. Valor invalido cai no padrao em vez de derrubar o boot —
+ * worker de pe com limite padrao e melhor que container em loop de restart.
+ */
+export function parsePositive(raw: string | undefined, fallback: number): number {
+  const value = Number(raw?.trim());
+
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+export const MAX_SCROLLS = parsePositive(
+  process.env.LINKEDIN_POSTS_MAX_SCROLLS,
+  DEFAULT_MAX_SCROLLS,
+);
+
+export const POSTS_PER_SEARCH = parsePositive(
+  process.env.LINKEDIN_POSTS_PER_QUERY,
+  DEFAULT_POSTS_PER_SEARCH,
+);
+
+export const NAVIGATION_TIMEOUT_IN_MS = parsePositive(
+  process.env.LINKEDIN_POSTS_TIMEOUT_MS,
+  DEFAULT_TIMEOUT_IN_MS,
+);

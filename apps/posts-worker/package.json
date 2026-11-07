@@ -10,6 +10,7 @@
     "test:cov": "vitest run --coverage",
     "test:watch": "vitest",
     "serve": "tsx src/scripts/serve.ts",
+    "harvest": "tsx src/scripts/harvest.ts",
     "session:login": "tsx src/scripts/session-login.ts",
     "session:check": "tsx src/scripts/session-check.ts"
   },
