@@ -4,6 +4,7 @@ import {
   HARVEST_FILE,
   HARVEST_INTERVAL_IN_MS,
   HARVEST_JITTER_IN_MS,
+  HARVEST_WINDOW,
   PORT,
   SHUTDOWN_DRAIN_IN_MS,
   STATE_FILE,
@@ -49,6 +50,9 @@ async function main(): Promise<void> {
 
   app.log.info(`colheita em ${HARVEST_FILE}`);
   app.log.info(`sessao esperada em ${STATE_FILE}`);
+  app.log.info(
+    `janela de atividade: ${HARVEST_WINDOW.startHour}h as ${HARVEST_WINDOW.endHour}h (${HARVEST_WINDOW.timeZone})`,
+  );
 }
 
 /**
@@ -61,6 +65,7 @@ async function schedule(job: HarvestJob, log: FastifyBaseLogger): Promise<Harves
   return startHarvestScheduler({
     intervalInMs: HARVEST_INTERVAL_IN_MS,
     jitterInMs: HARVEST_JITTER_IN_MS,
+    window: HARVEST_WINDOW,
     // Só o agendador passa pela porta; o `POST /harvest` dispara direto, porque
     // quem bate nele sabe mais sobre a conta que qualquer regra nossa.
     trigger: createScheduledTrigger({

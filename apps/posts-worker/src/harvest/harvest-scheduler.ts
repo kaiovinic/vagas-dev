@@ -1,3 +1,8 @@
+import {
+  isWithinWindow,
+  nextWindowStart,
+  type ActivityWindow,
+} from '@/harvest/activity-window';
 import type { HarvestStart } from '@/harvest/harvest-job';
 
 /**
@@ -31,6 +36,8 @@ export interface SchedulerDeps {
   readonly intervalInMs: number;
   /** Variacao sorteada para cada lado: colher sempre no mesmo segundo e padrao. */
   readonly jitterInMs: number;
+  /** Horario em que a conta pode navegar. O disparo a mao nao passa por aqui. */
+  readonly window: ActivityWindow;
   readonly trigger: () => Promise<HarvestStart>;
   /** Quando foi a ultima colheita; `null` quando nunca houve nenhuma. */
   readonly lastHarvestedAt: Date | null;
@@ -72,10 +79,10 @@ export function startHarvestScheduler(deps: SchedulerDeps): HarvestScheduler {
 
   const fire = async (): Promise<void> => {
     deps.log(`Colheita agendada: ${await deps.trigger()}`);
-    plan(nextDelayInMs(deps));
+    plan(withinWindow(nextDelayInMs(deps), deps));
   };
 
-  plan(firstDelayInMs(deps));
+  plan(withinWindow(firstDelayInMs(deps), deps));
 
   return {
     stop: () => {
@@ -114,6 +121,36 @@ export function firstDelayInMs(
   }
 
   return nextDelayInMs({ ...input, intervalInMs: remaining });
+}
+
+export interface WindowInput extends DelayInput {
+  readonly window: ActivityWindow;
+  readonly now: () => Date;
+}
+
+/**
+ * A espera que cai fora da janela anda para a abertura da proxima.
+ *
+ * Nao e "pular a colheita": e adia-la. O intervalo seguinte passa a contar da
+ * manha, o que faz a cadencia escorregar um pouco para dentro do dia — e isso e
+ * melhor que a alternativa, que seria uma colheita de madrugada por dia numa
+ * conta nova (RFC 001, secao 8).
+ *
+ * O jitter entra de novo sobre a abertura, de um lado so: colher as 08:00:00 em
+ * ponto todo dia seria trocar uma assinatura de robo por outra.
+ */
+export function withinWindow(delayInMs: number, input: WindowInput): number {
+  const now = input.now();
+  const fireAt = new Date(now.getTime() + delayInMs);
+
+  if (isWithinWindow(fireAt, input.window)) {
+    return delayInMs;
+  }
+
+  const opensAt = nextWindowStart(fireAt, input.window).getTime();
+  const sorted = Math.round(input.random() * input.jitterInMs);
+
+  return Math.max(MIN_DELAY_IN_MS, opensAt + sorted - now.getTime());
 }
 
 function remainingInMs(lastHarvestedAt: Date | null, now: Date, intervalInMs: number): number {

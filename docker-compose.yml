@@ -44,6 +44,11 @@ services:
       # opcao — cada colheita e um acesso de verdade a conta.
       HARVEST_INTERVAL_HOURS: ${HARVEST_INTERVAL_HOURS:-}
       HARVEST_JITTER_MINUTES: ${HARVEST_JITTER_MINUTES:-}
+      # A janela de atividade vale aqui tambem: a conta e a mesma. Quem precisa
+      # colher fora dela usa o POST /harvest, que a ignora.
+      HARVEST_WINDOW_START_HOUR: ${HARVEST_WINDOW_START_HOUR:-}
+      HARVEST_WINDOW_END_HOUR: ${HARVEST_WINDOW_END_HOUR:-}
+      HARVEST_TIME_ZONE: ${HARVEST_TIME_ZONE:-}
       HARVEST_TRIGGER_TOKEN: ${HARVEST_TRIGGER_TOKEN:-}
     ports:
       # Preso ao 127.0.0.1: em desenvolvimento a API roda no host, e e de la que

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import type { ActivityWindow } from '@/harvest/activity-window';
 import type { HarvestStart } from '@/harvest/harvest-job';
 import {
   BOOT_DELAY_IN_MS,
@@ -7,6 +8,7 @@ import {
   nextDelayInMs,
   scheduleWithTimeout,
   startHarvestScheduler,
+  withinWindow,
   type SchedulerDeps,
 } from '@/harvest/harvest-scheduler';
 
@@ -14,7 +16,10 @@ const MINUTE = 60_000;
 
 const HOUR = 60 * MINUTE;
 
+/** 12:00Z = 09:00 na Bahia: dentro da janela, onde os testes antigos vivem. */
 const NOW = new Date('2026-11-07T12:00:00.000Z');
+
+const BAHIA: ActivityWindow = { startHour: 8, endHour: 22, timeZone: 'America/Bahia' };
 
 /**
  * O relogio de mentira: guarda as esperas pedidas e dispara quando o teste
@@ -54,6 +59,7 @@ function deps(
   return {
     intervalInMs: 8 * HOUR,
     jitterInMs: 20 * MINUTE,
+    window: BAHIA,
     trigger: () => Promise.resolve<HarvestStart>('started'),
     lastHarvestedAt: null,
     now: () => NOW,
@@ -128,6 +134,52 @@ describe('firstDelayInMs', () => {
   });
 });
 
+describe('withinWindow', () => {
+  const base = { intervalInMs: 8 * HOUR, jitterInMs: 20 * MINUTE, window: BAHIA };
+
+  /** Meio da tarde: nada a corrigir, a espera sai como veio. */
+  it('espera que cai dentro da janela passa intacta', () => {
+    const delay = withinWindow(2 * HOUR, { ...base, now: () => NOW, random: () => 0.5 });
+
+    expect(delay).toBe(2 * HOUR);
+  });
+
+  /**
+   * O caso que motivou a janela: um disparo que cairia as 23h local vira
+   * colheita das 8h da manha seguinte, com o sorteio por cima.
+   */
+  it('espera que cai as 23h local anda para a abertura do dia seguinte', () => {
+    // 09:00 local + 14h = 23:00 local; a abertura seguinte e 08:00 (+23h).
+    const delay = withinWindow(14 * HOUR, { ...base, now: () => NOW, random: () => 0 });
+
+    expect(delay).toBe(23 * HOUR);
+  });
+
+  it('o sorteio entra sobre a abertura, para nao colher as 08:00:00 em ponto', () => {
+    const delay = withinWindow(14 * HOUR, { ...base, now: () => NOW, random: () => 1 });
+
+    expect(delay).toBe(23 * HOUR + 20 * MINUTE);
+  });
+
+  /** Madrugada: a abertura e no mesmo dia, e nao no seguinte. */
+  it('espera que cai as 03h local anda para as 08h do mesmo dia', () => {
+    const dawn = new Date('2026-11-07T05:00:00.000Z');
+
+    const delay = withinWindow(HOUR, { ...base, now: () => dawn, random: () => 0 });
+
+    expect(delay).toBe(6 * HOUR);
+  });
+
+  it('nunca devolve menos de um minuto', () => {
+    // 07:59:30 local: a abertura esta a 30 s, e o piso do agendador vale.
+    const beforeOpening = new Date('2026-11-07T10:59:30.000Z');
+
+    const delay = withinWindow(0, { ...base, now: () => beforeOpening, random: () => 0 });
+
+    expect(delay).toBe(MINUTE);
+  });
+});
+
 describe('startHarvestScheduler', () => {
   it('agenda a primeira colheita sem disparar nada agora', () => {
     const clock = new FakeClock();
@@ -174,6 +226,25 @@ describe('startHarvestScheduler', () => {
 
     expect(lines[0]).toContain('Proxima colheita em');
     expect(lines[1]).toContain('no-session');
+  });
+
+  /**
+   * O agendador inteiro, de ponta a ponta: com o worker subindo as 20h local e
+   * intervalo de 8 h, a colheita seguinte cairia as 04h — e nao cai.
+   */
+  it('a colheita seguinte nao e marcada para a madrugada', async () => {
+    const clock = new FakeClock();
+    const evening = new Date('2026-11-07T23:00:00.000Z');
+
+    startHarvestScheduler(
+      deps(clock, { now: () => evening, random: () => 0, lastHarvestedAt: evening }),
+    );
+
+    clock.fire();
+    await flush();
+
+    // 20:00 local + 8 h = 04:00; a abertura seguinte esta a 12 h de distancia.
+    expect(clock.delays[1]).toBe(12 * HOUR);
   });
 
   it('parar cancela a proxima colheita', () => {

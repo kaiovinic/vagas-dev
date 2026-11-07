@@ -109,6 +109,11 @@ services:
       # min de sorteio para cada lado (RFC 001, secao 14).
       HARVEST_INTERVAL_HOURS: ${HARVEST_INTERVAL_HOURS:-}
       HARVEST_JITTER_MINUTES: ${HARVEST_JITTER_MINUTES:-}
+      # Janela de atividade (RFC 001, secao 8). Vazio usa 8h-22h no fuso do TZ
+      # acima: conta nova navegando de madrugada e gatilho de bloqueio.
+      HARVEST_WINDOW_START_HOUR: ${HARVEST_WINDOW_START_HOUR:-}
+      HARVEST_WINDOW_END_HOUR: ${HARVEST_WINDOW_END_HOUR:-}
+      HARVEST_TIME_ZONE: ${HARVEST_TIME_ZONE:-}
       # Segredo opcional do POST /harvest. Vazio: protegido so pela rede, que
       # aqui basta — este servico nao publica porta no host.
       HARVEST_TRIGGER_TOKEN: ${HARVEST_TRIGGER_TOKEN:-}

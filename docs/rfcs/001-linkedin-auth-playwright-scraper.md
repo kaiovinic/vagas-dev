@@ -23,11 +23,13 @@ e nunca publica em portal.
 > primeira colheita respeitando a idade da que está no volume, porta fechada
 > depois de `session-lost` e `POST /harvest` para o disparo à mão.
 >
+> A janela de atividade de §8.0 está de pé: 08h–22h no fuso da janela, com o
+> disparo fora dela andando para a abertura seguinte.
+>
 > **O que falta, dito sem rodeios:** ninguém rodou uma colheita contra o
 > LinkedIn logado, porque a conta está restringida — os seletores de navegação
-> não estão verificados, e nem as fixtures do parser. A janela de atividade de
-> §8 não existe, então uma das três colheitas diárias cai de madrugada. E falta
-> o bootstrap por noVNC na VPS.
+> não estão verificados, e nem as fixtures do parser. E falta o bootstrap por
+> noVNC na VPS.
 >
 > **Bloqueio.** O LinkedIn restringiu a conta no primeiro login automatizado,
 > em `/flagship-web/login/login-restriction/` — conta nova entrando por
@@ -463,7 +465,8 @@ Valores iniciais, todos em variáveis de ambiente para ajuste sem deploy:
 |---|---|---|
 | `HARVEST_INTERVAL_HOURS` | `8` | Intervalo entre colheitas. O referencial usa 8, com o comentário "intervalo longo protege a conta" |
 | `HARVEST_JITTER_MINUTES` | `20` | Sorteio para cada lado do intervalo. Colher às 03:00:07 todos os dias é assinatura de robô |
-| `LINKEDIN_POSTS_ACTIVE_HOURS` | `8-22` | **Não implementado.** Janela de atividade, horário de Brasília. Conta que navega às 4 da manhã parece o que é |
+| `HARVEST_WINDOW_START_HOUR` / `HARVEST_WINDOW_END_HOUR` | `8` / `22` | Janela de atividade. Conta que navega às 4 da manhã parece o que é |
+| `HARVEST_TIME_ZONE` | `America/Bahia` | Fuso da janela; cai no `TZ` do contêiner quando não é definido |
 | `LINKEDIN_POSTS_PER_QUERY` | `15` | Teto de posts por busca |
 | `LINKEDIN_POSTS_MAX_SCROLLS` | `8` | Teto de rolagens. Barreira rígida: é o que impede uma busca ampla de virar sessão de meia hora |
 | `LINKEDIN_POSTS_QUERIES` | 2 buscas | Mesma divisão do coletor do Serper: uma remota nacional, uma regional da Bahia |
@@ -477,9 +480,39 @@ Com 2 buscas, 15 posts e 8 rolagens, três vezes ao dia, o perfil de uso fica
 próximo do de uma pessoa que abre o LinkedIn algumas vezes por dia — que é o
 objetivo.
 
-A janela de atividade **não está implementada**: com intervalo de 8 h, uma das
-três colheitas do dia cai de madrugada, e o jitter só desloca isso em minutos.
-É a diferença mais visível entre o que esta seção aprovou e o que está de pé.
+### 8.0 A janela de atividade
+
+Das 08h às 22h no fuso da janela — a última colheita sai às 21:59. O disparo que
+cairia fora dela **anda para a abertura da próxima**, com o jitter aplicado de
+novo por cima, de um lado só: colher às 08:00:00 em ponto todo dia seria trocar
+uma assinatura de robô por outra.
+
+Não é "pular a colheita", é adiá-la, e isso faz a cadência escorregar para
+dentro do dia em vez de manter três horários fixos — o que, para o que se quer
+aqui, é vantagem e não defeito.
+
+Duas armadilhas que o código trata explicitamente:
+
+- **Fuso.** O mesmo instante está dentro da janela na Bahia e fora dela em
+  Tóquio. Um contêiner com `TZ` errado colheria de madrugada acreditando estar
+  de dia, então a hora local vem do `Intl` com o fuso explícito, e não do
+  relógio do processo. A conversão de volta (hora local → instante) desconta o
+  deslocamento do próprio fuso naquele momento, com uma segunda passada para o
+  dia de virada de horário de verão; a Bahia não tem DST desde 2019, mas a
+  função aceita qualquer fuso.
+- **Variável em branco.** `Number('')` é zero, e `${VAR:-}` no compose entrega
+  exatamente uma string vazia: sem tratar isso antes da conversão, um
+  `HARVEST_WINDOW_START_HOUR=` abriria a janela à meia-noite — justamente a
+  colheita de madrugada que ela existe para impedir. É a mesma armadilha que
+  deixou o coletor do Serper cinco dias fora do ar, e por isso o teste dela
+  existe.
+
+Abertura depois do fechamento (ou igual a ele) cai nos dois padrões, em vez de
+ser interpretada como uma janela que atravessa a meia-noite: janela invertida é
+erro de digitação, e a leitura criativa dele daria o pior resultado possível.
+
+O `POST /harvest` ignora a janela de propósito — quem dispara à mão acabou de
+refazer o login ou está conferindo um seletor, e sabe o que está fazendo.
 
 ### 8.1 O relógio mora no worker
 
@@ -679,7 +712,10 @@ Mantendo o TDD do projeto, com a divisão que o worker permite:
   cálculo da primeira espera (colheita vencida, recente, inexistente), o teto do
   jitter, o reagendamento depois de cada disparo, o `stop` durante um disparo em
   curso, a recusa da segunda colheita simultânea, a porta fechada para sessão
-  caída e os cinco códigos do `POST /harvest`.
+  caída e os cinco códigos do `POST /harvest`. A janela de atividade tem teste
+  de fronteira em instante fixo — 08:00 e 21:59 dentro, 22:00 e 07:59 fora, o
+  disparo das 23h virando colheita das 8h, virada de mês e de ano, e um fuso com
+  horário de verão.
 - **Orquestrador da colheita** (Vitest, puro): `runHarvest` recebe a página como
   porta (`PostsPage`) e devolve o `HarvestFile`, então os dias ruins que ninguém
   consegue encomendar ao LinkedIn cabem num teste — sessão caindo na primeira
@@ -741,8 +777,10 @@ O CI não executa Playwright. O `apps/posts-worker` entra no `typecheck` e no
      documentadas no `.env.prod.example`.
    - ✅ Agendador dentro do worker, com jitter e porta fechada para sessão
      caída (§8.1), e `POST /harvest` para o disparo pontual.
-   - Bootstrap por noVNC na VPS e a janela de atividade de §8. Observar por uma
-     semana com intervalo de 8 h antes de considerar baixar para 6 h.
+   - ✅ Janela de atividade de 08h às 22h (§8.0), com o disparo fora da janela
+     adiado para a abertura seguinte.
+   - Bootstrap por noVNC na VPS. Observar por uma semana com intervalo de 8 h
+     antes de considerar baixar para 6 h.
 
 As fases 1 a 3 não tocam em produção e não usam a conta além do login inicial.
 A 2a não usa nem isso: roda inteira sem rede.

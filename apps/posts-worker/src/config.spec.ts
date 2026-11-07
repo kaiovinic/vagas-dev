@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_JITTER_IN_MINUTES, DEFAULT_PORT, parseJitter, parsePort } from '@/config';
+import {
+  DEFAULT_JITTER_IN_MINUTES,
+  DEFAULT_PORT,
+  DEFAULT_TIME_ZONE,
+  DEFAULT_WINDOW_END_HOUR,
+  DEFAULT_WINDOW_START_HOUR,
+  parseJitter,
+  parsePort,
+  parseWindow,
+} from '@/config';
 
 describe('parsePort', () => {
   it('le a porta do ambiente', () => {
@@ -49,5 +58,51 @@ describe('parseJitter', () => {
    */
   it('nunca passa da metade do intervalo', () => {
     expect(parseJitter('600', 2 * HOUR)).toBe(HOUR);
+  });
+});
+
+describe('parseWindow', () => {
+  it('le as horas e o fuso do ambiente', () => {
+    expect(parseWindow('9', '21', 'America/Sao_Paulo')).toEqual({
+      startHour: 9,
+      endHour: 21,
+      timeZone: 'America/Sao_Paulo',
+    });
+  });
+
+  it('cai no padrao quando as variaveis nao existem', () => {
+    expect(parseWindow(undefined, undefined, undefined)).toEqual({
+      startHour: DEFAULT_WINDOW_START_HOUR,
+      endHour: DEFAULT_WINDOW_END_HOUR,
+      timeZone: DEFAULT_TIME_ZONE,
+    });
+  });
+
+  it.each(['abc', '', '-1', '24', '8.5'])('hora invalida (%s) cai no padrao', (raw) => {
+    expect(parseWindow(raw, '22', 'America/Bahia').startHour).toBe(DEFAULT_WINDOW_START_HOUR);
+  });
+
+  it('aceita a meia-noite como abertura', () => {
+    expect(parseWindow('0', '6', 'America/Bahia').startHour).toBe(0);
+  });
+
+  /**
+   * Janela invertida nao e configuracao, e erro de digitacao — e interpreta-la
+   * de forma criativa daria justamente a colheita de madrugada que a janela
+   * existe para impedir.
+   */
+  it.each([
+    ['abertura depois do fechamento', '22', '8'],
+    ['abertura igual ao fechamento', '10', '10'],
+  ])('%s cai nos dois padroes', (_name, start, end) => {
+    expect(parseWindow(start, end, 'America/Bahia')).toEqual({
+      startHour: DEFAULT_WINDOW_START_HOUR,
+      endHour: DEFAULT_WINDOW_END_HOUR,
+      timeZone: 'America/Bahia',
+    });
+  });
+
+  it('fuso em branco cai no padrao, e nao em fuso vazio', () => {
+    expect(parseWindow('8', '22', '   ').timeZone).toBe(DEFAULT_TIME_ZONE);
   });
 });

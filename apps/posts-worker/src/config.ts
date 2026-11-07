@@ -1,5 +1,7 @@
 import { resolve } from 'node:path';
 
+import type { ActivityWindow } from '@/harvest/activity-window';
+
 /**
  * Pasta de dados do worker. Em producao e um volume nomeado
  * (`devradar-linkedin-session`); em desenvolvimento, `apps/posts-worker/data`.
@@ -132,6 +134,73 @@ export function parseJitter(raw: string | undefined, intervalInMs: number): numb
 export const HARVEST_JITTER_IN_MS = parseJitter(
   process.env.HARVEST_JITTER_MINUTES,
   HARVEST_INTERVAL_IN_MS,
+);
+
+/**
+ * Janela de atividade (RFC 001, secao 8): das 08h as 22h, horario da Bahia.
+ *
+ * O motivo nao e tecnico. Uma conta nova que abre o LinkedIn as 3h da manha,
+ * todos os dias, parece o que e — e perder a conta custa a fonte inteira,
+ * enquanto esperar a manha nao custa vaga nenhuma: a janela de 72h da API nao
+ * se mede em horas de sono.
+ */
+export const DEFAULT_WINDOW_START_HOUR = 8;
+
+export const DEFAULT_WINDOW_END_HOUR = 22;
+
+export const DEFAULT_TIME_ZONE = 'America/Bahia';
+
+const LAST_HOUR = 23;
+
+/**
+ * Hora do ambiente, com o padrao quando nao ha hora nenhuma.
+ *
+ * O `trim()` vazio e testado ANTES do `Number`, e nao e detalhe: `Number('')` e
+ * zero, entao um `HARVEST_WINDOW_START_HOUR=` em branco — que e exatamente o
+ * que `${VAR:-}` entrega no compose — abriria a janela a meia-noite e daria a
+ * colheita de madrugada que ela existe para impedir. E a mesma armadilha que
+ * deixou o coletor do Serper cinco dias fora do ar.
+ */
+function parseHour(raw: string | undefined, fallback: number): number {
+  const text = raw?.trim() ?? '';
+
+  if (text.length === 0) {
+    return fallback;
+  }
+
+  const hour = Number(text);
+
+  return Number.isInteger(hour) && hour >= 0 && hour <= LAST_HOUR ? hour : fallback;
+}
+
+/**
+ * A janela do ambiente, com o padrao quando ela nao faz sentido.
+ *
+ * Abertura depois do fechamento cai nos dois padroes em vez de inventar uma
+ * janela que atravessa a meia-noite: janela invertida nao e configuracao, e
+ * erro de digitacao — e a interpretacao criativa dele seria justamente colher de
+ * madrugada, o que esta janela existe para impedir.
+ */
+export function parseWindow(
+  startRaw: string | undefined,
+  endRaw: string | undefined,
+  zoneRaw: string | undefined,
+): ActivityWindow {
+  const startHour = parseHour(startRaw, DEFAULT_WINDOW_START_HOUR);
+  const endHour = parseHour(endRaw, DEFAULT_WINDOW_END_HOUR);
+  const timeZone = zoneRaw?.trim() || DEFAULT_TIME_ZONE;
+
+  if (startHour >= endHour) {
+    return { startHour: DEFAULT_WINDOW_START_HOUR, endHour: DEFAULT_WINDOW_END_HOUR, timeZone };
+  }
+
+  return { startHour, endHour, timeZone };
+}
+
+export const HARVEST_WINDOW = parseWindow(
+  process.env.HARVEST_WINDOW_START_HOUR,
+  process.env.HARVEST_WINDOW_END_HOUR,
+  process.env.HARVEST_TIME_ZONE ?? process.env.TZ,
 );
 
 /**
