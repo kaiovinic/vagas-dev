@@ -19,11 +19,15 @@ e nunca publica em portal.
 > total, e o adaptador do Playwright só clica e lê atributo. Fase 4 feita:
 > imagem, compose de desenvolvimento e de produção com volume nomeado (§11).
 >
+> O agendador está dentro do `serve.ts` (§8.1): intervalo de 8 h com jitter,
+> primeira colheita respeitando a idade da que está no volume, porta fechada
+> depois de `session-lost` e `POST /harvest` para o disparo à mão.
+>
 > **O que falta, dito sem rodeios:** ninguém rodou uma colheita contra o
 > LinkedIn logado, porque a conta está restringida — os seletores de navegação
-> não estão verificados, e nem as fixtures do parser. Falta também o agendador:
-> hoje `npm run harvest` é chamado à mão, e o worker apenas serve a última
-> colheita. E o bootstrap por noVNC na VPS.
+> não estão verificados, e nem as fixtures do parser. A janela de atividade de
+> §8 não existe, então uma das três colheitas diárias cai de madrugada. E falta
+> o bootstrap por noVNC na VPS.
 >
 > **Bloqueio.** O LinkedIn restringiu a conta no primeiro login automatizado,
 > em `/flagship-web/login/login-restriction/` — conta nova entrando por
@@ -195,6 +199,22 @@ que o navegador perdeu o login, e este campo é como ela descobre.
 
 Nunca `404`: a API precisa de um documento válido dizendo "ainda não há nada"
 para tratar isso como fonte sem vagas, e não como falha.
+
+Há uma rota de escrita, `POST /harvest`, que dispara uma colheita na hora — útil
+depois de refazer o login, ou para conferir um seletor sem esperar oito horas
+pelo relógio (§8.1):
+
+| Resultado | Resposta |
+| --- | --- |
+| Colheita iniciada | `202`, porque quando a resposta sai não há nada colhido para contar |
+| Já havia uma em curso | `409`; a nova não entra na fila |
+| Sem `state.json` | `503`, dizendo para refazer o login |
+| Processo que só serve o cache | `503`; não finge que colhe |
+| Segredo configurado e cabeçalho ausente ou errado | `401` |
+
+Quem protege a rota é a rede: o serviço não publica porta no host em produção e
+escuta em `127.0.0.1` no compose de desenvolvimento. O `HARVEST_TRIGGER_TOKEN` é
+a segunda tranca, opcional, porque a rota abre um navegador logado na conta.
 
 O `503` do arquivo travado é a decisão menos óbvia aqui. A alternativa seria
 devolver `EMPTY_HARVEST`, e ela é pior: `never-ran` é uma afirmação forte — a
@@ -441,8 +461,9 @@ Valores iniciais, todos em variáveis de ambiente para ajuste sem deploy:
 
 | Variável | Padrão | Papel |
 |---|---|---|
-| `LINKEDIN_POSTS_INTERVAL_HOURS` | `8` | Intervalo entre colheitas. O referencial usa 8, com o comentário "intervalo longo protege a conta" |
-| `LINKEDIN_POSTS_ACTIVE_HOURS` | `8-22` | Janela de atividade, horário de Brasília. Conta que navega às 4 da manhã parece o que é |
+| `HARVEST_INTERVAL_HOURS` | `8` | Intervalo entre colheitas. O referencial usa 8, com o comentário "intervalo longo protege a conta" |
+| `HARVEST_JITTER_MINUTES` | `20` | Sorteio para cada lado do intervalo. Colher às 03:00:07 todos os dias é assinatura de robô |
+| `LINKEDIN_POSTS_ACTIVE_HOURS` | `8-22` | **Não implementado.** Janela de atividade, horário de Brasília. Conta que navega às 4 da manhã parece o que é |
 | `LINKEDIN_POSTS_PER_QUERY` | `15` | Teto de posts por busca |
 | `LINKEDIN_POSTS_MAX_SCROLLS` | `8` | Teto de rolagens. Barreira rígida: é o que impede uma busca ampla de virar sessão de meia hora |
 | `LINKEDIN_POSTS_QUERIES` | 2 buscas | Mesma divisão do coletor do Serper: uma remota nacional, uma regional da Bahia |
@@ -455,6 +476,41 @@ na API pelo snowflake.
 Com 2 buscas, 15 posts e 8 rolagens, três vezes ao dia, o perfil de uso fica
 próximo do de uma pessoa que abre o LinkedIn algumas vezes por dia — que é o
 objetivo.
+
+A janela de atividade **não está implementada**: com intervalo de 8 h, uma das
+três colheitas do dia cai de madrugada, e o jitter só desloca isso em minutos.
+É a diferença mais visível entre o que esta seção aprovou e o que está de pé.
+
+### 8.1 O relógio mora no worker
+
+O agendador é um `setTimeout` que se reagenda, dentro do mesmo processo do
+Fastify (`serve.ts`), e não um cron do sistema. A razão é prática: o contêiner já
+tem um processo de pé e o volume com a sessão; um cron do host precisaria de
+`docker exec`, que é mais uma peça para configurar na VPS e mais um jeito de a
+colheita silenciar sem ninguém notar.
+
+Três decisões que não são óbvias:
+
+- **A primeira colheita conta a idade da que está no volume.** Começar o
+  intervalo do zero a cada boot faria um contêiner reiniciado toda manhã nunca
+  chegar ao fim das 8 h — a fonte secaria no painel sem um único erro para ver.
+  Quando a colheita já está vencida, a espera é a folga de boot (2 min) e não
+  zero, porque contêiner em loop de restart colhendo a cada subida é exatamente
+  o padrão que chama atenção.
+- **O jitter é limitado a metade do intervalo.** Sem o teto, um
+  `HARVEST_JITTER_MINUTES` maior que o intervalo faria o sorteio decidir a
+  cadência em vez de só disfarçá-la.
+- **O agendador passa por uma porta; o `POST /harvest` não.** Depois de uma
+  colheita com `session-lost`, o disparo agendado é recusado até o `state.json`
+  ser reescrito — é a promessa de §10, item 3, e a data de gravação do arquivo é
+  a evidência, sem contador para manter em sincronia. Quem bate na rota à mão
+  acabou de fazer algo (refez o login, mexeu num seletor) e sabe mais sobre o
+  estado da conta que qualquer regra nossa.
+
+Nenhuma rota espera o navegador: o disparo devolve `202` e a colheita segue em
+segundo plano, com no máximo uma em curso por processo. A trava de instância
+única continua valendo para o outro caso — o `npm run harvest` à mão enquanto o
+agendador dispara.
 
 ## 9. A data vem do link
 
@@ -500,8 +556,12 @@ O sintoma é conhecido: o LinkedIn redireciona para `/login`, `/checkpoint` ou
    atenção, e com 2FA ele não se completa de cabeça baixa de qualquer forma.
 2. Grava `status: "session-lost"` no `harvest.json`, **preservando os posts da
    última colheita boa** com o `harvestedAt` antigo.
-3. Para de tentar até a sessão ser renovada: um contador no arquivo evita que o
-   cron bata de 8 em 8 horas numa porta fechada.
+3. Para de tentar até a sessão ser renovada, para não bater de 8 em 8 horas numa
+   porta fechada. **Sem contador no arquivo**, que foi o desenho original: a
+   data de gravação do `state.json` já responde a pergunta — o `session:login`
+   reescreve o arquivo, então sessão mais nova que a colheita falha significa
+   login refeito. Um contador precisaria ser mantido em sincronia com o mundo; a
+   data não. Vale só para o disparo agendado: o `POST /harvest` passa direto.
 
 A API, ao ler `status: "session-lost"`, dispara **um** alerta no Telegram pelo
 `TELEGRAM_NOTIFIER` que já existe ("sessão do LinkedIn caiu; rode o bootstrap"),
@@ -613,6 +673,13 @@ Mantendo o TDD do projeto, com a divisão que o worker permite:
   temporária, inclusive com o arquivo travado pelo `proper-lockfile`: é o único
   jeito de provar que a trava é consultada e não adquirida. Cobertura total em
   `src/server/**`, com limiar no `vitest.config.ts`.
+- **Agendador e disparo** (Vitest, puro): o relógio entra injetado — um
+  `schedule` de mentira guarda as esperas pedidas e dispara quando o teste manda
+  — porque agendador testado com `sleep` é agendador que não é testado. Cobre o
+  cálculo da primeira espera (colheita vencida, recente, inexistente), o teto do
+  jitter, o reagendamento depois de cada disparo, o `stop` durante um disparo em
+  curso, a recusa da segunda colheita simultânea, a porta fechada para sessão
+  caída e os cinco códigos do `POST /harvest`.
 - **Orquestrador da colheita** (Vitest, puro): `runHarvest` recebe a página como
   porta (`PostsPage`) e devolve o `HarvestFile`, então os dias ruins que ninguém
   consegue encomendar ao LinkedIn cabem num teste — sessão caindo na primeira
@@ -672,9 +739,10 @@ O CI não executa Playwright. O `apps/posts-worker` entra no `typecheck` e no
    - ✅ Serviço no compose de produção, com o volume nomeado
      `devradar-linkedin-session` guardando sessão e colheita, e as variáveis
      documentadas no `.env.prod.example`.
-   - Bootstrap por noVNC na VPS e o agendador da colheita (hoje `npm run
-     harvest` é manual). Observar por uma semana com intervalo de 8 h antes de
-     considerar baixar para 6 h.
+   - ✅ Agendador dentro do worker, com jitter e porta fechada para sessão
+     caída (§8.1), e `POST /harvest` para o disparo pontual.
+   - Bootstrap por noVNC na VPS e a janela de atividade de §8. Observar por uma
+     semana com intervalo de 8 h antes de considerar baixar para 6 h.
 
 As fases 1 a 3 não tocam em produção e não usam a conta além do login inicial.
 A 2a não usa nem isso: roda inteira sem rede.

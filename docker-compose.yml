@@ -39,6 +39,12 @@ services:
       TZ: America/Bahia
       POSTS_WORKER_PORT: 4000
       POSTS_WORKER_DATA_DIR: /data
+      # Em desenvolvimento o agendador quase nunca chega a disparar: a colheita
+      # que se quer aqui vem do `POST /harvest`, na hora. Intervalo curto nao e
+      # opcao — cada colheita e um acesso de verdade a conta.
+      HARVEST_INTERVAL_HOURS: ${HARVEST_INTERVAL_HOURS:-}
+      HARVEST_JITTER_MINUTES: ${HARVEST_JITTER_MINUTES:-}
+      HARVEST_TRIGGER_TOKEN: ${HARVEST_TRIGGER_TOKEN:-}
     ports:
       # Preso ao 127.0.0.1: em desenvolvimento a API roda no host, e e de la que
       # vem o GET /posts. Fora da maquina ninguem alcanca.

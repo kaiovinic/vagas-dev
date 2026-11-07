@@ -11,14 +11,22 @@ interface Scenario {
   readonly logs: string[];
 }
 
-function scenario(close = vi.fn(() => Promise.resolve())): Scenario {
+function scenario(
+  close = vi.fn(() => Promise.resolve()),
+  drain?: () => Promise<boolean>,
+): Scenario {
   const source = new EventEmitter();
   const codes: number[] = [];
   const logs: string[] = [];
 
   installShutdown(
     { close },
-    { source, exit: (code) => codes.push(code), log: (message) => logs.push(message) },
+    {
+      source,
+      exit: (code) => codes.push(code),
+      log: (message) => logs.push(message),
+      ...(drain === undefined ? {} : { drain }),
+    },
   );
 
   return { source, close, codes, logs };
@@ -83,6 +91,55 @@ describe('installShutdown', () => {
 
     expect(codes).toEqual([1]);
     expect(logs.at(-1)).toContain('texto cru');
+  });
+
+  /**
+   * A colheita primeiro, o servidor depois: fechar a porta com o Chromium
+   * gravando deixaria o `harvest.json` pela metade.
+   */
+  it('espera a colheita antes de fechar o servidor', async () => {
+    const order: string[] = [];
+    const close = vi.fn(() => {
+      order.push('close');
+
+      return Promise.resolve();
+    });
+    const { source, codes } = scenario(close, () => {
+      order.push('drain');
+
+      return Promise.resolve(true);
+    });
+
+    source.emit('SIGTERM');
+    await settle();
+
+    expect(order).toEqual(['drain', 'close']);
+    expect(codes).toEqual([0]);
+  });
+
+  /** Prazo vencido nao impede o encerramento: esperar sem fim e virar SIGKILL. */
+  it('colheita que nao termina no prazo e anotada, e o encerramento segue', async () => {
+    const { source, close, codes, logs } = scenario(undefined, () => Promise.resolve(false));
+
+    source.emit('SIGTERM');
+    await settle();
+
+    expect(logs.at(-1)).toContain('nao terminou no prazo');
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(codes).toEqual([0]);
+  });
+
+  it('falha ao encerrar a colheita nao impede o fechamento', async () => {
+    const { source, close, codes, logs } = scenario(undefined, () =>
+      Promise.reject(new Error('navegador travado')),
+    );
+
+    source.emit('SIGTERM');
+    await settle();
+
+    expect(logs.at(-1)).toContain('navegador travado');
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(codes).toEqual([0]);
   });
 
   it('cobre os dois sinais que o docker usa', () => {

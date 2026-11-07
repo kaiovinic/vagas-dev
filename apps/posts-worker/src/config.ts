@@ -97,3 +97,57 @@ export const NAVIGATION_TIMEOUT_IN_MS = parsePositive(
   process.env.LINKEDIN_POSTS_TIMEOUT_MS,
   DEFAULT_TIMEOUT_IN_MS,
 );
+
+const MINUTE_IN_MS = 60_000;
+
+const HOUR_IN_MS = 60 * MINUTE_IN_MS;
+
+/**
+ * Cadencia da colheita. Oito horas e o que o RFC 001 (secao 14) aprovou para a
+ * primeira semana — baixar para seis e decisao de depois de observar, nao de
+ * agora. Tres colheitas por dia numa conta dedicada e o que se parece com uma
+ * pessoa que abre o LinkedIn de manha, no almoco e de noite.
+ */
+export const DEFAULT_INTERVAL_IN_HOURS = 8;
+
+/** Variacao sorteada para cada lado do intervalo. */
+export const DEFAULT_JITTER_IN_MINUTES = 20;
+
+export const HARVEST_INTERVAL_IN_MS =
+  parsePositive(process.env.HARVEST_INTERVAL_HOURS, DEFAULT_INTERVAL_IN_HOURS) * HOUR_IN_MS;
+
+/**
+ * Jitter limitado a metade do intervalo.
+ *
+ * Sem o teto, `HARVEST_JITTER_MINUTES` maior que o intervalo faria o sorteio
+ * decidir a cadencia em vez de so disfarca-la — e o piso do agendador passaria a
+ * ser o que define a frequencia, que e exatamente o contrario do que se quer.
+ */
+export function parseJitter(raw: string | undefined, intervalInMs: number): number {
+  const minutes = parsePositive(raw, DEFAULT_JITTER_IN_MINUTES);
+
+  return Math.min(minutes * MINUTE_IN_MS, intervalInMs / 2);
+}
+
+export const HARVEST_JITTER_IN_MS = parseJitter(
+  process.env.HARVEST_JITTER_MINUTES,
+  HARVEST_INTERVAL_IN_MS,
+);
+
+/**
+ * Segredo opcional do `POST /harvest`.
+ *
+ * Vazio significa protegido apenas pela rede: o servico nao publica porta no
+ * host em producao, e no compose de desenvolvimento escuta em 127.0.0.1. Quem
+ * quiser uma segunda camada define a variavel, e a rota passa a exigir o
+ * cabecalho `x-harvest-token`.
+ */
+export const HARVEST_TRIGGER_TOKEN = process.env.HARVEST_TRIGGER_TOKEN?.trim() ?? '';
+
+/**
+ * Quanto o encerramento espera pela colheita em curso.
+ *
+ * Menor que os 10s que o `docker stop` concede antes do `SIGKILL`: a ideia e
+ * fechar por conta propria, e nao ser morto no meio da gravacao.
+ */
+export const SHUTDOWN_DRAIN_IN_MS = 8_000;

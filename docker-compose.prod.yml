@@ -105,6 +105,13 @@ services:
       LINKEDIN_POSTS_MAX_SCROLLS: ${LINKEDIN_POSTS_MAX_SCROLLS:-}
       LINKEDIN_POSTS_PER_QUERY: ${LINKEDIN_POSTS_PER_QUERY:-}
       LINKEDIN_POSTS_TIMEOUT_MS: ${LINKEDIN_POSTS_TIMEOUT_MS:-}
+      # Cadencia do agendador que vive dentro do worker. Vazio usa 8 h com 20
+      # min de sorteio para cada lado (RFC 001, secao 14).
+      HARVEST_INTERVAL_HOURS: ${HARVEST_INTERVAL_HOURS:-}
+      HARVEST_JITTER_MINUTES: ${HARVEST_JITTER_MINUTES:-}
+      # Segredo opcional do POST /harvest. Vazio: protegido so pela rede, que
+      # aqui basta — este servico nao publica porta no host.
+      HARVEST_TRIGGER_TOKEN: ${HARVEST_TRIGGER_TOKEN:-}
     # Sem porta no host: so a API o alcanca, pela rede `backend`. O que ele
     # serve e cache de vaga, mas o volume dele guarda a sessao da conta.
     networks:

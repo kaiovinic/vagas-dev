@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { EMPTY_HARVEST, type HarvestFile } from '@/contract';
+import type { HarvestStart } from '@/harvest/harvest-job';
 import type { HarvestRead } from '@/server/harvest-store';
 import { buildServer } from '@/server/server';
 
@@ -175,6 +176,96 @@ describe('servidor montado sem injecao', () => {
     app = buildServer();
 
     expect((await app.inject('/health')).statusCode).toBe(200);
+  });
+});
+
+describe('POST /harvest', () => {
+  function trigger(start: HarvestStart, token = ''): FastifyInstance {
+    app = buildServer({
+      readHarvest: () => Promise.resolve({ outcome: 'missing' }),
+      isSessionPresent: () => Promise.resolve(true),
+      startHarvest: () => Promise.resolve(start),
+      triggerToken: token,
+    });
+
+    return app;
+  }
+
+  /**
+   * 202 e nao 200: quando a resposta sai, a colheita acabou de comecar e nao ha
+   * nada colhido para contar. O resultado aparece depois, no `GET /health`.
+   */
+  it('aceita o disparo com 202', async () => {
+    const response = await trigger('started').inject({ method: 'POST', url: '/harvest' });
+
+    expect(response.statusCode).toBe(202);
+    expect(response.json<{ status: string }>().status).toBe('started');
+  });
+
+  /** Duas colheitas ao mesmo tempo sao dois Chromium na mesma conta. */
+  it('recusa com 409 quando ja ha colheita em curso', async () => {
+    const response = await trigger('already-running').inject({ method: 'POST', url: '/harvest' });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json<{ detail: string }>().detail).toContain('em curso');
+  });
+
+  it('sem sessao gravada responde 503, dizendo o que fazer', async () => {
+    const response = await trigger('no-session').inject({ method: 'POST', url: '/harvest' });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json<{ detail: string }>().detail).toContain('login');
+  });
+
+  /** Um processo que so serve o cache nao deve fingir que colhe. */
+  it('processo que nao colhe responde 503', async () => {
+    app = buildServer({ readHarvest: () => Promise.resolve({ outcome: 'missing' }) });
+
+    const response = await app.inject({ method: 'POST', url: '/harvest' });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json<{ status: string }>().status).toBe('unavailable');
+  });
+
+  it('com segredo configurado, exige o cabecalho', async () => {
+    const response = await trigger('started', 'segredo').inject({
+      method: 'POST',
+      url: '/harvest',
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('com segredo configurado e cabecalho certo, dispara', async () => {
+    const response = await trigger('started', 'segredo').inject({
+      method: 'POST',
+      url: '/harvest',
+      headers: { 'x-harvest-token': 'segredo' },
+    });
+
+    expect(response.statusCode).toBe(202);
+  });
+
+  it('cabecalho errado nao vale', async () => {
+    const response = await trigger('started', 'segredo').inject({
+      method: 'POST',
+      url: '/harvest',
+      headers: { 'x-harvest-token': 'outro' },
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('sem segredo configurado, quem protege e a rede', async () => {
+    const response = await trigger('started').inject({ method: 'POST', url: '/harvest' });
+
+    expect(response.statusCode).toBe(202);
+  });
+
+  it('nao aceita GET: disparo nao e leitura', async () => {
+    const response = await trigger('started').inject('/harvest');
+
+    expect(response.statusCode).toBe(404);
   });
 });
 
