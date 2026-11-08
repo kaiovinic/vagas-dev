@@ -2,6 +2,10 @@ import { Inject, Injectable, Logger, Optional, type OnModuleInit } from '@nestjs
 
 import { HTTP_CLIENT, type IHttpClient } from '@/domain/providers/http-client';
 import type {
+  IOperationalAlerter,
+  OperationalAlert,
+} from '@/domain/providers/operational-alerter';
+import type {
   ITelegramNotifier,
   JobAlert,
   WeeklyDigest,
@@ -46,7 +50,9 @@ export interface TelegramConfig {
  * bot nao deve quebrar a captura.
  */
 @Injectable()
-export class TelegramHttpNotifier implements ITelegramNotifier, OnModuleInit {
+export class TelegramHttpNotifier
+  implements ITelegramNotifier, IOperationalAlerter, OnModuleInit
+{
   private readonly logger = new Logger(TelegramHttpNotifier.name);
 
   /** Fila serial: cada envio espera o anterior mais o intervalo minimo. */
@@ -103,6 +109,25 @@ export class TelegramHttpNotifier implements ITelegramNotifier, OnModuleInit {
    * envio falho quebraria o encadeamento e nenhuma mensagem posterior sairia.
    * Quem chamou recebe a promessa de verdade, com o erro.
    */
+  /**
+   * Aviso sobre a propria coleta, no mesmo chat dos alertas de vaga.
+   *
+   * Entra na mesma fila: se a sessao cair no meio de uma captura que tambem
+   * tem vagas novas, os envios continuam espacados e nenhum volta 429.
+   *
+   * Um ambiente sem bot nao fica em silencio: o log de aviso do coletor sai de
+   * todo jeito, e e ele o verdadeiro ultimo recurso.
+   */
+  async notifyOperational(alert: OperationalAlert): Promise<void> {
+    if (!this.isConfigured()) {
+      this.logger.debug('Telegram nao configurado: alerta operacional ignorado');
+
+      return;
+    }
+
+    return this.enqueue(buildOperationalMessage(alert), alert.title);
+  }
+
   private enqueue(text: string, subject: string): Promise<void> {
     const sent = this.queue.then(() => this.sendThrottled(text, subject));
 
@@ -312,4 +337,22 @@ function readConfigFromEnv(): TelegramConfig {
     botToken: process.env.TELEGRAM_BOT_TOKEN ?? '',
     chatId: process.env.TELEGRAM_CHAT_ID ?? '',
   };
+}
+
+/**
+ * Mensagem de aviso operacional.
+ *
+ * Comeca com o alarme e termina com o comando a rodar: quem le isso no celular
+ * precisa saber, em duas linhas, o que quebrou e o que fazer.
+ */
+function buildOperationalMessage(alert: OperationalAlert): string {
+  return [
+    `⚠️ <b>${escapeHtml(alert.title)}</b>`,
+    '',
+    escapeHtml(alert.detail),
+    '',
+    `<b>O que fazer:</b> ${escapeHtml(alert.action)}`,
+    '',
+    `<i>fonte: ${escapeHtml(alert.source)}</i>`,
+  ].join('\n');
 }

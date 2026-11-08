@@ -166,7 +166,18 @@ export type PublicRule = PublicRules['rules'][number];
 export type RejectionReason = z.infer<typeof rejectionReasonSchema>;
 export type RulesTestResult = z.infer<typeof rulesTestResultSchema>;
 
-export const sourceStatusSchema = z.enum(['OK', 'FAILING', 'IDLE']);
+/**
+ * `INACTIVE` e `UNCONFIGURED` nasceram de um incidente: um endpoint vazio no
+ * container deixou o coletor de publicacoes cinco dias fora do ar, e a tabela
+ * o mostrava verde — ele nao falhava, so nunca era visitado.
+ */
+export const sourceStatusSchema = z.enum([
+  'OK',
+  'FAILING',
+  'IDLE',
+  'INACTIVE',
+  'UNCONFIGURED',
+]);
 
 export const sourceHealthRowSchema = z.object({
   source: z.string(),

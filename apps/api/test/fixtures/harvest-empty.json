@@ -1,0 +1,19 @@
+{
+  "harvestedAt": "2026-11-05T09:12:44.000Z",
+  "status": "ok",
+  "searches": [
+    {
+      "label": "Bahia",
+      "query": "vaga desenvolvedor bahia",
+      "found": 0,
+      "discarded": {
+        "promoted": 5,
+        "openToWork": 4,
+        "unaddressable": 0,
+        "withoutContent": 2,
+        "withoutUrl": 0
+      }
+    }
+  ],
+  "posts": []
+}

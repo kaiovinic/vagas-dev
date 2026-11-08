@@ -21,5 +21,52 @@ services:
       timeout: 5s
       retries: 5
 
+  # Coletor de publicacoes com sessao logada (RFC 001). Atras de um profile
+  # para que `npm run db:up` continue subindo so o banco: a imagem tem 1,5 GB
+  # por causa do Chromium, e quem nao esta mexendo na feature nao precisa dela.
+  #
+  #   docker compose --profile linkedin up -d --build posts-worker
+  posts-worker:
+    profiles: ['linkedin']
+    build:
+      # Contexto na raiz: o package-lock.json e unico para os tres workspaces.
+      context: .
+      dockerfile: apps/posts-worker/Dockerfile
+    image: devradar-posts-worker:latest
+    container_name: devradar-posts-worker
+    restart: unless-stopped
+    environment:
+      TZ: America/Bahia
+      POSTS_WORKER_PORT: 4000
+      POSTS_WORKER_DATA_DIR: /data
+      # Em desenvolvimento o agendador quase nunca chega a disparar: a colheita
+      # que se quer aqui vem do `POST /harvest`, na hora. Intervalo curto nao e
+      # opcao — cada colheita e um acesso de verdade a conta.
+      HARVEST_INTERVAL_HOURS: ${HARVEST_INTERVAL_HOURS:-}
+      HARVEST_JITTER_MINUTES: ${HARVEST_JITTER_MINUTES:-}
+      # A janela de atividade vale aqui tambem: a conta e a mesma. Quem precisa
+      # colher fora dela usa o POST /harvest, que a ignora.
+      HARVEST_WINDOW_START_HOUR: ${HARVEST_WINDOW_START_HOUR:-}
+      HARVEST_WINDOW_END_HOUR: ${HARVEST_WINDOW_END_HOUR:-}
+      HARVEST_TIME_ZONE: ${HARVEST_TIME_ZONE:-}
+      HARVEST_TRIGGER_TOKEN: ${HARVEST_TRIGGER_TOKEN:-}
+    ports:
+      # Preso ao 127.0.0.1: em desenvolvimento a API roda no host, e e de la que
+      # vem o GET /posts. Fora da maquina ninguem alcanca.
+      - '127.0.0.1:${POSTS_WORKER_PORT:-4000}:4000'
+    volumes:
+      # Bind mount, e nao volume nomeado: o `session:login` roda no host, com
+      # janela aberta, e grava o `state.json` nesta pasta. Com volume nomeado a
+      # sessao gerada no Windows ficaria invisivel para o container, e seria
+      # preciso copia-la na mao a cada renovacao.
+      #
+      # A pasta esta no .gitignore e no .dockerignore: o `state.json` E a
+      # credencial da conta.
+      - ./apps/posts-worker/data:/data
+    # Os 64 MB padrao de /dev/shm fazem o Chromium quebrar em pagina pesada. A
+    # alternativa, `--disable-dev-shm-usage`, troca memoria por disco e deixa
+    # tudo mais lento; com volume de uso tao baixo, prefiro dar a memoria.
+    shm_size: '1gb'
+
 volumes:
   devradar-postgres-data:

@@ -1,0 +1,73 @@
+<!--
+  ATENCAO: esta fixture NAO e HTML salvo do LinkedIn. Vale aqui o mesmo aviso
+  de search-results-new-layout.html.
+
+  Layout classico: classes nomeadas (`update-components-actor__*`) e a urn da
+  publicacao no atributo `data-urn` do card. Por isso aqui o parser CONSEGUE a
+  URL sozinho, sem passo de navegador — e e o unico caso em que consegue.
+
+  Este layout ainda aparece misturado ao novo, e por isso o parser atende os
+  dois. Quando ele desaparecer de vez, esta fixture documenta o que foi
+  removido.
+-->
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Resultados de publicações</title>
+  </head>
+  <body>
+    <main>
+      <!-- 1. Post completo, com a urn no card: o unico que sai daqui com URL. -->
+      <div data-urn="urn:li:activity:7521262024920764416">
+        <div class="update-components-actor">
+          <a class="update-components-actor__meta-link" href="/in/joao-pereira"></a>
+          <div class="update-components-actor__title">
+            <span aria-hidden="true">João Pereira</span>
+          </div>
+          <div class="update-components-actor__description">
+            <span aria-hidden="true">Tech Recruiter</span>
+          </div>
+          <div class="update-components-actor__sub-description">
+            <span aria-hidden="true">há 3 h</span>
+          </div>
+        </div>
+        <div class="feed-shared-update-v2__description">
+          <div class="update-components-text">
+            Estamos contratando pessoa desenvolvedora .NET para atuar 100% remoto. Interessados,
+            comentem aqui que eu chamo no privado.
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. urn truncada: casa com o seletor, mas nao da para enderecar depois. -->
+      <div data-urn="urn:li:activity:">
+        <div class="update-components-actor__title">
+          <span aria-hidden="true">Fulano Sem Id</span>
+        </div>
+        <div class="update-components-text">Publicação que o LinkedIn não terminou de montar.</div>
+      </div>
+
+      <!-- 3. Sem nenhum link de perfil no card: o autor fica sem URL. -->
+      <div data-urn="urn:li:activity:7521249835149062144">
+        <div class="update-components-actor__title">
+          <span aria-hidden="true">Beatriz Rocha</span>
+        </div>
+        <div class="update-components-actor__description">Recrutadora de TI</div>
+        <div class="update-components-text">
+          Oportunidade para pessoa desenvolvedora Angular em Feira de Santana.
+        </div>
+      </div>
+
+      <!-- 4. Link de perfil que o LinkedIn resolve por JavaScript: nao e navegavel,
+           e tratar como URL de perfil seria gravar lixo. -->
+      <div data-id="urn:li:activity:7521249835149062145">
+        <div class="update-components-actor__title">Maria Oliveira</div>
+        <a href="javascript:openProfile('/in/maria-oliveira')">Maria Oliveira</a>
+        <div class="update-components-text">
+          Vaga de pessoa desenvolvedora frontend, pleno, em Lauro de Freitas.
+        </div>
+      </div>
+    </main>
+  </body>
+</html>

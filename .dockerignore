@@ -15,6 +15,11 @@ coverage
 !.env.example
 !.env.prod.example
 
+# A sessao do LinkedIn (`state.json`) E a credencial da conta: quem tem o
+# arquivo entra como o DevRadar. Ela vive no volume, nunca na imagem — e sem
+# esta linha o `COPY apps/posts-worker` a levaria junto para dentro dela.
+apps/posts-worker/data
+
 .git
 .github
 .claude

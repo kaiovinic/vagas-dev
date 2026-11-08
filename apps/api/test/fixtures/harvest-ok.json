@@ -1,0 +1,50 @@
+{
+  "harvestedAt": "2026-11-05T09:12:44.000Z",
+  "status": "ok",
+  "searches": [
+    {
+      "label": "Bahia",
+      "query": "vaga desenvolvedor bahia",
+      "found": 2,
+      "discarded": {
+        "promoted": 3,
+        "openToWork": 2,
+        "unaddressable": 0,
+        "withoutContent": 1,
+        "withoutUrl": 1
+      }
+    }
+  ],
+  "posts": [
+    {
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7521262024920764416/",
+      "author": "Maria Silva",
+      "authorUrl": "https://www.linkedin.com/in/maria-silva-123abc",
+      "headline": "Tech Recruiter",
+      "text": "Estamos contratando pessoa desenvolvedora React em Salvador! Vem para o nosso time hibrido, com plano de carreira e PJ ou CLT.",
+      "links": ["https://portal.gupy.io/job/1234", "https://lnkd.in/dAbCdEf"],
+      "hasJobAction": true
+    },
+    {
+      "url": "https://www.linkedin.com/posts/joao-pereira-9f8e7d_vaga-dotnet-share-7521249835149062144-aBcD",
+      "author": "Joao Pereira",
+      "text": "Vaga de pessoa desenvolvedora .NET, 100% remoto. Comentem aqui que eu chamo no privado.",
+      "links": [],
+      "hasJobAction": false
+    },
+    {
+      "url": "https://www.linkedin.com/feed/",
+      "author": "Sem Identificacao",
+      "text": "Publicacao cujo link nao carrega o id, logo nao carrega a data.",
+      "links": [],
+      "hasJobAction": false
+    },
+    {
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7521249835149062145/",
+      "author": "Autor Sem Texto",
+      "text": "   ",
+      "links": [],
+      "hasJobAction": false
+    }
+  ]
+}

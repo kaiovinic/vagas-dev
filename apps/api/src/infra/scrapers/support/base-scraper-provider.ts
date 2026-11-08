@@ -27,6 +27,14 @@ export abstract class BaseScraperProvider implements IJobScraperProvider {
     return true;
   }
 
+  /**
+   * Fonte publica nao tem o que configurar: basta um GET. Quem depende de
+   * credencial ou de endereco de servico sobrescreve.
+   */
+  isConfigured(): boolean {
+    return true;
+  }
+
   async scrape(): Promise<RawJobProps[]> {
     try {
       return await this.collect();

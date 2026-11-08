@@ -14,6 +14,7 @@ import {
   type IJobScraperProvider,
 } from '@/domain/providers/job-scraper-provider';
 import { INHIRE_TENANT_DISCOVERY_READER } from '@/domain/providers/inhire-tenant-discovery-reader';
+import { OPERATIONAL_ALERTER } from '@/domain/providers/operational-alerter';
 import { TELEGRAM_NOTIFIER } from '@/domain/providers/telegram-notifier';
 import { CAPTURE_LOG_REPOSITORY } from '@/domain/repositories/capture-log-repository';
 import {
@@ -74,6 +75,7 @@ import { GithubIssuesScraperProvider } from '@/infra/scrapers/github-issues-scra
 import { GupyScraperProvider } from '@/infra/scrapers/gupy-scraper-provider';
 import { InhireScraperProvider } from '@/infra/scrapers/inhire-scraper-provider';
 import { InhireTenantDiscovery } from '@/infra/scrapers/support/inhire-tenant-discovery';
+import { LinkedinAuthPostsScraperProvider } from '@/infra/scrapers/linkedin-auth-posts-scraper-provider';
 import { LinkedinGuestScraperProvider } from '@/infra/scrapers/linkedin-guest-scraper-provider';
 import { LinkedinPostsScraperProvider } from '@/infra/scrapers/linkedin-posts-scraper-provider';
 import { NextCommitScraperProvider } from '@/infra/scrapers/nextcommit-scraper-provider';
@@ -105,6 +107,10 @@ const SCRAPERS = [
   // Os coletores e os 39 testes seguem no repositorio; para religar, basta o
   // import e a linha de volta.
   LinkedinPostsScraperProvider,
+  // Irmao do de cima, por outro caminho: este le a colheita que o
+  // apps/posts-worker faz com sessao logada, por HTTP. Sem
+  // LINKEDIN_POSTS_WORKER_URL vira no-op silencioso (RFC 001).
+  LinkedinAuthPostsScraperProvider,
   NextCommitScraperProvider,
   // JobbolScraperProvider: fora do registro de proposito. O site esta atras do
   // Bot Management da Cloudflare, que responde 403 (`cf-mitigated: challenge`)
@@ -158,6 +164,9 @@ const SCRAPERS = [
         ),
       inject: [AxiosHttpClient],
     },
+    // Mesma instancia do notificador: um unico chat, uma unica fila de envio.
+    // As portas sao duas por ISP, nao porque o destino seja outro.
+    { provide: OPERATIONAL_ALERTER, useExisting: TELEGRAM_NOTIFIER },
     PrismaJobAlertRepository,
     { provide: PENDING_ALERT_REPOSITORY, useExisting: PrismaJobAlertRepository },
     ...SCRAPERS,

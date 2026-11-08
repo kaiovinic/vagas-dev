@@ -1,0 +1,107 @@
+<!--
+  ATENCAO: esta fixture NAO e HTML salvo do LinkedIn.
+
+  Ela foi reconstruida a partir dos seletores que o coletor de referencia
+  (wouerner/vagas-php-coletor, collector/vagas/bot.py) usa em producao contra o
+  layout novo — `componentkey`, o `aria-label` do menu do post,
+  `data-testid="expandable-text-box"`, o selo no `alt` da foto. Esses seletores
+  sao evidencia de um raspador que funciona; a MARCACAO EM VOLTA e minha, e
+  pode nao corresponder a estrutura real.
+
+  O que isso significa: o parser esta correto contra este arquivo, e NAO
+  verificado contra o LinkedIn. Substituir por HTML salvo de uma busca de
+  verdade (Ctrl+S na pagina de resultados) e o primeiro passo quando a conta
+  estiver de pe — e e quando os testes passam a valer de verdade.
+
+  Layout novo: classes ofuscadas, card marcado por `componentkey`, e SEM a urn
+  da publicacao no DOM. E por isso que o parser nao produz URL aqui.
+-->
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Resultados de publicações</title>
+  </head>
+  <body>
+    <main>
+      <!-- 1. Post de recrutadora: o caso que deve passar inteiro. -->
+      <div componentkey="update-card-focus-aaa111">
+        <div class="x7f2">
+          <img alt="Foto de Maria Silva" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" />
+          <a href="/in/maria-silva-123abc">Maria Silva</a>
+          <button aria-label="Abrir menu de controle da publicação de Maria Silva">...</button>
+        </div>
+        <div data-testid="expandable-text-box">
+          Estamos contratando pessoa desenvolvedora React em Salvador! Vem para o nosso time
+          híbrido. Inscrições pelo link abaixo.
+        </div>
+        <div class="x9a0">
+          <a href="https://portal.gupy.io/job/1234?src=linkedin">portal.gupy.io</a>
+          <a href="https://lnkd.in/dAbCdEf">lnkd.in/dAbCdEf</a>
+          <a href="https://www.linkedin.com/jobs/view/4482768114">Ver no LinkedIn</a>
+          <a href="/jobs/view/4482768115">Outra posição</a>
+          <a href="https://portal.gupy.io/job/1234">repetido, deve sumir</a>
+          <a href="javascript:void(0)">abrir</a>
+          <a href="http://">quebrado</a>
+          <a href="https://www.linkedin.com/">LinkedIn</a>
+          <a href="/company/acme-tech">Acme Tech</a>
+          <button aria-label="Candidate-se">Candidate-se</button>
+        </div>
+        <div class="x3c1">
+          <img alt="Foto de Alguem Mais, buscando emprego" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" />
+          <span>Alguem Mais e mais 12 pessoas reagiram</span>
+        </div>
+      </div>
+
+      <!-- 2. Anuncio pago. O rotulo vem duplicado para leitor de tela. -->
+      <div componentkey="update-card-focus-bbb222">
+        <div>
+          <a href="/company/escola-de-cursos">Escola de Cursos</a>
+          <button aria-label="Abrir menu de controle da publicação de Escola de Cursos">...</button>
+          <span>PromovidoPromovido</span>
+        </div>
+        <div data-testid="expandable-text-box">
+          Formação Full Stack: matrículas abertas com desconto.
+        </div>
+      </div>
+
+      <!-- 3. Quem procura recolocação, não quem oferta. -->
+      <div componentkey="update-card-focus-ccc333">
+        <div>
+          <img alt="Foto de Carlos Souza, buscando emprego" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" />
+          <a href="/in/carlos-souza">Carlos Souza</a>
+          <button aria-label="Abrir menu de controle da publicação de Carlos Souza">...</button>
+        </div>
+        <div data-testid="expandable-text-box">
+          Estou em busca de uma nova oportunidade como desenvolvedor React. Agradeço o
+          compartilhamento!
+        </div>
+      </div>
+
+      <!-- 4. Widget do LinkedIn: sem autor e sem texto. -->
+      <div componentkey="update-card-focus-ddd444">
+        <div class="x0b2">
+          <span>Pesquisar vagas</span>
+        </div>
+      </div>
+
+      <!-- 5. Post compartilhado: o card de dentro NAO e uma publicação à parte,
+           e a urn dele não pode virar a data do card de fora. -->
+      <div componentkey="update-card-focus-eee555">
+        <div>
+          <a href="/in/ana-costa">Ana Costa</a>
+          <button aria-label="Abrir menu de controle da publicação de Ana Costa">...</button>
+        </div>
+        <div data-testid="expandable-text-box">
+          Vale demais para quem está começando em Salvador, compartilhando aqui.
+        </div>
+        <div data-urn="urn:li:activity:7000000000000000001">
+          <div class="update-components-actor__title">
+            <span aria-hidden="true">Pedro Lima</span>
+          </div>
+          <div class="update-components-text">Post original do Pedro, de outro dia.</div>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>

@@ -14,8 +14,20 @@ export const DEFAULT_SOURCE_INTERVAL_IN_HOURS = 2;
  */
 export const SOCIAL_POSTS_INTERVAL_IN_HOURS = 4;
 
+/**
+ * Publicacoes lidas com sessao autenticada.
+ *
+ * Mais espacado que a busca por cota: aqui o que se protege nao e credito, e a
+ * conta. Oito horas e o intervalo que o coletor de referencia usa, com o
+ * comentario de que intervalo longo protege a conta. O numero de verdade mora
+ * no worker, que tem o cron; este aqui existe para a tabela de saude anunciar a
+ * proxima colheita sem mentir.
+ */
+export const AUTH_SOCIAL_POSTS_INTERVAL_IN_HOURS = 8;
+
 const INTERVALS: Readonly<Record<string, number>> = {
   'linkedin-posts': SOCIAL_POSTS_INTERVAL_IN_HOURS,
+  'linkedin-auth-posts': AUTH_SOCIAL_POSTS_INTERVAL_IN_HOURS,
 };
 
 export function sourceIntervalInHours(source: string): number {

@@ -53,6 +53,13 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-}
       # Tenants da InHire. Vazio usa a lista semente do coletor.
       INHIRE_TENANTS: ${INHIRE_TENANTS:-}
+      # Endereco do worker de publicacoes logadas. Vazio desliga a fonte, como
+      # a SERP_API_KEY: ambiente sem a variavel simplesmente nao a tem.
+      #
+      # O default aqui NAO e vazio por descuido: apontar para o servico sempre
+      # que ele existe na rede e o comportamento desejado, e quem nao quer a
+      # fonte derruba o servico, nao a variavel.
+      LINKEDIN_POSTS_WORKER_URL: ${LINKEDIN_POSTS_WORKER_URL:-http://posts-worker:4000}
       # Mesma origem via Nginx; so precisa de valor se a API for exposta direto.
       WEB_ORIGIN: ${WEB_ORIGIN:-*}
     depends_on:
@@ -79,6 +86,52 @@ services:
     networks:
       - backend
       - edge
+
+  # Coletor de publicacoes com sessao logada (RFC 001). Imagem propria porque o
+  # Chromium do Playwright nao sobe na musl do Alpine da API — separacao por
+  # incompatibilidade, nao por preferencia.
+  posts-worker:
+    build:
+      context: .
+      dockerfile: apps/posts-worker/Dockerfile
+    image: devradar-posts-worker:latest
+    restart: unless-stopped
+    environment:
+      TZ: America/Bahia
+      POSTS_WORKER_PORT: 4000
+      POSTS_WORKER_DATA_DIR: /data
+      # Limites rigidos da colheita (RFC 001, secao 8). Vazio usa o padrao do
+      # codigo; valor invalido tambem, em vez de derrubar o boot.
+      LINKEDIN_POSTS_MAX_SCROLLS: ${LINKEDIN_POSTS_MAX_SCROLLS:-}
+      LINKEDIN_POSTS_PER_QUERY: ${LINKEDIN_POSTS_PER_QUERY:-}
+      LINKEDIN_POSTS_TIMEOUT_MS: ${LINKEDIN_POSTS_TIMEOUT_MS:-}
+      # Cadencia do agendador que vive dentro do worker. Vazio usa 8 h com 20
+      # min de sorteio para cada lado (RFC 001, secao 14).
+      HARVEST_INTERVAL_HOURS: ${HARVEST_INTERVAL_HOURS:-}
+      HARVEST_JITTER_MINUTES: ${HARVEST_JITTER_MINUTES:-}
+      # Janela de atividade (RFC 001, secao 8). Vazio usa 8h-22h no fuso do TZ
+      # acima: conta nova navegando de madrugada e gatilho de bloqueio.
+      HARVEST_WINDOW_START_HOUR: ${HARVEST_WINDOW_START_HOUR:-}
+      HARVEST_WINDOW_END_HOUR: ${HARVEST_WINDOW_END_HOUR:-}
+      HARVEST_TIME_ZONE: ${HARVEST_TIME_ZONE:-}
+      # Segredo opcional do POST /harvest. Vazio: protegido so pela rede, que
+      # aqui basta — este servico nao publica porta no host.
+      HARVEST_TRIGGER_TOKEN: ${HARVEST_TRIGGER_TOKEN:-}
+    # Sem porta no host: so a API o alcanca, pela rede `backend`. O que ele
+    # serve e cache de vaga, mas o volume dele guarda a sessao da conta.
+    networks:
+      - backend
+    volumes:
+      # Volume nomeado, e nao bind mount como em desenvolvimento: aqui o login
+      # acontece DENTRO do contêiner, por noVNC (RFC 001, secao 6.1), e o
+      # `state.json` nasce no proprio volume. Ele e a credencial da conta —
+      # nunca entra em imagem, em log ou em backup que saia da VPS.
+      - devradar-linkedin-session:/data
+    # Os 64 MB padrao de /dev/shm fazem o Chromium quebrar em pagina pesada.
+    shm_size: '1gb'
+    # Protege o vizinho na VPS compartilhada: se o Chromium vazar, o OOM killer
+    # pega o worker e nao o PostgreSQL.
+    mem_limit: 900m
 
   proxy:
     image: caddy:2.8-alpine
@@ -114,6 +167,9 @@ volumes:
   devradar-postgres-data:
   devradar-caddy-data:
   devradar-caddy-config:
+  # Sessao do LinkedIn e ultima colheita. O servico e descartavel; este volume
+  # nao: perde-lo significa refazer o login por noVNC.
+  devradar-linkedin-session:
 
 networks:
   # Sem saida para a internet: o banco so conversa com a API.

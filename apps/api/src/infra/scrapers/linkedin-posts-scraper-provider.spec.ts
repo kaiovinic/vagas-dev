@@ -141,6 +141,66 @@ describe('LinkedinPostsScraperProvider', () => {
       }
     });
 
+    /**
+     * O que aconteceu em producao: o compose declara `SERP_ENDPOINT:
+     * ${SERP_ENDPOINT:-}`, e sem a linha no `.env.prod` a variavel chega ao
+     * container como string VAZIA — que nao e `undefined` e passava reto pelo
+     * `??`. Com endpoint vazio o coletor se considerava nao configurado, o
+     * `isDue` devolvia `false` e a fonte sumia da captura sem um unico erro.
+     * Cinco dias sem buscar publicacao nenhuma, e o sintoma apareceu no painel
+     * do Serper, nao no nosso.
+     */
+    it('cai no Serper quando o ambiente manda endpoint vazio', async () => {
+      const previousEndpoint = process.env.SERP_ENDPOINT;
+      const previousKey = process.env.SERP_API_KEY;
+      process.env.SERP_ENDPOINT = '';
+      process.env.SERP_API_KEY = 'do-ambiente';
+
+      try {
+        const semEndpoint = new LinkedinPostsScraperProvider(http, lastRun);
+
+        expect(semEndpoint.isConfigured()).toBe(true);
+        await semEndpoint.scrape();
+
+        expect(http.requestedUrls[0]).toBe(SERPER_ENDPOINT);
+      } finally {
+        process.env.SERP_ENDPOINT = previousEndpoint;
+        process.env.SERP_API_KEY = previousKey;
+      }
+    });
+
+    it('trata endpoint e chave so com espacos como ausentes', async () => {
+      const previousEndpoint = process.env.SERP_ENDPOINT;
+      const previousKey = process.env.SERP_API_KEY;
+      process.env.SERP_ENDPOINT = '   ';
+      process.env.SERP_API_KEY = '  \t ';
+
+      try {
+        const comEspacos = new LinkedinPostsScraperProvider(http, lastRun);
+
+        // Endpoint em branco cai no padrao; chave em branco nao tem padrao
+        // nenhum, e sem ela a fonte continua desligada.
+        expect(comEspacos.isConfigured()).toBe(false);
+        expect(await comEspacos.isDue(new Date())).toBe(false);
+      } finally {
+        process.env.SERP_ENDPOINT = previousEndpoint;
+        process.env.SERP_API_KEY = previousKey;
+      }
+    });
+
+    it('apara espacos em volta da chave lida do ambiente', async () => {
+      const previousKey = process.env.SERP_API_KEY;
+      process.env.SERP_API_KEY = '  do-ambiente \n';
+
+      try {
+        await new LinkedinPostsScraperProvider(http, lastRun).scrape();
+
+        expect(http.requests[0]?.options?.headers?.['X-API-KEY']).toBe('do-ambiente');
+      } finally {
+        process.env.SERP_API_KEY = previousKey;
+      }
+    });
+
     it('permite apontar para outro fornecedor pelo ambiente', async () => {
       const previousEndpoint = process.env.SERP_ENDPOINT;
       const previousKey = process.env.SERP_API_KEY;

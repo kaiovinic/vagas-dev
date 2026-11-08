@@ -1,6 +1,10 @@
 import type { RawJobProps } from '@/domain/dtos/raw-job-props';
 import type { ICaptureSchedule } from '@/domain/providers/capture-schedule';
 import type { IJobScraperProvider } from '@/domain/providers/job-scraper-provider';
+import type {
+  IOperationalAlerter,
+  OperationalAlert,
+} from '@/domain/providers/operational-alerter';
 import type { IJobDescriptionFetcher } from '@/domain/providers/job-description-fetcher';
 import type {
   FetchedDescription,
@@ -100,6 +104,8 @@ export class StubScraperProvider implements IJobScraperProvider {
   /** `false` simula a fonte que ainda nao chegou a vez; `Error`, a que nem responde. */
   due: boolean | Error = true;
   dueCalls = 0;
+  /** `false` simula a fonte sem credencial — a que vira no-op silencioso. */
+  configured = true;
 
   constructor(
     readonly source: string,
@@ -115,6 +121,10 @@ export class StubScraperProvider implements IJobScraperProvider {
     }
 
     return this.due;
+  }
+
+  isConfigured(): boolean {
+    return this.configured;
   }
 
   async scrape(): Promise<RawJobProps[]> {
@@ -542,5 +552,24 @@ export class StubResumeGenerator implements IResumeGenerator {
     }
 
     return this.content;
+  }
+}
+
+/**
+ * Duplo da porta de alerta operacional.
+ *
+ * `shouldFail` existe para o teste que importa mais aqui: um alerta que nao sai
+ * nao pode derrubar a captura.
+ */
+export class FakeOperationalAlerter implements IOperationalAlerter {
+  readonly alerts: OperationalAlert[] = [];
+  shouldFail = false;
+
+  async notifyOperational(alert: OperationalAlert): Promise<void> {
+    this.alerts.push(alert);
+
+    if (this.shouldFail) {
+      throw new Error('telegram fora do ar');
+    }
   }
 }

@@ -80,6 +80,20 @@ export function parsePostUrl(rawUrl: string): LinkedinPostRef | undefined {
   return { author, postId, url: normalized, publishedAt };
 }
 
+/**
+ * So o id da publicacao, a partir de qualquer forma de URL do LinkedIn.
+ *
+ * Existe porque `parsePostUrl` exige tambem o autor, que so aparece na URL de
+ * compartilhamento (`/posts/<autor>_...`). O coletor logado entrega links no
+ * formato `/feed/update/urn:li:activity:<id>`, onde nao ha autor — e dali a
+ * unica coisa que importa e o id, que ja carrega o instante da publicacao.
+ */
+export function activityIdFromUrl(rawUrl: string): string | undefined {
+  const normalized = stripQuery(rawUrl);
+
+  return POST_PATH.exec(normalized)?.[2] ?? FEED_URN.exec(normalized)?.[1];
+}
+
 /** O nome que aparece no card vem do slug: `maria-silva-123abc` -> `Maria Silva`. */
 export function authorDisplayName(author: string): string {
   return author

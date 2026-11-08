@@ -30,5 +30,21 @@ export interface IJobScraperProvider {
    */
   isDue(reference: Date): Promise<boolean>;
 
+  /**
+   * Se a fonte tem o que precisa para funcionar — credencial, endereco de
+   * servico, o que seja.
+   *
+   * Quase toda fonte e um GET em pagina publica e responde sempre `true`.
+   * Existe pelas duas que dependem de configuracao: sem ela, elas viram no-op
+   * silencioso, o que e o comportamento certo (ambiente sem chave nao pode
+   * quebrar as outras sete fontes) e ao mesmo tempo o mais perigoso — foi
+   * assim que um `SERP_ENDPOINT` vazio no container tirou o coletor de
+   * publicacoes do ar por cinco dias sem nenhum erro.
+   *
+   * E por isso que isto nao e detalhe de infraestrutura: a tabela de saude
+   * pergunta antes de pintar uma fonte de verde.
+   */
+  isConfigured(): boolean;
+
   scrape(): Promise<RawJobProps[]>;
 }

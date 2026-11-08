@@ -1,6 +1,6 @@
 # DevRadar
 
-Agregador de vagas para **Desenvolvedor Frontend e Fullstack** em qualquer município da Bahia ou 100% remotas. Coleta de oito fontes a cada 2 horas, descarta o que não é vaga de verdade, deduplica entre plataformas, avisa no Telegram e apresenta tudo em um dashboard analítico.
+Agregador de vagas para **Desenvolvedor Frontend e Fullstack** em qualquer município da Bahia ou 100% remotas. Coleta de oito fontes públicas a cada 2 horas — mais um coletor com sessão autenticada no LinkedIn, em serviço separado —, descarta o que não é vaga de verdade, deduplica entre plataformas, avisa no Telegram e apresenta tudo em um dashboard analítico.
 
 Da vaga até a candidatura: a partir de um perfil único, o DevRadar escreve com o Gemini um **currículo sob medida para cada vaga** e o exporta em PDF A4 direto do navegador.
 
@@ -41,6 +41,7 @@ Oito fontes ativas. A coluna **lidas** é o que cada uma trouxe numa varredura r
 | **ProgramaThor** | HTML | 2h | 18 | |
 | **InHire** | API publica do ATS, um tenant por empresa | 2h | 69 | 410 vagas nos 17 tenants semente, mais os descobertos; 69 sao cargos de desenvolvimento |
 | **LinkedIn** (publicações) | índice do Google, via [Serper](https://serper.dev) | **4h** | 5 | catálogo exclusivo; exige `SERP_API_KEY` |
+| **LinkedIn** (publicações logadas) | busca do próprio LinkedIn, com sessão autenticada, pelo [`apps/posts-worker`](#o-coletor-com-sessão-autenticada-appsposts-worker) | **8h** | — | ainda não rodou contra a conta; sem o worker de pé vira no-op silencioso |
 
 Toda saída HTTP passa por um decorator de repeticão: 429, timeout e 5xx são tentados de novo com espera exponencial (1s, 2s, 4s), respeitando o `Retry-After` quando a fonte o informa. As requisições de uma mesma fonte saem em fila, com 1,5s entre elas — o IP da VPS é compartilhado com outro projeto.
 
@@ -77,6 +78,47 @@ O coletor de publicações é o único que custa dinheiro. Ele roda dentro da ca
 ```
 
 São duas buscas separadas — uma de remoto nacional (1 página), outra da Bahia (2 páginas). Separar importa: uma busca única e ampla é dominada pelo mercado remoto, que tem muito mais volume, e a região nunca aparece.
+
+### O coletor com sessão autenticada (`apps/posts-worker`)
+
+O coletor acima encontra publicação pelo índice do Google, que indexa pouco e devagar. Quem está logado vê a busca de publicações do próprio LinkedIn — e é lá que está a vaga que o recrutador baiano anuncia num post e nunca publica em portal. O desenho inteiro, com as alternativas descartadas, está em [`docs/rfcs/001-linkedin-auth-playwright-scraper.md`](docs/rfcs/001-linkedin-auth-playwright-scraper.md).
+
+Isso virou um **terceiro workspace**, e não um nono provider dentro da API, por três motivos que não se resolvem no mesmo processo:
+
+- **O Chromium não cabe na imagem da API.** A imagem da API é Alpine, e o Chromium do Playwright precisa de glibc — a base do worker é a oficial do Playwright, em Debian, e tem ~1 GB. Empacotar as duas juntas engordaria a API por uma fonte.
+- **Navegador não pode segurar a captura.** Um seletor que trava por trinta segundos não pode atrasar as outras oito fontes, que respondem em menos de um segundo.
+- **A sessão é credencial.** O `state.json` do Playwright vive num volume só dele, isolado do resto.
+
+A API não navega: ela faz `GET /posts` no worker e recebe **a última colheita já pronta** — cache, não navegação sob demanda. O worker colhe no seu próprio ritmo, grava `harvest.json` de forma atômica (`.tmp` + `rename`, sob trava de arquivo) e serve esse mesmo documento, sem transformar nada. Duas consequências úteis: a captura da API continua custando um GET, e qualquer suspeita se verifica com um `cat` no volume.
+
+**A data continua saindo do link.** O worker entrega a URL e não opina sobre data — em especial, nunca lê "há 3 h" da tela. Quem decodifica o snowflake é a API, com o mesmo código já testado.
+
+#### O que o worker faz quando o dia é ruim
+
+Nenhuma dessas situações dá para encomendar ao LinkedIn, e todas têm teste porque a decisão fica fora do navegador: `runHarvest` recebe a página como porta e devolve o documento, enquanto o adaptador do Playwright só clica e lê atributo.
+
+| situação | o que acontece |
+|---|---|
+| Sessão caiu (desvio para `/login`, `/checkpoint`) | grava `status: "session-lost"` **preservando a colheita anterior**, com o `harvestedAt` antigo; a API alerta uma vez no Telegram |
+| Uma busca não abriu | `degraded`, com o que a outra trouxe; a busca que falhou aparece no relatório com zero, em vez de desaparecer dele |
+| Nenhuma busca abriu | a colheita anterior fica onde está — trocar três dias de vagas por um arquivo vazio porque a rede piscou faria a fonte secar sem motivo |
+| Seletor mudou | colhe o que der; card sem link reconhecível é descartado e **contado** por motivo |
+| Colheita sendo gravada | o `GET /posts` responde `503` com `Retry-After`, em vez de afirmar "nunca rodou" |
+
+Preservar o `harvestedAt` antigo no `session-lost` é o que mantém a idade honesta no painel: o material é velho, a janela de 72h o derruba sozinha em três dias, e carimbar a hora de agora esconderia exatamente isso.
+
+#### A cadência, e a janela de atividade
+
+O relógio mora **dentro do worker** (um `setTimeout` que se reagenda, no mesmo processo do Fastify), e não num cron do host — cron de fora precisaria de `docker exec`, que é mais uma peça para configurar na VPS e mais um jeito de a colheita silenciar sem ninguém notar.
+
+- **Intervalo de 8 horas**, com **20 minutos de sorteio** para cada lado: colher às 03:00:07 todos os dias é assinatura de robô.
+- **Janela de atividade das 08h às 22h**, no fuso configurado (`America/Bahia` por padrão). O disparo que cairia fora dela **anda para a abertura seguinte**, com o sorteio por cima. O motivo não é técnico: conta que abre o LinkedIn às 3h da manhã, todos os dias, parece o que é — e esperar a manhã não custa vaga nenhuma, porque a janela de 72h não se mede em horas de sono.
+- **A primeira colheita conta a idade da que já está no volume.** Começar o intervalo do zero a cada boot faria um contêiner reiniciado toda manhã nunca chegar ao fim das 8 h, e a fonte secaria no painel sem um único erro para ver.
+- **Depois de uma sessão caída, o disparo agendado é recusado** até o `state.json` ser reescrito. A data de gravação do arquivo é a evidência de que o login foi refeito — um contador precisaria ser mantido em sincronia com o mundo; a data, não.
+
+O `POST /harvest` dispara na hora e **ignora a janela**, de propósito: quem bate nessa rota acabou de refazer o login ou está conferindo um seletor, e sabe mais sobre o estado da conta que qualquer regra do código.
+
+> **Estado atual, sem rodeios:** nenhuma colheita rodou contra o LinkedIn logado. A primeira conta foi restringida no primeiro login automatizado, antes de qualquer raspagem, e os seletores de navegação e as fixtures de HTML (reconstruídas a partir de um coletor de referência, cada arquivo dizendo isso no topo) só passam a valer como garantia depois da primeira colheita de verdade. Qualquer restrição na conta desliga o coletor, e ele fica desligado.
 
 ### O funil
 
@@ -230,9 +272,19 @@ A API avisa no boot se os alertas estão ligados ou não — um deploy sem token
 
 ## Decisões de arquitetura
 
+### Três workspaces
+
+```
+apps/api/           NestJS, Prisma, PostgreSQL — coleta, filtra, deduplica, notifica
+apps/web/           React + Vite — o dashboard
+apps/posts-worker/  Fastify + Playwright — colhe publicações com sessão autenticada
+```
+
+Os dois primeiros são o produto. O terceiro existe por incompatibilidade, não por preferência: o Chromium precisa de glibc e não sobe na Alpine da API, e navegador logado não pode segurar uma captura que as outras fontes fecham em segundos. Ele conversa com a API por um contrato HTTP de uma rota (`GET /posts`), com **cópias independentes dos tipos nos dois lados** — o worker não deve nada ao Nest nem ao Prisma, e o preço de manter as duas cópias de acordo é menor que o de acoplar os dois serviços.
+
 ### Clean Architecture
 
-Quatro camadas, com a dependência sempre apontando para dentro:
+Quatro camadas na API, com a dependência sempre apontando para dentro:
 
 ```
 domain/        regras de negócio puras — nenhum import de Prisma, Axios ou Nest
@@ -246,7 +298,7 @@ O domínio não sabe que existe banco. O caso de uso não sabe que existe Prisma
 ### SOLID na prática
 
 - **SRP** — o scraper só busca e normaliza; quem filtra é o `JobRuleEngine`; quem gera o hash é o `JobFingerprint`; quem grava é o repositório.
-- **OCP + Strategy nos coletores** — todo coletor implementa `IJobScraperProvider` e é injetado pelo multi-provider `JOB_SCRAPERS`. **Adicionar uma oitava fonte não toca o orquestrador**: basta a nova classe e uma linha na lista do módulo.
+- **OCP + Strategy nos coletores** — todo coletor implementa `IJobScraperProvider` e é injetado pelo multi-provider `JOB_SCRAPERS`. **Adicionar uma nona fonte não toca o orquestrador**: basta a nova classe e uma linha na lista do módulo. Foi exatamente assim que o coletor de publicações logadas entrou, mesmo morando em outro serviço — do ponto de vista da API ele é um provider como os outros, que por dentro faz um GET em vez de abrir HTML.
 - **LSP** — nenhuma implementação lança exceção não tratada: o `BaseScraperProvider` garante que uma fonte fora do ar vire lista vazia, não uma captura quebrada.
 - **ISP** — contratos de leitura e escrita são separados (`IJobWriteRepository`, `IDashboardMetricsRepository`, `IJobQueryRepository`, `IMarketInsightsRepository`, `ISourceHealthWriter` × `ISourceHealthRepository`). Quem só lê métrica não enxerga método de escrita — e quem monta a tabela de saúde não tem o que gravar.
 - **DIP** — casos de uso dependem de tokens do domínio (`JOB_SCRAPERS`, `TELEGRAM_NOTIFIER`, `CAPTURE_SCHEDULE`), nunca de uma classe concreta de infraestrutura.
@@ -310,8 +362,12 @@ Nada disso bloqueia o boot — cada variável ausente desliga **só** o seu recu
 |---|---|---|
 | `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` | alertas e resumo semanal | a API sobe e avisa em `WARN` que os alertas estão desligados |
 | `SERP_API_KEY` | coletor de publicações do LinkedIn | o coletor vira no-op silencioso; as outras sete fontes seguem |
+| `SERP_ENDPOINT` | endpoint do Serper | usa o padrão do código, `https://google.serper.dev/search` |
+| `LINKEDIN_POSTS_WORKER_URL` | endereço do `apps/posts-worker` | o coletor de publicações logadas vira no-op silencioso |
 | `GEMINI_API_KEY` | gerador de currículo | só `POST /api/resume/generate` falha, com `502` |
 | `GEMINI_MODEL` | id do modelo do Gemini | usa o padrão do código, `gemini-3.8-flash` |
+
+Um detalhe que custou cinco dias de coleta silenciosa: no Compose, `${VAR:-}` entrega **string vazia**, e não "variável ausente". Um `SERP_ENDPOINT=` em branco passava pelo `??`, reprovava na conferência de configuração e desligava o coletor sem log, sem erro e sem crédito gasto. Hoje toda variável deste tipo é lida com `trim()` e fallback por `||`, e o painel marca a fonte sem credencial como `sem credencial` em vez de verde — a correção de verdade foi a segunda, porque a primeira sozinha só conserta o caso de hoje.
 
 O token do Telegram sai do [@BotFather](https://t.me/BotFather); a chave do Gemini, do [Google AI Studio](https://aistudio.google.com/apikey) — o nível gratuito cobre o uso do painel com folga.
 
@@ -335,6 +391,63 @@ Dashboard em **http://localhost:5173**, API em **http://localhost:3333**.
 
 A primeira captura roda na próxima hora par — ou clique em `Capturar agora` para não esperar.
 
+**5. O coletor de publicações logadas** (opcional)
+
+As oito fontes públicas não precisam dele: sem `LINKEDIN_POSTS_WORKER_URL` a fonte vira no-op silencioso e o resto segue igual. Para ligá-lo, o primeiro passo é o login — e ele é **manual, de propósito**: a conta tem 2FA, e login programático é justamente o gesto que faz o LinkedIn pedir desafio.
+
+```bash
+npm run session:login --workspace @devradar/posts-worker
+```
+
+Abre uma janela do Chromium. Você digita e-mail e senha, resolve a verificação se ela vier, e **nada é gravado antes de o feed carregar** — um `state.json` pela metade seria pior que nenhum. O arquivo nasce em `apps/posts-worker/data/state.json`, que está no `.gitignore` e no `.dockerignore`.
+
+> O `state.json` **é credencial**: quem tem o arquivo entra na conta. Ele não vai para o Git, nem para imagem Docker, nem para log, nem para backup que saia da máquina. Para conferir se a sessão de ontem ainda vale: `npm run session:check --workspace @devradar/posts-worker`.
+
+Com a sessão de pé, suba o worker — ele está atrás de um profile, então um `docker compose up` normal não o toca:
+
+```bash
+docker compose --profile linkedin up -d --build posts-worker
+```
+
+O serviço escuta em `127.0.0.1:4000` (fora da máquina ninguém o alcança) e monta `apps/posts-worker/data` como `/data` — bind mount, e não volume nomeado, justamente porque o login roda no host e a sessão precisa ser visível para o contêiner. Aponte a API para ele no `.env`:
+
+```
+LINKEDIN_POSTS_WORKER_URL=http://127.0.0.1:4000
+```
+
+A colheita sai no ritmo do agendador (8 h, dentro da janela de 08h–22h), o que em desenvolvimento quase nunca é o que se quer. Para colher agora:
+
+```bash
+curl -X POST http://127.0.0.1:4000/harvest   # 202 = começou; 409 = já há uma em curso
+curl http://127.0.0.1:4000/health            # estado da colheita e da sessão
+```
+
+Também dá para rodar uma colheita sem subir contêiner nenhum, direto no host, usando o mesmo código:
+
+```bash
+npm run harvest --workspace @devradar/posts-worker
+```
+
+**Variáveis do worker.** Todas opcionais; em branco vale o mesmo que ausente, e valor inválido cai no padrão em vez de derrubar o boot:
+
+| variável | padrão | para quê |
+|---|---|---|
+| `POSTS_WORKER_PORT` | `4000` | porta do `GET /posts` |
+| `POSTS_WORKER_DATA_DIR` | `apps/posts-worker/data` | onde ficam `state.json` e `harvest.json` |
+| `HARVEST_INTERVAL_HOURS` | `8` | intervalo entre colheitas |
+| `HARVEST_JITTER_MINUTES` | `20` | sorteio para cada lado do intervalo |
+| `HARVEST_WINDOW_START_HOUR` | `8` | primeira hora em que a conta pode navegar |
+| `HARVEST_WINDOW_END_HOUR` | `22` | primeira hora já proibida — a última colheita sai às 21:59 |
+| `HARVEST_TIME_ZONE` | `America/Bahia` | fuso da janela; cai no `TZ` do contêiner quando não é definido |
+| `HARVEST_TRIGGER_TOKEN` | — | exige o cabeçalho `x-harvest-token` no `POST /harvest`; vazio deixa a rota protegida só pela rede |
+| `LINKEDIN_POSTS_MAX_SCROLLS` | `8` | teto de rolagens por busca |
+| `LINKEDIN_POSTS_PER_QUERY` | `15` | teto de publicações por busca |
+| `LINKEDIN_POSTS_TIMEOUT_MS` | `30000` | espera por navegação |
+
+Os três últimos são barreira rígida, não afinação: é o que impede uma busca ampla de virar meia hora de navegador logado dentro do LinkedIn. Subir esses números aumenta justamente o que custa a conta.
+
+Abertura depois do fechamento cai nos dois padrões, em vez de virar uma janela que atravessa a meia-noite: janela invertida é erro de digitação, e a leitura criativa dela daria a colheita de madrugada que a janela existe para impedir.
+
 ### Em produção
 
 ```bash
@@ -343,6 +456,11 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ```
 
 Sobe PostgreSQL com volume persistente, a API (que aplica as migrations no entrypoint antes de servir), o Nginx com os estáticos e o Caddy como proxy reverso, **com certificado TLS emitido e renovado automaticamente**. Só o proxy publica porta; o banco fica em rede sem saída para a internet.
+
+O `posts-worker` sobe junto, também sem porta no host — só a API o alcança, pela rede interna. Duas diferenças em relação ao ambiente de desenvolvimento:
+
+- **O `/data` é um volume nomeado** (`devradar-linkedin-session`), e não bind mount: em produção o login acontece **dentro** do contêiner, por noVNC, e o `state.json` nasce no próprio volume. O serviço é descartável; esse volume não — perdê-lo significa refazer o login.
+- **`shm_size: 1gb` e `mem_limit: 900m`.** Os 64 MB padrão de `/dev/shm` fazem o Chromium quebrar em página pesada; o limite de memória garante que, se ele vazar, o OOM killer pegue o worker e não o PostgreSQL vizinho na VPS compartilhada.
 
 #### Acesso ao painel
 
@@ -376,8 +494,8 @@ Se a VPS já roda outro projeto nas portas 80 e 443, o Caddy do DevRadar vira a 
 | `npm test` | Todos os testes |
 | `npm run test:cov` | Testes com relatório e limites de cobertura |
 | `npm run test:int` | Testes de integração (precisa do banco no ar) |
-| `npm run lint` | ESLint nos dois workspaces |
-| `npm run typecheck` | `tsc --noEmit` nos dois workspaces |
+| `npm run lint` | ESLint nos três workspaces |
+| `npm run typecheck` | `tsc --noEmit` nos três workspaces |
 | `npm run build` | Build de produção |
 | `npm run db:up` | Sobe o PostgreSQL no Docker |
 | `npm run db:migrate` | Aplica as migrations |
@@ -388,12 +506,18 @@ Se a VPS já roda outro projeto nas portas 80 e 443, o Caddy do DevRadar vira a 
 | `npm run jobs:list-unknown --workspace @devradar/api` | Lista as vagas cujo mercado o classificador nao determinou |
 | `npm run jobs:reclassify --workspace @devradar/api` | Recalcula o mercado das vagas ja gravadas (`-- --apply` grava) |
 | `npm run jobs:analyze --workspace @devradar/api` | Mostra por que cada vaga coletada foi reprovada |
+| `npm run session:login --workspace @devradar/posts-worker` | Abre a janela do navegador para o login manual e grava o `state.json` |
+| `npm run session:check --workspace @devradar/posts-worker` | Confere, sem janela, se a sessão gravada ainda abre o feed |
+| `npm run harvest --workspace @devradar/posts-worker` | Roda uma colheita de publicações agora, no host |
+| `npm run serve --workspace @devradar/posts-worker` | Sobe o worker fora do Docker, com o agendador ligado |
 
 ---
 
 ## Qualidade
 
-**1.658 testes** unitários e de E2E — 1.276 na API e 382 no frontend — mais **117 de integração** contra um PostgreSQL real, somando 1.775. Tudo roda em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração, build dos workspaces e build das duas imagens Docker.
+**1.969 testes** unitários e de E2E — 1.330 na API, 395 no frontend e 244 no worker de publicações — mais **117 de integração** contra um PostgreSQL real, somando 2.086. Tudo roda em seis jobs no CI a cada push: lint, typecheck, testes com cobertura, testes de integração, build dos workspaces e build das três imagens Docker, com a validação dos três arquivos de Compose.
+
+O build da imagem do worker no CI não é zelo: a incompatibilidade entre musl e glibc que criou esse serviço **só aparece em build de verdade**.
 
 O gerador de currículo entrou com a mesma régua: o contrato de Markdown do prompt é testado regra a regra no domínio, o adaptador do Gemini tem caso para cada resposta malformada e para o erro de API, e no frontend o parser de seções e o documento impresso têm specs próprios — período extraído do título, etiquetas a partir da linha `**Tecnologias:**`, e as linhas de competências que **não** podem virar etiqueta.
 
@@ -403,6 +527,9 @@ O gerador de currículo entrou com a mesma régua: o contrato de Markdown do pro
 | `application/` | 100% | 100% — obrigatório |
 | API, total | 96,3% | 95% |
 | Frontend | 99,1% | 85% |
+| `posts-worker`: parser, servidor e colheita | 100% | 100% — obrigatório |
+
+No worker, o limiar de 100% cobre as três partes que não dependem do navegador: o parser do DOM, o servidor que serve o cache e a colheita que decide o que entra. Ficam declaradamente fora da conta o adaptador do Playwright e a função que o liga ao ambiente — não existe jeito honesto de testar um navegador sem um navegador, e navegar contra o LinkedIn a cada CI é o caminho mais curto para derrubar a sessão. É por isso que o orquestrador recebe a página como porta: a decisão fica toda do lado testável, e o lado não testável só sabe clicar e ler atributo.
 
 O limite não é enfeite: `npm run test:cov` falha abaixo dele, e é esse comando que o CI roda — não o `npm test`. A diferença já custou caro uma vez, quando um controller inteiro passou meses em 0% de cobertura porque o pipeline rodava a versão sem limite.
 
@@ -423,6 +550,7 @@ Há ainda três comandos de diagnóstico, que existem porque o contador de uma c
 ## Stack
 
 **Backend** — Node.js, TypeScript strict, NestJS 11, Prisma, PostgreSQL 16, `@nestjs/schedule`, Axios, Cheerio, Zod, `@google/genai`
+**Coletor com sessão** — Fastify 5, Playwright (Chromium), Cheerio, `proper-lockfile`
 **Frontend** — React 19, Vite, TypeScript, Tailwind CSS 4, TanStack Query, React Hook Form + Zod, Recharts, Lucide
 **Testes** — Vitest, Supertest, React Testing Library
 **Infra** — Docker multi-stage, Docker Compose, Nginx, Caddy, GitHub Actions
