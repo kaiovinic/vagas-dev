@@ -34,7 +34,7 @@ jobs:
       - name: Gerar client do Prisma
         run: npx prisma generate --schema apps/api/prisma/schema.prisma
 
-      - name: ESLint (api e web)
+      - name: ESLint (api, web e posts-worker)
         run: npm run lint
 
   typecheck:
@@ -55,7 +55,7 @@ jobs:
       - name: Gerar client do Prisma
         run: npx prisma generate --schema apps/api/prisma/schema.prisma
 
-      - name: Typecheck (api e web)
+      - name: Typecheck (api, web e posts-worker)
         run: npm run typecheck
 
   test:
@@ -77,7 +77,7 @@ jobs:
       # `test:cov` em vez de `test`: alem de rodar os mesmos testes, aplica os
       # limites de cobertura declarados no vitest.config (100% em dominio e
       # aplicacao, 95% global). Sem isto o numero do badge nao seria vigiado.
-      - name: Testes da API e do frontend, com cobertura
+      - name: Testes dos tres workspaces, com cobertura
         run: npm run test:cov
 
   test-integration:
