@@ -9,8 +9,8 @@ import {
 } from '@/domain/services/job-seniority';
 
 describe('job-seniority', () => {
-  it('declara os quatro niveis, do estagio ao senior', () => {
-    expect(JOB_SENIORITY_LEVELS).toEqual(['INTERN', 'JUNIOR', 'MID', 'SENIOR']);
+  it('declara os niveis em ordem crescente, do estagio ao lead', () => {
+    expect(JOB_SENIORITY_LEVELS).toEqual(['INTERN', 'JUNIOR', 'MID', 'SENIOR', 'LEAD']);
   });
 
   it.each([
@@ -18,6 +18,7 @@ describe('job-seniority', () => {
     ['JUNIOR', 'Junior'],
     ['MID', 'Pleno'],
     ['SENIOR', 'Senior'],
+    ['LEAD', 'Lead/Especialista'],
   ] as const)('rotula %s como %s', (level, expected) => {
     expect(seniorityLabel(level)).toBe(expected);
   });
@@ -52,7 +53,9 @@ describe('job-seniority', () => {
       ['Desenvolvedor Front End SR', 'SENIOR'],
       ['Desenvolvedor .NET Sênior', 'SENIOR'],
       ['Senior Software Engineer', 'SENIOR'],
-      ['Especialista Desenvolvedor Fullstack', 'SENIOR'],
+      ['Especialista Desenvolvedor Fullstack', 'LEAD'],
+      ['Tech Lead Frontend', 'LEAD'],
+      ['Staff Engineer', 'LEAD'],
       ['Desenvolvedor Front-end Junior', 'JUNIOR'],
       ['Dev Angular Jr', 'JUNIOR'],
       ['Desenvolvedor(a) Front-End Pleno', 'MID'],

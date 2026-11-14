@@ -24,6 +24,7 @@ import {
 import { DASHBOARD_METRICS_REPOSITORY } from '@/domain/repositories/dashboard-metrics-repository';
 import { PENDING_ALERT_REPOSITORY } from '@/domain/repositories/job-alert-repository';
 import { MARKET_INSIGHTS_REPOSITORY } from '@/domain/repositories/market-insights-repository';
+import { SENIORITY_METRICS_REPOSITORY } from '@/domain/repositories/seniority-metrics-repository';
 import { WEEKLY_DIGEST_REPOSITORY } from '@/domain/repositories/weekly-digest-repository';
 import {
   SOURCE_HEALTH_REPOSITORY,
@@ -67,6 +68,7 @@ import { PrismaInhireTenantReader } from '@/infra/prisma/prisma-inhire-tenant-re
 import { PrismaJobDescriptionRepository } from '@/infra/prisma/prisma-job-description-repository';
 import { PrismaJobQueryRepository } from '@/infra/prisma/prisma-job-query-repository';
 import { PrismaMarketInsightsRepository } from '@/infra/prisma/prisma-market-insights-repository';
+import { PrismaSeniorityMetricsRepository } from '@/infra/prisma/prisma-seniority-metrics-repository';
 import { PrismaJobRepository } from '@/infra/prisma/prisma-job-repository';
 import { PrismaSourceHealthRepository } from '@/infra/prisma/prisma-source-health-repository';
 import { PrismaWeeklyDigestRepository } from '@/infra/prisma/prisma-weekly-digest-repository';
@@ -130,6 +132,7 @@ const SCRAPERS = [
     PrismaJobClosureRepository,
     PrismaCaptureLogRepository,
     PrismaMarketInsightsRepository,
+    PrismaSeniorityMetricsRepository,
     PrismaWeeklyDigestRepository,
     PrismaSourceHealthRepository,
     PrismaInhireTenantReader,
@@ -208,6 +211,7 @@ const SCRAPERS = [
     },
     { provide: CAPTURE_LOG_REPOSITORY, useExisting: PrismaCaptureLogRepository },
     { provide: MARKET_INSIGHTS_REPOSITORY, useExisting: PrismaMarketInsightsRepository },
+    { provide: SENIORITY_METRICS_REPOSITORY, useExisting: PrismaSeniorityMetricsRepository },
     // Mesma classe nos dois lados do contrato segregado: a linha e uma so, mas
     // o gerador de curriculo so vai receber o lado de leitura.
     { provide: CANDIDATE_PROFILE_READER, useExisting: PrismaCandidateProfileRepository },
@@ -243,6 +247,7 @@ const SCRAPERS = [
     JOB_DESCRIPTION_FETCHERS,
     CAPTURE_LOG_REPOSITORY,
     MARKET_INSIGHTS_REPOSITORY,
+    SENIORITY_METRICS_REPOSITORY,
     PENDING_ALERT_REPOSITORY,
     CANDIDATE_PROFILE_READER,
     CANDIDATE_PROFILE_WRITER,

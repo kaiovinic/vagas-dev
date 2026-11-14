@@ -17,6 +17,7 @@ import { SaveCandidateProfileUseCase } from '@/application/use-cases/save-candid
 import { GenerateResumeUseCase } from '@/application/use-cases/generate-resume.use-case';
 import { GetDashboardChartsUseCase } from '@/application/use-cases/get-dashboard-charts.use-case';
 import { GetDashboardSummaryUseCase } from '@/application/use-cases/get-dashboard-summary.use-case';
+import { GetSeniorityDistributionUseCase } from '@/application/use-cases/get-seniority-distribution.use-case';
 import { ListJobsUseCase } from '@/application/use-cases/list-jobs.use-case';
 import { RunJobCollectionUseCase } from '@/application/use-cases/run-job-collection.use-case';
 import { SendWeeklyDigestUseCase } from '@/application/use-cases/send-weekly-digest.use-case';
@@ -30,6 +31,7 @@ const USE_CASES = [
   FillMissingDescriptionsUseCase,
   GetDashboardSummaryUseCase,
   GetDashboardChartsUseCase,
+  GetSeniorityDistributionUseCase,
   ListJobsUseCase,
   TestJobRulesUseCase,
   GetMarketInsightsUseCase,

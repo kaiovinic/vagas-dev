@@ -70,6 +70,12 @@ import type {
   IResumeTargetJobReader,
   StoredResume,
 } from '@/domain/repositories/resume-repository';
+import type {
+  ISeniorityMetricsRepository,
+  SeniorityBucketCount,
+  TitleSeniorityBucket,
+} from '@/domain/repositories/seniority-metrics-repository';
+import type { CalendarRange } from '@/domain/services/brasilia-calendar';
 import { FIXED_NOW, hoursAgo } from './make-job';
 
 export function rawJob(overrides: Partial<RawJobProps> = {}): RawJobProps {
@@ -296,6 +302,37 @@ export class StubDashboardMetricsRepository implements IDashboardMetricsReposito
 
   async findCapturesTimeline24h(): Promise<CaptureBucketCount[]> {
     return this.timeline;
+  }
+}
+
+/**
+ * Duplo da distribuicao por senioridade. Guarda o intervalo e os grupos
+ * recebidos para que o teste verifique o recorte de calendario sem banco.
+ */
+export class StubSeniorityMetricsRepository implements ISeniorityMetricsRepository {
+  capturedTotal = 0;
+  totalsByLevel: Record<string, number> = {};
+  /** Niveis que o duplo omite da resposta, para exercitar a ausencia. */
+  levelsToOmit: readonly string[] = [];
+  lastRange: CalendarRange | null = null;
+  lastBuckets: readonly TitleSeniorityBucket[] = [];
+
+  async countCapturedJobs(range: CalendarRange): Promise<number> {
+    this.lastRange = range;
+
+    return this.capturedTotal;
+  }
+
+  async countCapturedByTitleBucket(
+    range: CalendarRange,
+    buckets: readonly TitleSeniorityBucket[],
+  ): Promise<SeniorityBucketCount[]> {
+    this.lastRange = range;
+    this.lastBuckets = buckets;
+
+    return buckets
+      .filter((bucket) => !this.levelsToOmit.includes(bucket.id))
+      .map((bucket) => ({ id: bucket.id, total: this.totalsByLevel[bucket.id] ?? 0 }));
   }
 }
 

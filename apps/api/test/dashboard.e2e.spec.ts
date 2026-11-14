@@ -173,6 +173,106 @@ describe('Dashboard (E2E)', () => {
     });
   });
 
+  describe('GET /api/dashboard/seniority', () => {
+    beforeEach(() => {
+      context.seniority.capturedTotal = 100;
+      context.seniority.totalsByLevel = {
+        INTERN: 5,
+        JUNIOR: 15,
+        MID: 30,
+        SENIOR: 20,
+        LEAD: 10,
+      };
+    });
+
+    it('devolve os niveis na ordem logica, com o nao especificado no fim', async () => {
+      const response = await http().get('/api/dashboard/seniority?year=2026').expect(200);
+
+      expect(response.body.levels).toEqual([
+        { id: 'INTERN', label: 'Estagio', total: 5, percentage: 5 },
+        { id: 'JUNIOR', label: 'Junior', total: 15, percentage: 15 },
+        { id: 'MID', label: 'Pleno', total: 30, percentage: 30 },
+        { id: 'SENIOR', label: 'Senior', total: 20, percentage: 20 },
+        { id: 'LEAD', label: 'Lead/Especialista', total: 10, percentage: 10 },
+        { id: 'UNSPECIFIED', label: 'Nao especificado', total: 20, percentage: 20 },
+      ]);
+    });
+
+    it('recorta o ano inteiro no horario de Brasilia', async () => {
+      const response = await http().get('/api/dashboard/seniority?year=2026').expect(200);
+
+      expect(response.body.year).toBe(2026);
+      expect(response.body.month).toBeNull();
+      expect(response.body.day).toBeNull();
+      expect(response.body.timeZone).toBe('America/Bahia');
+      expect(response.body.start).toBe('2026-01-01T03:00:00.000Z');
+      expect(response.body.end).toBe('2027-01-01T03:00:00.000Z');
+    });
+
+    it('usa o ano corrente quando o parametro nao e informado', async () => {
+      const response = await http().get('/api/dashboard/seniority').expect(200);
+
+      expect(response.body.year).toBe(new Date().getUTCFullYear());
+    });
+
+    it('recorta o mes escolhido', async () => {
+      const response = await http()
+        .get('/api/dashboard/seniority?year=2026&month=3')
+        .expect(200);
+
+      expect(response.body.month).toBe(3);
+      expect(context.seniority.lastRange?.start.toISOString()).toBe('2026-03-01T03:00:00.000Z');
+      expect(context.seniority.lastRange?.end.toISOString()).toBe('2026-04-01T03:00:00.000Z');
+    });
+
+    it('recorta as 24h do dia escolhido', async () => {
+      const response = await http()
+        .get('/api/dashboard/seniority?year=2026&month=10&day=26')
+        .expect(200);
+
+      expect(response.body.day).toBe(26);
+      expect(context.seniority.lastRange?.start.toISOString()).toBe('2026-10-26T03:00:00.000Z');
+      expect(context.seniority.lastRange?.end.toISOString()).toBe('2026-10-27T03:00:00.000Z');
+    });
+
+    it('filtra os niveis exibidos sem mexer no total do periodo', async () => {
+      const response = await http()
+        .get('/api/dashboard/seniority?year=2026&seniority=MID&seniority=SENIOR')
+        .expect(200);
+
+      expect(response.body.levels.map((level: { id: string }) => level.id)).toEqual([
+        'MID',
+        'SENIOR',
+      ]);
+      expect(response.body.filteredTotal).toBe(50);
+      expect(response.body.total).toBe(100);
+    });
+
+    it('aceita um unico nivel no filtro', async () => {
+      const response = await http()
+        .get('/api/dashboard/seniority?year=2026&seniority=UNSPECIFIED')
+        .expect(200);
+
+      expect(response.body.levels).toEqual([
+        { id: 'UNSPECIFIED', label: 'Nao especificado', total: 20, percentage: 20 },
+      ]);
+    });
+
+    it.each([
+      ['mes fora da faixa', 'year=2026&month=13', 'month'],
+      ['dia fora da faixa', 'year=2026&month=1&day=40', 'day'],
+      ['ano nao numerico', 'year=abc', 'year'],
+      ['nivel inventado', 'year=2026&seniority=ARQUITETO', 'seniority'],
+      ['dia sem mes', 'year=2026&day=10', 'day'],
+      ['dia que o mes nao tem', 'year=2026&month=2&day=31', 'day'],
+    ])('rejeita %s com 400', async (_label, query, path) => {
+      const response = await http().get(`/api/dashboard/seniority?${query}`).expect(400);
+
+      expect(response.body.message).toBe('Parametros invalidos');
+      expect(response.body.issues[0].path).toBe(path);
+    });
+  });
+
   describe('GET /api/dashboard/charts', () => {
     beforeEach(() => {
       context.metrics.bySource = [

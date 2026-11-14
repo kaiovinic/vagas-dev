@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 
 import { CapturesTimelineChart } from '@/components/charts/captures-timeline-chart';
 import { DailyStackedBarChart } from '@/components/charts/daily-stacked-bar-chart';
+import { SeniorityChart } from '@/components/charts/seniority-chart';
 import { SourceDonutChart } from '@/components/charts/source-donut-chart';
 import { SourceHealthTable } from '@/components/health/source-health-table';
 import { KpiGrid } from '@/components/kpi/kpi-grid';
@@ -11,6 +12,10 @@ import {
   type ChartDays,
 } from '@/hooks/use-dashboard-charts';
 import { useDashboardSummary } from '@/hooks/use-dashboard-summary';
+import {
+  useSeniorityDistribution,
+  type SeniorityFilters,
+} from '@/hooks/use-seniority-distribution';
 import { useSourceHealth } from '@/hooks/use-source-health';
 
 /** Legenda da tabela antes da primeira resposta; a API manda a janela real. */
@@ -19,10 +24,19 @@ const SOURCE_HEALTH_WINDOW_FALLBACK_IN_HOURS = 24;
 /** Legenda do grafico de volumetria antes da primeira resposta. */
 const CAPTURE_BLOCK_FALLBACK_IN_HOURS = 2;
 
+/** Primeiro recorte da senioridade: o ano corrente inteiro, todos os niveis. */
+function initialSeniorityFilters(): SeniorityFilters {
+  return { year: new Date().getUTCFullYear(), month: null, day: null, levels: [] };
+}
+
 export function DashboardPage(): ReactNode {
   const [days, setDays] = useState<ChartDays>(DEFAULT_CHART_DAYS);
+  const [seniorityFilters, setSeniorityFilters] = useState<SeniorityFilters>(
+    initialSeniorityFilters,
+  );
   const summary = useDashboardSummary();
   const charts = useDashboardCharts(days);
+  const seniority = useSeniorityDistribution(seniorityFilters);
   const health = useSourceHealth();
 
   return (
@@ -53,6 +67,15 @@ export function DashboardPage(): ReactNode {
         blockInHours={charts.data?.captureBlockInHours ?? CAPTURE_BLOCK_FALLBACK_IN_HOURS}
         isLoading={charts.isPending}
         error={charts.error}
+      />
+
+      <SeniorityChart
+        filters={seniorityFilters}
+        onFiltersChange={setSeniorityFilters}
+        distribution={seniority.data}
+        isLoading={seniority.isPending}
+        isRefreshing={seniority.isFetching && !seniority.isPending}
+        error={seniority.error}
       />
 
       <SourceHealthTable

@@ -82,6 +82,7 @@ describe('GetMarketInsightsUseCase', () => {
       'JUNIOR',
       'MID',
       'SENIOR',
+      'LEAD',
     ]);
     expect(seniorityBuckets.every((bucket) => bucket.scope === 'TITLE')).toBe(true);
   });

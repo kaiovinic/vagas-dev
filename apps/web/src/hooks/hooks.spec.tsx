@@ -16,6 +16,13 @@ import {
   useDashboardSummary,
 } from '@/hooks/use-dashboard-summary';
 import { JOBS_STALE_TIME_MS, jobsListQueryKey, useJobsList } from '@/hooks/use-jobs-list';
+import {
+  SENIORITY_STALE_TIME_MS,
+  seniorityPath,
+  seniorityQueryKey,
+  useSeniorityDistribution,
+  type SeniorityFilters,
+} from '@/hooks/use-seniority-distribution';
 import { sourceHealthQueryKey, useSourceHealth } from '@/hooks/use-source-health';
 import { createTestQueryClient, jsonResponse } from '../../test/render';
 
@@ -246,6 +253,84 @@ describe('useJobsList', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.items[0]?.title).toBe('Dev React');
+  });
+});
+
+const SENIORITY_FILTERS: SeniorityFilters = { year: 2026, month: null, day: null, levels: [] };
+
+const SENIORITY_PAYLOAD = {
+  year: 2026,
+  month: null,
+  day: null,
+  timeZone: 'America/Bahia',
+  start: '2026-01-01T03:00:00.000Z',
+  end: '2027-01-01T03:00:00.000Z',
+  total: 100,
+  filteredTotal: 100,
+  levels: [{ id: 'MID', label: 'Pleno', total: 30, percentage: 30 }],
+};
+
+describe('seniorityPath', () => {
+  it('leva so o ano quando mes e dia sao "todos"', () => {
+    expect(seniorityPath(SENIORITY_FILTERS)).toBe('/api/dashboard/seniority?year=2026');
+  });
+
+  it('leva mes e dia quando o recorte e mais estreito', () => {
+    expect(seniorityPath({ ...SENIORITY_FILTERS, month: 10, day: 26 })).toBe(
+      '/api/dashboard/seniority?year=2026&month=10&day=26',
+    );
+  });
+
+  /** Um parametro por nivel: e o formato que o `z.array` do controller le. */
+  it('repete o parametro uma vez por nivel filtrado', () => {
+    expect(seniorityPath({ ...SENIORITY_FILTERS, levels: ['MID', 'SENIOR'] })).toBe(
+      '/api/dashboard/seniority?year=2026&seniority=MID&seniority=SENIOR',
+    );
+  });
+});
+
+describe('useSeniorityDistribution', () => {
+  it('consome /api/dashboard/seniority com o recorte na query string', async () => {
+    const spy = stubFetch(() => SENIORITY_PAYLOAD);
+
+    const { result } = renderHook(
+      () => useSeniorityDistribution({ ...SENIORITY_FILTERS, month: 10 }),
+      { wrapper: wrapper() },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(spy.mock.calls[0]?.[0]).toBe('/api/dashboard/seniority?year=2026&month=10');
+    expect(result.current.data?.levels[0]?.label).toBe('Pleno');
+  });
+
+  it('separa no cache cada recorte do calendario e do filtro', () => {
+    expect(seniorityQueryKey(SENIORITY_FILTERS)).toEqual([
+      'dashboard',
+      'seniority',
+      2026,
+      null,
+      null,
+      [],
+    ]);
+    expect(seniorityQueryKey({ ...SENIORITY_FILTERS, levels: ['MID'] })).not.toEqual(
+      seniorityQueryKey(SENIORITY_FILTERS),
+    );
+  });
+
+  it('guarda o agregado por cinco minutos, como os demais graficos', () => {
+    expect(SENIORITY_STALE_TIME_MS).toBe(5 * 60_000);
+  });
+
+  it('rejeita resposta fora do contrato', async () => {
+    stubFetch(() => ({ ...SENIORITY_PAYLOAD, levels: [{ id: 'MID' }] }));
+
+    const { result } = renderHook(() => useSeniorityDistribution(SENIORITY_FILTERS), {
+      wrapper: wrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.name).toBe('ApiContractError');
   });
 });
 

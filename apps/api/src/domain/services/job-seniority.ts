@@ -1,4 +1,9 @@
-export const JOB_SENIORITY_LEVELS = ['INTERN', 'JUNIOR', 'MID', 'SENIOR'] as const;
+/**
+ * Niveis do mais baixo para o mais alto. A ordem NAO e decorativa: e ela que
+ * resolve o titulo que cita dois niveis ("Pleno/Senior") na distribuicao do
+ * dashboard, onde cada vaga conta uma vez so, no nivel mais alto que casar.
+ */
+export const JOB_SENIORITY_LEVELS = ['INTERN', 'JUNIOR', 'MID', 'SENIOR', 'LEAD'] as const;
 
 export type JobSeniorityLevel = (typeof JOB_SENIORITY_LEVELS)[number];
 
@@ -37,7 +42,11 @@ const VOCABULARY: Readonly<Record<JobSeniorityLevel, SeniorityVocabulary>> = {
   },
   SENIOR: {
     label: 'Senior',
-    keywords: ['senior', 'sênior', ' sr', 'especialista'],
+    keywords: ['senior', 'sênior', ' sr'],
+  },
+  LEAD: {
+    label: 'Lead/Especialista',
+    keywords: ['lead', 'staff', 'principal', 'especialista', 'specialist'],
   },
 };
 
@@ -68,4 +77,18 @@ export function expandSeniorities(levels: readonly string[]): string[] {
   }
 
   return [...keywords];
+}
+
+/**
+ * Termos dos niveis ACIMA do informado.
+ *
+ * Servem de exclusao na distribuicao por senioridade: sem eles, "Tech Lead
+ * Senior" entraria nas duas barras e a soma passaria do total capturado.
+ */
+export function keywordsAboveSeniority(level: JobSeniorityLevel): string[] {
+  const position = JOB_SENIORITY_LEVELS.indexOf(level);
+
+  return JOB_SENIORITY_LEVELS.slice(position + 1).flatMap((higher) => [
+    ...seniorityKeywords(higher),
+  ]);
 }
