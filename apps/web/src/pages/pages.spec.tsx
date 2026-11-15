@@ -53,6 +53,32 @@ function charts(days: number): unknown {
   };
 }
 
+function seniority(search: string): unknown {
+  const params = new URLSearchParams(search);
+  const levels = params.getAll('seniority');
+  const all = [
+    { id: 'INTERN', label: 'Estagio', total: 5, percentage: 5 },
+    { id: 'JUNIOR', label: 'Junior', total: 15, percentage: 15 },
+    { id: 'MID', label: 'Pleno', total: 30, percentage: 30 },
+    { id: 'SENIOR', label: 'Senior', total: 20, percentage: 20 },
+    { id: 'LEAD', label: 'Lead/Especialista', total: 10, percentage: 10 },
+    { id: 'UNSPECIFIED', label: 'Nao especificado', total: 20, percentage: 20 },
+  ];
+  const visible = levels.length === 0 ? all : all.filter((level) => levels.includes(level.id));
+
+  return {
+    year: Number(params.get('year') ?? 2026),
+    month: params.has('month') ? Number(params.get('month')) : null,
+    day: params.has('day') ? Number(params.get('day')) : null,
+    timeZone: 'America/Bahia',
+    start: '2026-01-01T03:00:00.000Z',
+    end: '2027-01-01T03:00:00.000Z',
+    total: 100,
+    filteredTotal: visible.reduce((sum, level) => sum + level.total, 0),
+    levels: visible,
+  };
+}
+
 const SOURCES_HEALTH = {
   windowInHours: 24,
   sources: [
@@ -113,6 +139,10 @@ function stubApi(): ReturnType<typeof vi.fn> {
 
     if (url.startsWith('/api/dashboard/sources-health')) {
       return Promise.resolve(jsonResponse(SOURCES_HEALTH));
+    }
+
+    if (url.startsWith('/api/dashboard/seniority')) {
+      return Promise.resolve(jsonResponse(seniority(url.split('?')[1] ?? '')));
     }
 
     if (url.startsWith('/api/dashboard/charts')) {
@@ -203,6 +233,57 @@ describe('DashboardPage', () => {
     // O grafico anterior nunca sai da tela durante a troca.
     expect(screen.getByTestId('stacked-bar-chart')).toBeInTheDocument();
     expect(screen.getByLabelText('Periodo do grafico')).toHaveValue('30');
+  });
+
+  it('mostra a distribuicao por senioridade com os rotulos acentuados', async () => {
+    stubApi();
+
+    renderWithProviders(<DashboardPage />);
+
+    await screen.findByTestId('seniority-chart');
+
+    expect(screen.getByRole('heading', { name: 'Vagas por Senioridade' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Lead/Especialista' })).toBeInTheDocument();
+    expect(screen.getByTestId('seniority-total')).toHaveTextContent(
+      '100 de 100 vagas capturadas no periodo',
+    );
+  });
+
+  it('recarrega a senioridade ao estreitar o recorte para um mes', async () => {
+    const spy = stubApi();
+
+    renderWithProviders(<DashboardPage />);
+
+    await screen.findByTestId('seniority-chart');
+
+    await userEvent.selectOptions(screen.getByLabelText('Mes do grafico'), '10');
+
+    await waitFor(() =>
+      expect(spy.mock.calls.some((call) => String(call[0]).includes('month=10'))).toBe(true),
+    );
+
+    expect(screen.getByLabelText('Dia do grafico')).toBeEnabled();
+    expect(screen.getByTestId('seniority-chart')).toBeInTheDocument();
+  });
+
+  it('esconde o nivel desmarcado no filtro de senioridade', async () => {
+    const spy = stubApi();
+
+    renderWithProviders(<DashboardPage />);
+
+    await screen.findByTestId('seniority-chart');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Estágio' }));
+
+    await waitFor(() =>
+      expect(
+        spy.mock.calls.some((call) => String(call[0]).includes('seniority=JUNIOR')),
+      ).toBe(true),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('seniority-total')).toHaveTextContent('95 de 100'),
+    );
   });
 
   it('mostra o erro quando o grafico falha', async () => {

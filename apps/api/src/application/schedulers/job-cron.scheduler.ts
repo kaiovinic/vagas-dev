@@ -2,10 +2,15 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
 import { CaptureCoordinator } from '@/application/services/capture-coordinator.service';
+import { BRASILIA_TIME_ZONE } from '@/domain/services/brasilia-calendar';
 
 /** Captura a cada 2 horas, no fuso de Brasilia (`0 0-23/2 * * *`). */
 export const JOB_COLLECTION_CRON = CronExpression.EVERY_2_HOURS;
-export const BRASILIA_TIME_ZONE = 'America/Bahia';
+
+// Fuso unico do radar, declarado no dominio: o calendario do dashboard e o
+// cron precisam concordar sobre onde o dia comeca. Segue exportado daqui
+// porque os agendadores ja o importam por este caminho.
+export { BRASILIA_TIME_ZONE };
 
 /** Nome registrado no SchedulerRegistry, consultado para saber o proximo disparo. */
 export const JOB_COLLECTION_JOB_NAME = 'job-collection';

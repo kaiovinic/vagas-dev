@@ -58,6 +58,28 @@ export const dashboardChartsSchema = z.object({
   ),
 });
 
+export const seniorityLevelSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  total: z.number(),
+  /** Sobre TODAS as vagas capturadas no periodo, nao sobre o filtro. */
+  percentage: z.number(),
+});
+
+export const seniorityDistributionSchema = z.object({
+  year: z.number(),
+  /** `null` significa o ano inteiro. */
+  month: z.number().nullable(),
+  /** `null` significa o mes inteiro. */
+  day: z.number().nullable(),
+  timeZone: z.string(),
+  start: z.string().datetime(),
+  end: z.string().datetime(),
+  total: z.number(),
+  filteredTotal: z.number(),
+  levels: z.array(seniorityLevelSchema),
+});
+
 export const jobListItemSchema = z.object({
   id: z.string(),
   fingerprint: z.string(),
@@ -156,6 +178,8 @@ export type DashboardCharts = z.infer<typeof dashboardChartsSchema>;
 export type SourceSlice = z.infer<typeof sourceSliceSchema>;
 export type DailyStack = DashboardCharts['newJobsByDay'][number];
 export type CaptureBlock = DashboardCharts['capturesTimeline'][number];
+export type SeniorityLevel = z.infer<typeof seniorityLevelSchema>;
+export type SeniorityDistribution = z.infer<typeof seniorityDistributionSchema>;
 export type JobListItem = z.infer<typeof jobListItemSchema>;
 export type JobsList = z.infer<typeof jobsListSchema>;
 export type HiringEntity = z.infer<typeof hiringEntitySchema>;

@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 
 import { GetDashboardChartsUseCase } from '@/application/use-cases/get-dashboard-charts.use-case';
 import { GetDashboardSummaryUseCase } from '@/application/use-cases/get-dashboard-summary.use-case';
+import { GetSeniorityDistributionUseCase } from '@/application/use-cases/get-seniority-distribution.use-case';
 import { GetSourceHealthUseCase } from '@/application/use-cases/get-source-health.use-case';
 import { ListJobsUseCase } from '@/application/use-cases/list-jobs.use-case';
 import { TestJobRulesUseCase } from '@/application/use-cases/test-job-rules.use-case';
@@ -10,6 +11,7 @@ import { CAPTURE_LOG_REPOSITORY } from '@/domain/repositories/capture-log-reposi
 import { DASHBOARD_METRICS_REPOSITORY } from '@/domain/repositories/dashboard-metrics-repository';
 import { JOB_SCRAPERS } from '@/domain/providers/job-scraper-provider';
 import { JOB_QUERY_REPOSITORY } from '@/domain/repositories/job-query-repository';
+import { SENIORITY_METRICS_REPOSITORY } from '@/domain/repositories/seniority-metrics-repository';
 import { SOURCE_HEALTH_REPOSITORY } from '@/domain/repositories/source-health-repository';
 import { JobRuleEngine } from '@/domain/services/job-rule-engine';
 import { DashboardController } from '@/http/controllers/dashboard.controller';
@@ -22,6 +24,7 @@ import {
   StubDashboardMetricsRepository,
   StubJobQueryRepository,
   StubScraperProvider,
+  StubSeniorityMetricsRepository,
   StubSourceHealthRepository,
 } from './doubles';
 
@@ -31,6 +34,7 @@ export interface ApiTestContext {
   readonly jobs: StubJobQueryRepository;
   readonly captureLogs: InMemoryCaptureLogRepository;
   readonly sourceHealth: StubSourceHealthRepository;
+  readonly seniority: StubSeniorityMetricsRepository;
   /**
    * Coletores registrados, como o `JOB_SCRAPERS` de producao.
    *
@@ -49,6 +53,7 @@ export async function createApiTestContext(): Promise<ApiTestContext> {
   const jobs = new StubJobQueryRepository();
   const captureLogs = new InMemoryCaptureLogRepository();
   const sourceHealth = new StubSourceHealthRepository();
+  const seniority = new StubSeniorityMetricsRepository();
   const scrapers: StubScraperProvider[] = [];
 
   const moduleRef = await Test.createTestingModule({
@@ -58,12 +63,14 @@ export async function createApiTestContext(): Promise<ApiTestContext> {
       GetDashboardSummaryUseCase,
       GetDashboardChartsUseCase,
       GetSourceHealthUseCase,
+      GetSeniorityDistributionUseCase,
       ListJobsUseCase,
       TestJobRulesUseCase,
       { provide: DASHBOARD_METRICS_REPOSITORY, useValue: metrics },
       { provide: JOB_QUERY_REPOSITORY, useValue: jobs },
       { provide: CAPTURE_LOG_REPOSITORY, useValue: captureLogs },
       { provide: SOURCE_HEALTH_REPOSITORY, useValue: sourceHealth },
+      { provide: SENIORITY_METRICS_REPOSITORY, useValue: seniority },
       { provide: JOB_SCRAPERS, useValue: scrapers },
     ],
   }).compile();
@@ -74,5 +81,5 @@ export async function createApiTestContext(): Promise<ApiTestContext> {
 
   await app.init();
 
-  return { app, metrics, jobs, captureLogs, sourceHealth, scrapers };
+  return { app, metrics, jobs, captureLogs, sourceHealth, seniority, scrapers };
 }
