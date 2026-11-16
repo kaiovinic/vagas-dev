@@ -36,6 +36,26 @@ export function seniorityLabel(id: string, fallback: string): string {
   return LABELS[id] ?? fallback;
 }
 
+/**
+ * Uma cor por nivel, como `sources.ts` faz por fonte: a barra do grafico e a
+ * bolinha do chip de filtro puxam da mesma fonte de verdade, entao o vinculo
+ * visual entre filtro e barra nao depende de ninguem lembrar de atualizar dois
+ * lugares. Os tons moram no tema (`global.css`).
+ */
+const COLORS: Readonly<Record<string, string>> = {
+  INTERN: 'var(--color-seniority-intern)',
+  JUNIOR: 'var(--color-seniority-junior)',
+  MID: 'var(--color-seniority-mid)',
+  SENIOR: 'var(--color-seniority-senior)',
+  LEAD: 'var(--color-seniority-lead)',
+  UNSPECIFIED: 'var(--color-seniority-unspecified)',
+};
+
+/** Nivel sem cor propria cai no neutro, em vez de desenhar barra transparente. */
+export function seniorityColor(id: string): string {
+  return COLORS[id] ?? 'var(--color-seniority-unspecified)';
+}
+
 export const MONTH_NAMES = [
   'Janeiro',
   'Fevereiro',

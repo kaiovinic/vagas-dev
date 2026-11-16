@@ -3,6 +3,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   LabelList,
   ResponsiveContainer,
   Tooltip,
@@ -18,6 +19,7 @@ import {
   SENIORITY_LEVEL_IDS,
   daysInMonth,
   monthLabel,
+  seniorityColor,
   seniorityLabel,
   yearOptions,
 } from '@/lib/seniority';
@@ -173,6 +175,7 @@ function SeniorityFilterChips({ filters, onFiltersChange }: FilterChipsProps): R
     >
       {SENIORITY_LEVEL_IDS.map((id) => {
         const isOn = visible.has(id);
+        const color = seniorityColor(id);
 
         return (
           <button
@@ -180,12 +183,23 @@ function SeniorityFilterChips({ filters, onFiltersChange }: FilterChipsProps): R
             type="button"
             aria-pressed={isOn}
             onClick={() => onFiltersChange({ ...filters, levels: toggleLevel(visible, id) })}
-            className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+            // A borda do chip marcado e a cor do proprio nivel, a mesma da
+            // barra: e o que dispensa legenda no grafico.
+            style={isOn ? { borderColor: color } : undefined}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors ${
               isOn
-                ? 'border-accent bg-accent/15 text-content-primary'
+                ? 'bg-surface-overlay text-content-primary'
                 : 'border-border-subtle bg-surface-base text-content-muted'
             }`}
           >
+            <span
+              aria-hidden="true"
+              data-testid={`seniority-dot-${id}`}
+              // Desmarcado, a bolinha perde a cor junto com o resto do chip:
+              // colorida, ela diria que o nivel esta no grafico.
+              className={`size-2 shrink-0 rounded-full ${isOn ? '' : 'opacity-30'}`}
+              style={{ backgroundColor: isOn ? color : 'var(--color-content-muted)' }}
+            />
             {seniorityLabel(id, id)}
           </button>
         );
@@ -218,7 +232,7 @@ function renderChart({
   }
 
   if (isLoading || distribution === undefined) {
-    return <Skeleton className="h-64 w-full" />;
+    return <Skeleton className="h-80 w-full" />;
   }
 
   if (distribution.levels.length === 0) {
@@ -244,22 +258,38 @@ function renderChart({
   return (
     <>
       <div
-        className={`h-64 w-full transition-opacity ${isRefreshing ? 'opacity-60' : 'opacity-100'}`}
+        // Seis barras horizontais: altura fixa para a faixa de cada nivel nao
+        // engordar quando o filtro esconde metade delas.
+        className={`h-80 w-full transition-opacity ${isRefreshing ? 'opacity-60' : 'opacity-100'}`}
         data-testid="seniority-chart"
       >
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={[...rows]} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
-            <CartesianGrid stroke="var(--color-border-subtle)" vertical={false} />
+          <BarChart
+            layout="vertical"
+            data={[...rows]}
+            margin={{ top: 4, right: 16, bottom: 0, left: 0 }}
+          >
+            {/* Barra horizontal pede grade vertical: a linha de referencia
+                agora corre no sentido da contagem, nao no dos niveis. */}
+            <CartesianGrid stroke="var(--color-border-subtle)" horizontal={false} />
             <XAxis
-              dataKey="label"
-              interval={0}
-              tick={{ fill: 'var(--color-content-muted)', fontSize: 10 }}
+              type="number"
+              allowDecimals={false}
+              // A folga no fim do eixo e o que impede o rotulo da barra mais
+              // longa de ser cortado pela borda do painel.
+              domain={chartDomain(rows)}
+              tick={{ fill: 'var(--color-content-muted)', fontSize: 11 }}
               tickLine={false}
               axisLine={false}
             />
             <YAxis
-              allowDecimals={false}
-              tick={{ fill: 'var(--color-content-muted)', fontSize: 11 }}
+              type="category"
+              dataKey="label"
+              interval={0}
+              // Largura suficiente para "Lead/Especialista" e "Nao
+              // especificado" caberem em uma linha so.
+              width={Y_AXIS_WIDTH}
+              tick={<LevelTick />}
               tickLine={false}
               axisLine={false}
             />
@@ -275,16 +305,18 @@ function renderChart({
             <Bar
               dataKey="total"
               name="Vagas capturadas"
-              fill="var(--color-accent)"
               // Mesma escolha da volumetria: o nivel zerado desenha um tracinho
               // na base em vez de sumir do eixo.
               minPointSize={2}
               isAnimationActive={false}
-              radius={[2, 2, 0, 0]}
+              radius={[0, 2, 2, 0]}
             >
+              {rows.map((row) => (
+                <Cell key={row.id} fill={seniorityColor(row.id)} />
+              ))}
               <LabelList
                 dataKey="total"
-                position="top"
+                position="right"
                 offset={6}
                 formatter={formatBarLabel}
                 fill="var(--color-content-secondary)"
@@ -323,13 +355,75 @@ export function SeniorityTooltip({ active, row }: SeniorityTooltipProps): ReactN
       data-testid="seniority-tooltip"
       className="rounded-xl border border-border-subtle bg-surface-overlay px-3 py-2 text-xs text-content-primary shadow-lg"
     >
-      <p className="font-medium">{row.label}</p>
+      <p className="flex items-center gap-2 font-medium">
+        <span
+          aria-hidden="true"
+          className="size-2 shrink-0 rounded-full"
+          style={{ backgroundColor: seniorityColor(row.id) }}
+        />
+        {row.label}
+      </p>
       <p className="mt-0.5 text-content-secondary">
         {formatInteger(row.total)} {row.total === 1 ? 'vaga' : 'vagas'} ·{' '}
         {formatPercentage(row.percentage)}
       </p>
     </div>
   );
+}
+
+/**
+ * Largura da coluna de rotulos. "Lead/Especialista" e o nome mais longo da
+ * escala, e a 11px ele pede por volta de 100px.
+ */
+export const Y_AXIS_WIDTH = 124;
+
+interface LevelTickProps {
+  readonly x?: number;
+  readonly y?: number;
+  readonly payload?: { readonly value?: unknown };
+}
+
+/**
+ * Rotulo do eixo dos niveis, desenhado a mao.
+ *
+ * O `<Text>` do Recharts quebra o rotulo em varias linhas quando acha que ele
+ * nao cabe na largura do eixo, e "Nao especificado" tem o espaco por onde
+ * quebrar. Um `<text>` unico nao tem como quebrar: e o que garante a linha
+ * unica independente de quanto o navegador ache que a fonte mede.
+ */
+export function LevelTick({ x = 0, y = 0, payload }: LevelTickProps): ReactNode {
+  return (
+    <text
+      x={x}
+      y={y}
+      // Centraliza o rotulo na faixa da barra, que e o que o `<Text>` fazia.
+      dy={4}
+      textAnchor="end"
+      className="recharts-cartesian-axis-tick-value"
+      fill="var(--color-content-muted)"
+      fontSize={11}
+    >
+      {typeof payload?.value === 'string' ? payload.value : ''}
+    </text>
+  );
+}
+
+/** Folga no fim do eixo de contagem, em proporcao do maior valor. */
+const DOMAIN_HEADROOM = 1.15;
+
+/**
+ * Dominio do eixo de contagem, com folga a direita.
+ *
+ * O rotulo fica DEPOIS da barra; sem a folga, o numero da barra mais longa
+ * encosta na borda do painel e aparece cortado. Periodo todo zerado recebe
+ * dominio `[0, 1]`: sem isso o eixo nao teria escala nenhuma para desenhar.
+ */
+// A tupla sai mutavel porque e o que o `domain` do Recharts aceita; marca-la
+// como `readonly` so obrigaria a copia-la no ponto de uso.
+export function chartDomain(rows: readonly SeniorityRow[]): [number, number] {
+  const highest = Math.max(0, ...rows.map((row) => row.total));
+
+  return highest === 0 ? [0, 1] : [0, Math.ceil(highest * DOMAIN_HEADROOM)];
 }
 
 /** Traduz os niveis da API nas linhas do grafico, com o rotulo acentuado. */
