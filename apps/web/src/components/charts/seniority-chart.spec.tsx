@@ -6,13 +6,15 @@ import type { SeniorityDistribution } from '@/api/schemas';
 import {
   SeniorityChart,
   SeniorityTooltip,
+  Y_AXIS_WIDTH,
+  chartDomain,
   formatBarLabel,
   toRows,
   toggleLevel,
   visibleLevels,
 } from '@/components/charts/seniority-chart';
 import type { SeniorityFilters } from '@/hooks/use-seniority-distribution';
-import { SENIORITY_LEVEL_IDS } from '@/lib/seniority';
+import { SENIORITY_LEVEL_IDS, seniorityColor } from '@/lib/seniority';
 
 const FILTERS: SeniorityFilters = { year: 2026, month: null, day: null, levels: [] };
 
@@ -34,6 +36,23 @@ const DISTRIBUTION: SeniorityDistribution = {
     { id: 'UNSPECIFIED', label: 'Nao especificado', total: 20, percentage: 20 },
   ],
 };
+
+function renderChartWithDom(
+  overrides: Partial<Parameters<typeof SeniorityChart>[0]> = {},
+): ReturnType<typeof render> {
+  return render(
+    <SeniorityChart
+      filters={FILTERS}
+      onFiltersChange={vi.fn()}
+      distribution={DISTRIBUTION}
+      isLoading={false}
+      isRefreshing={false}
+      error={null}
+      currentYear={2026}
+      {...overrides}
+    />,
+  );
+}
 
 function renderChart(
   overrides: Partial<Parameters<typeof SeniorityChart>[0]> = {},
@@ -68,17 +87,7 @@ describe('SeniorityChart', () => {
     });
 
     it('desenha uma barra por nivel recebido', () => {
-      const { container } = render(
-        <SeniorityChart
-          filters={FILTERS}
-          onFiltersChange={vi.fn()}
-          distribution={DISTRIBUTION}
-          isLoading={false}
-          isRefreshing={false}
-          error={null}
-          currentYear={2026}
-        />,
-      );
+      const { container } = renderChartWithDom();
 
       expect(screen.getByTestId('seniority-chart')).toBeInTheDocument();
       expect(container.querySelectorAll('.recharts-rectangle')).toHaveLength(
@@ -126,6 +135,75 @@ describe('SeniorityChart', () => {
       renderChart({ distribution: { ...DISTRIBUTION, levels: [], filteredTotal: 0 } });
 
       expect(screen.getByText('Nenhum nivel selecionado')).toBeInTheDocument();
+    });
+
+    it('deita as barras: a contagem no eixo X e os niveis no eixo Y', () => {
+      const { container } = renderChartWithDom();
+
+      const rotulosY = [
+        ...container.querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick-value'),
+      ].map((tick) => tick.textContent);
+
+      // Os nomes dos niveis saem do eixo horizontal e passam para o vertical.
+      expect(rotulosY).toEqual([
+        'Estágio',
+        'Júnior',
+        'Pleno',
+        'Sênior',
+        'Lead/Especialista',
+        'Não especificado',
+      ]);
+    });
+
+    it('reserva largura para o rotulo mais longo da escala', () => {
+      // "Lead/Especialista" a 11px pede por volta de 100px.
+      expect(Y_AXIS_WIDTH).toBeGreaterThanOrEqual(110);
+    });
+
+    /**
+     * O `<Text>` do Recharts quebraria "Nao especificado" no espaco; o tick
+     * proprio nao tem como. A ausencia de `<tspan>` e a prova de linha unica.
+     */
+    it('escreve cada rotulo do eixo em uma linha so', () => {
+      const { container } = renderChartWithDom();
+
+      const ticks = [
+        ...container.querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick-value'),
+      ];
+
+      expect(ticks).toHaveLength(6);
+      expect(ticks.some((tick) => tick.querySelector('tspan') !== null)).toBe(false);
+    });
+
+    it('da a cada nivel a sua cor, na ordem das barras', () => {
+      const { container } = renderChartWithDom();
+
+      const cores = [...container.querySelectorAll('.recharts-rectangle')].map((bar) =>
+        bar.getAttribute('fill'),
+      );
+
+      expect(cores).toEqual(SENIORITY_LEVEL_IDS.map((id) => seniorityColor(id)));
+    });
+
+    /** Uma cor so para todas as barras era o desenho anterior. */
+    it('nao pinta duas barras com a mesma cor', () => {
+      const { container } = renderChartWithDom();
+
+      const cores = [...container.querySelectorAll('.recharts-rectangle')].map((bar) =>
+        bar.getAttribute('fill'),
+      );
+
+      expect(new Set(cores).size).toBe(cores.length);
+    });
+
+    it('mostra o numero no fim de cada barra', () => {
+      const { container } = renderChartWithDom();
+
+      const rotulos = [...container.querySelectorAll('.recharts-label-list text')].map(
+        (label) => label.textContent,
+      );
+
+      expect(rotulos).toEqual(['5', '15', '30', '20', '10', '20']);
     });
 
     it('esmaece o grafico anterior enquanto o novo recorte carrega', () => {
@@ -268,6 +346,28 @@ describe('SeniorityChart', () => {
       expect(onFiltersChange).toHaveBeenCalledWith({ ...FILTERS, levels: ['MID', 'SENIOR'] });
     });
 
+    it('da ao chip marcado a bolinha na cor da propria barra', () => {
+      renderChart();
+
+      for (const id of SENIORITY_LEVEL_IDS) {
+        expect(screen.getByTestId(`seniority-dot-${id}`)).toHaveStyle({
+          backgroundColor: seniorityColor(id),
+        });
+      }
+    });
+
+    /** Bolinha colorida num chip desmarcado diria que o nivel esta no grafico. */
+    it('apaga a bolinha do chip desmarcado', () => {
+      renderChart({ filters: { ...FILTERS, levels: ['MID'] } });
+
+      expect(screen.getByTestId('seniority-dot-MID')).toHaveStyle({
+        backgroundColor: seniorityColor('MID'),
+      });
+      expect(screen.getByTestId('seniority-dot-SENIOR')).toHaveStyle({
+        backgroundColor: 'var(--color-content-muted)',
+      });
+    });
+
     it('mostra como desmarcados os niveis fora do filtro', () => {
       renderChart({ filters: { ...FILTERS, levels: ['MID'] } });
 
@@ -280,6 +380,25 @@ describe('SeniorityChart', () => {
         'false',
       );
     });
+  });
+});
+
+describe('chartDomain', () => {
+  it('abre folga no fim do eixo para o rotulo da maior barra', () => {
+    expect(chartDomain(toRows(DISTRIBUTION))).toEqual([0, 35]);
+  });
+
+  it('da escala minima ao periodo todo zerado', () => {
+    const zerado = toRows({
+      ...DISTRIBUTION,
+      levels: DISTRIBUTION.levels.map((level) => ({ ...level, total: 0, percentage: 0 })),
+    });
+
+    expect(chartDomain(zerado)).toEqual([0, 1]);
+  });
+
+  it('nao quebra com nenhuma linha', () => {
+    expect(chartDomain([])).toEqual([0, 1]);
   });
 });
 
@@ -357,6 +476,16 @@ describe('SeniorityTooltip', () => {
     expect(screen.getByTestId('seniority-tooltip')).toHaveTextContent('Pleno');
     expect(screen.getByTestId('seniority-tooltip')).toHaveTextContent('30 vagas');
     expect(screen.getByTestId('seniority-tooltip')).toHaveTextContent('30%');
+  });
+
+  it('repete no tooltip a cor da barra', () => {
+    const { container } = render(
+      <SeniorityTooltip active row={{ id: 'LEAD', label: 'Lead', total: 2, percentage: 2 }} />,
+    );
+
+    expect(container.querySelector('span[aria-hidden="true"]')).toHaveStyle({
+      backgroundColor: seniorityColor('LEAD'),
+    });
   });
 
   it('usa o singular para uma vaga', () => {
