@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  BNE_INTERVAL_IN_HOURS,
   DEFAULT_SOURCE_INTERVAL_IN_HOURS,
   SOCIAL_POSTS_INTERVAL_IN_HOURS,
   nextSourceRunAt,
@@ -16,6 +17,17 @@ describe('source-cadence', () => {
   it('espaca as publicacoes do LinkedIn, que custam cota de API', () => {
     expect(sourceIntervalInHours('linkedin-posts')).toBe(SOCIAL_POSTS_INTERVAL_IN_HOURS);
     expect(SOCIAL_POSTS_INTERVAL_IN_HOURS).toBe(4);
+  });
+
+  it('espaca o BNE, que pede uma requisicao de detalhe por vaga candidata', () => {
+    expect(sourceIntervalInHours('bne')).toBe(BNE_INTERVAL_IN_HOURS);
+    expect(BNE_INTERVAL_IN_HOURS).toBe(12);
+  });
+
+  it('anuncia a proxima colheita do BNE no mesmo ritmo que o coletor respeita', () => {
+    expect(nextSourceRunAt('bne', new Date('2026-11-21T10:00:00.000Z'))).toEqual(
+      new Date('2026-11-21T22:00:00.000Z'),
+    );
   });
 
   it('cai no ritmo padrao para uma fonte desconhecida', () => {

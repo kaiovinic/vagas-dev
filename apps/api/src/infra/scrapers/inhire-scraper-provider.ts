@@ -3,8 +3,8 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { RawJobProps } from '@/domain/dtos/raw-job-props';
 import type { JobWorkModel } from '@/domain/entities/job';
 import { HTTP_CLIENT, type IHttpClient } from '@/domain/providers/http-client';
-import { normalizeForMatching } from '@/domain/value-objects/text-normalizer';
 import { BaseScraperProvider } from '@/infra/scrapers/support/base-scraper-provider';
+import { looksLikeDeveloperRole } from '@/infra/scrapers/support/developer-role-hints';
 import { InhireTenantDiscovery } from '@/infra/scrapers/support/inhire-tenant-discovery';
 import { mergeTenants, TENANT_SLUG } from '@/infra/scrapers/support/inhire-tenants';
 import {
@@ -70,43 +70,6 @@ export const INHIRE_REQUEST_DELAY_IN_MS = 1_500;
  * ambiente nunca transforme um ciclo numa rajada de centenas de requisicoes.
  */
 export const INHIRE_MAX_DETAILS_PER_CYCLE = 80;
-
-/**
- * Cargos que valem uma requisicao de detalhe.
- *
- * Isto NAO e filtro de dominio, e a busca que falta: a API da InHire nao aceita
- * termo de pesquisa, devolve o quadro inteiro da empresa — comercial, logistica,
- * juridico — e e a unica fonte do radar em que a data de publicacao so existe no
- * detalhe. Sem recorte, cada ciclo pediria o detalhe das 410 vagas dos tenants
- * semente para achar as poucas de desenvolvimento.
- *
- * Por isso a lista e deliberadamente mais larga que a regra de stack: ela diz
- * apenas "isto e um cargo de desenvolvimento", e nao se a vaga serve. Quem
- * decide continua sendo o `JobRuleEngine`, que recebe o anuncio completo —
- * inclusive o backend Java e o ADVPL que entram aqui e sao descartados la.
- */
-export const INHIRE_ROLE_HINTS: readonly string[] = [
-  'desenvolvedor',
-  'desenvolvedora',
-  'developer',
-  'programador',
-  'programadora',
-  'engenheiro de software',
-  'engenheira de software',
-  'software engineer',
-  'frontend',
-  'front-end',
-  'front end',
-  'fullstack',
-  'full stack',
-  'full-stack',
-  'react',
-  'angular',
-  'node',
-  '.net',
-  'dotnet',
-  'typescript',
-];
 
 /**
  * `, BR` no fim de "Salvador, BA, BR": o pais nao acrescenta nada ao painel.
@@ -322,7 +285,7 @@ function toCandidate(
   const jobId = readString(entry.jobId);
   const title = readString(entry.displayName);
 
-  if (jobId.length === 0 || readString(entry.status) !== PUBLISHED || !isDevelopmentRole(title)) {
+  if (jobId.length === 0 || readString(entry.status) !== PUBLISHED || !looksLikeDeveloperRole(title)) {
     return [];
   }
 
@@ -330,12 +293,6 @@ function toCandidate(
   // editado mudaria o slug e criaria uma segunda url para a mesma vaga — ou
   // seja, uma vaga duplicada, ja que a url e a chave unica no banco.
   return [{ tenant, company, jobId, url: `https://${tenant}.inhire.app/vagas/${jobId}` }];
-}
-
-function isDevelopmentRole(title: string): boolean {
-  const normalized = normalizeForMatching(title);
-
-  return INHIRE_ROLE_HINTS.some((hint) => normalized.includes(hint));
 }
 
 function toWorkModel(workplaceType: string): JobWorkModel {

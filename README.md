@@ -47,11 +47,12 @@ Toda saída HTTP passa por um decorator de repeticão: 429, timeout e 5xx são t
 
 Volume não é qualidade: o Next Commit lidera as leituras e as publicações do LinkedIn trazem cinco por ciclo, mas são elas que acham a vaga que não está em portal nenhum.
 
-Três coletores existem, são testados e estão **fora do registro**, cada um por um motivo medido:
+Quatro coletores existem, são testados e estão **fora do registro**, cada um por um motivo medido:
 
 - **Jobbol** — o site fica atrás do Bot Management da Cloudflare, que responde `403` a qualquer cliente que não seja navegador. O bloqueio é por impressão digital de TLS: `curl` com o mesmo User-Agent recebe 200, o axios recebe 403.
 - **Sólides** — a área de "tecnologia" é suporte e infraestrutura. Das 124 vagas da Bahia, 7 citam a stack e nenhuma estava dentro da janela.
 - **Coodesh** — o catálogo real fica atrás de API autenticada; o sitemap público é dominado por vagas de vendas do Google Cloud.
+- **BNE** — o site cobra para se candidatar, e não na margem: das 20 vagas de dev em Salvador/BA, **20 exigem o Plano VIP**; nas 20 home office da capital, as 20. Só uma das 20 da busca nacional de full stack aceita candidatura livre. Anunciar vaga que não dá para responder gasta a atenção duas vezes. Detalhes da leitura e do paywall em [`bne-scraper-provider.ts`](apps/api/src/infra/scrapers/bne-scraper-provider.ts).
 
 Religar qualquer um é devolver o import e uma linha ao módulo.
 

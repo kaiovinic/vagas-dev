@@ -25,9 +25,26 @@ export const SOCIAL_POSTS_INTERVAL_IN_HOURS = 4;
  */
 export const AUTH_SOCIAL_POSTS_INTERVAL_IN_HOURS = 8;
 
+/**
+ * BNE: duas requisicoes por vaga, e a listagem quase sempre sem nada na janela.
+ *
+ * O coletor esta fora do registro — o site cobra para se candidatar — e este
+ * numero fica aqui para o dia em que ele voltar: e o intervalo que o proprio
+ * coletor respeita e o que a tabela de saude anunciaria.
+ *
+ * A data de publicacao do BNE existe so na pagina da vaga, entao cada ciclo
+ * custa uma requisicao de busca mais uma de detalhe por candidata — dezenas no
+ * total. Como a listagem nao e ordenada por data e acumula anuncio de meses
+ * atras, visitar a cada duas horas gastaria esse ciclo inteiro para
+ * reconfirmar as mesmas vagas velhas. Duas vezes por dia cobre com folga uma
+ * janela de 72h.
+ */
+export const BNE_INTERVAL_IN_HOURS = 12;
+
 const INTERVALS: Readonly<Record<string, number>> = {
   'linkedin-posts': SOCIAL_POSTS_INTERVAL_IN_HOURS,
   'linkedin-auth-posts': AUTH_SOCIAL_POSTS_INTERVAL_IN_HOURS,
+  bne: BNE_INTERVAL_IN_HOURS,
 };
 
 export function sourceIntervalInHours(source: string): number {

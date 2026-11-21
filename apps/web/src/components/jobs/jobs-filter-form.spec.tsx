@@ -94,6 +94,7 @@ describe('JobsFilterForm', () => {
       'Remotar',
       'ProgramaThor',
       'Next Commit',
+      'InHire',
       'Publicação LinkedIn',
     ]) {
       expect(screen.getByRole('option', { name: source })).toBeInTheDocument();
