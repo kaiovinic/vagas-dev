@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { jobPostingDescriptionFrom } from '@/infra/scrapers/support/job-posting-json-ld';
+import {
+  jobPostingDescriptionFrom,
+  jobPostingFrom,
+} from '@/infra/scrapers/support/job-posting-json-ld';
 import { readFixture } from '../../../../test/factories/fake-http-client';
 
 const JOBICY = readFixture('jobicy-job.html');
@@ -85,5 +88,73 @@ describe('jobPostingDescriptionFrom', () => {
 
   it('devolve vazio para bloco nulo', () => {
     expect(jobPostingDescriptionFrom(page('null'))).toBe('');
+  });
+});
+
+describe('jobPostingFrom', () => {
+  const COMPLETO = JSON.stringify({
+    '@type': 'JobPosting',
+    title: 'desenvolvedor',
+    description: '<p>Vaga React</p>',
+    datePosted: '2026-09-28',
+    validThrough: '2027-09-28',
+    hiringOrganization: { '@type': 'Organization', name: 'Softwell' },
+    jobLocation: {
+      '@type': 'Place',
+      address: { '@type': 'PostalAddress', addressLocality: 'Salvador', addressRegion: 'BA' },
+    },
+  });
+
+  it('le os campos que o radar aproveita', () => {
+    expect(jobPostingFrom(page(COMPLETO))).toEqual({
+      title: 'desenvolvedor',
+      company: 'Softwell',
+      description: '<p>Vaga React</p>',
+      datePosted: '2026-09-28',
+      validThrough: '2027-09-28',
+      locality: 'Salvador',
+      region: 'BA',
+    });
+  });
+
+  it('entrega a descricao como o anunciante escreveu, sem converter para texto', () => {
+    expect(jobPostingFrom(page(COMPLETO))?.description).toContain('<p>');
+  });
+
+  it('devolve o bloco mesmo sem descricao, porque a data basta', () => {
+    const semDescricao = JSON.stringify({ '@type': 'JobPosting', datePosted: '2026-11-20' });
+
+    expect(jobPostingFrom(page(semDescricao))?.datePosted).toBe('2026-11-20');
+  });
+
+  it('entrega campo vazio no lugar do que a pagina nao declarou', () => {
+    expect(jobPostingFrom(page(JSON.stringify({ '@type': 'JobPosting' })))).toEqual({
+      title: '',
+      company: '',
+      description: '',
+      datePosted: '',
+      validThrough: '',
+      locality: '',
+      region: '',
+    });
+  });
+
+  it('ignora campo que nao e texto em vez de propagar o valor', () => {
+    const estranho = JSON.stringify({ '@type': 'JobPosting', datePosted: 42, title: null });
+
+    expect(jobPostingFrom(page(estranho))?.datePosted).toBe('');
+  });
+
+  it('le a vaga da pagina real do BNE', () => {
+    const posting = jobPostingFrom(readFixture('bne-job-detail.html'));
+
+    expect(posting?.datePosted).toBe('2026-09-28');
+    expect(posting?.company).toBe('Softwell');
+    expect(posting?.locality).toBe('Salvador');
+    expect(posting?.region).toBe('BA');
+  });
+
+  it('nao encontra nada quando a pagina nao tem vaga', () => {
+    expect(jobPostingFrom(page(JSON.stringify({ '@type': 'Organization' })))).toBeUndefined();
   });
 });

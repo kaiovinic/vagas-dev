@@ -114,6 +114,22 @@ const SCRAPERS = [
   // LINKEDIN_POSTS_WORKER_URL vira no-op silencioso (RFC 001).
   LinkedinAuthPostsScraperProvider,
   NextCommitScraperProvider,
+  // BneScraperProvider: fora do registro de proposito. Medido em 21/11/2026:
+  //
+  //   candidatura livre | exige Plano VIP
+  //   Salvador/BA              0 | 20
+  //   Salvador/BA home office  0 | 20
+  //   full stack nacional      1 | 19
+  //
+  // Toda vaga de dev da Bahia no site e `data-job-type="exclusiva"`: para se
+  // candidatar e preciso assinar. Somado a isso, a listagem nao e ordenada por
+  // data e quase nunca tem algo dentro das 72h — o anuncio mais novo em
+  // Salvador era de 28/09, com um de 16/09/2025 ainda no ar. Fonte que custa
+  // uma requisicao de detalhe por candidata para entregar vaga que o usuario
+  // nao pode responder.
+  //
+  // O coletor e os 29 testes seguem no repositorio; para religar, basta o
+  // import e esta linha de volta.
   // JobbolScraperProvider: fora do registro de proposito. O site esta atras do
   // Bot Management da Cloudflare, que responde 403 (`cf-mitigated: challenge`)
   // a qualquer cliente HTTP que nao seja navegador — o bloqueio e por

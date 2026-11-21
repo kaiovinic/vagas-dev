@@ -5,6 +5,25 @@ import { htmlToText } from '@/infra/scrapers/support/scraper-helpers';
 const JSON_LD = 'script[type="application/ld+json"]';
 
 /**
+ * Campos do `JobPosting` que o radar aproveita.
+ *
+ * Toda string vem normalizada e possivelmente vazia: o bloco e escrito pelo
+ * site, nao validado por ninguem, e campo ausente e a regra e nao a excecao.
+ */
+export interface JobPostingFields {
+  readonly title: string;
+  readonly company: string;
+  /** HTML cru, como o anunciante escreveu; quem exibe passa pelo `htmlToText`. */
+  readonly description: string;
+  readonly datePosted: string;
+  readonly validThrough: string;
+  readonly locality: string;
+  readonly region: string;
+}
+
+type JsonRecord = Record<string, unknown>;
+
+/**
  * Descricao do anuncio a partir do JSON-LD `JobPosting` da pagina.
  *
  * Serve para quem agrega vagas de terceiros: o anuncio final mora em dezenas de
@@ -17,17 +36,55 @@ const JSON_LD = 'script[type="application/ld+json"]';
  * sinal de "esta origem nao da para ler" e nao um erro.
  */
 export function jobPostingDescriptionFrom(html: string): string {
+  const posting = findJobPosting(html, (node) => readString(node.description).length > 0);
+
+  return posting ? htmlToText(readString(posting.description)) : '';
+}
+
+/**
+ * O anuncio inteiro, e nao so a descricao.
+ *
+ * Existe pelo BNE, cuja listagem nao publica data em lugar nenhum: a data de
+ * publicacao da vaga so aparece no `datePosted` deste bloco, e sem ela nao ha
+ * como honrar a janela de 72h. Como o formato e padronizado, qualquer fonte
+ * futura que publique `JobPosting` le os mesmos campos por aqui.
+ */
+export function jobPostingFrom(html: string): JobPostingFields | undefined {
+  const posting = findJobPosting(html, () => true);
+
+  return posting ? toFields(posting) : undefined;
+}
+
+function toFields(posting: JsonRecord): JobPostingFields {
+  const address = asRecord(asRecord(posting.jobLocation)?.address);
+
+  return {
+    title: readString(posting.title),
+    company: readString(asRecord(posting.hiringOrganization)?.name),
+    description: readString(posting.description),
+    datePosted: readString(posting.datePosted),
+    validThrough: readString(posting.validThrough),
+    locality: readString(address?.addressLocality),
+    region: readString(address?.addressRegion),
+  };
+}
+
+/** Primeiro `JobPosting` da pagina que satisfaz o criterio de quem chamou. */
+function findJobPosting(
+  html: string,
+  accept: (posting: JsonRecord) => boolean,
+): JsonRecord | undefined {
   const $ = cheerio.load(html);
 
   for (const element of $(JSON_LD).toArray()) {
-    const description = descriptionIn(parse($(element).text()));
+    const posting = postingIn(parse($(element).text()), accept);
 
-    if (description.length > 0) {
-      return htmlToText(description);
+    if (posting) {
+      return posting;
     }
   }
 
-  return '';
+  return undefined;
 }
 
 function parse(raw: string): unknown {
@@ -44,32 +101,40 @@ function parse(raw: string): unknown {
  * O bloco vem de tres formas no mundo real: o objeto direto, uma lista de
  * objetos e o `@graph` de quem declara varias entidades numa tag so.
  */
-function descriptionIn(node: unknown): string {
+function postingIn(
+  node: unknown,
+  accept: (posting: JsonRecord) => boolean,
+): JsonRecord | undefined {
   if (Array.isArray(node)) {
-    return firstOf(node);
+    return firstOf(node, accept);
   }
 
-  if (!isRecord(node)) {
-    return '';
+  const record = asRecord(node);
+
+  if (!record) {
+    return undefined;
   }
 
-  if (isJobPosting(node['@type']) && typeof node.description === 'string') {
-    return node.description;
+  if (isJobPosting(record['@type']) && accept(record)) {
+    return record;
   }
 
-  return firstOf(Array.isArray(node['@graph']) ? node['@graph'] : []);
+  return firstOf(Array.isArray(record['@graph']) ? record['@graph'] : [], accept);
 }
 
-function firstOf(nodes: readonly unknown[]): string {
+function firstOf(
+  nodes: readonly unknown[],
+  accept: (posting: JsonRecord) => boolean,
+): JsonRecord | undefined {
   for (const node of nodes) {
-    const description = descriptionIn(node);
+    const posting = postingIn(node, accept);
 
-    if (description.length > 0) {
-      return description;
+    if (posting) {
+      return posting;
     }
   }
 
-  return '';
+  return undefined;
 }
 
 /** `@type` pode ser a string ou uma lista com ela dentro. */
@@ -81,6 +146,10 @@ function isJobPosting(type: unknown): boolean {
   return type === 'JobPosting';
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+function asRecord(value: unknown): JsonRecord | undefined {
+  return typeof value === 'object' && value !== null ? (value as JsonRecord) : undefined;
+}
+
+function readString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
 }
